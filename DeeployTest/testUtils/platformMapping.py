@@ -39,13 +39,16 @@ from Deeploy.Targets.MemPool.Platform import MemPoolOptimizer, MemPoolPlatform
 from Deeploy.Targets.Neureka.Deployer import NeurekaDeployer
 from Deeploy.Targets.Neureka.Platform import MemoryNeurekaPlatform, MemoryNeurekaPlatformWrapper, NeurekaOptimizer, \
     NeurekaPlatform
+from Deeploy.Targets.NeurekaV2.Deployer import NeurekaV2Deployer
+from Deeploy.Targets.NeurekaV2.Platform import MemoryNeurekaV2Platform, MemoryNeurekaV2PlatformWrapper, \
+    NeurekaV2Optimizer, NeurekaV2Platform
 from Deeploy.Targets.PULPOpen.Deployer import PULPDeployer
 from Deeploy.Targets.PULPOpen.Platform import MemoryPULPPlatform, MemoryPULPPlatformWrapper, PULPOptimizer, PULPPlatform
 from Deeploy.Targets.Snitch.Deployer import SnitchDeployer
 from Deeploy.Targets.Snitch.Platform import SnitchOptimizer, SnitchPlatform
 
 _SIGNPROP_PLATFORMS = ["Apollo3", "Apollo4", "QEMU-ARM", "Generic", "MemPool"]
-_NONSIGNPROP_PLATFORMS = ["Siracusa", "Siracusa_w_neureka", "PULPOpen", "Snitch"]
+_NONSIGNPROP_PLATFORMS = ["Siracusa", "Siracusa_w_neureka", "Siracusa_w_neureka_v2", "PULPOpen", "Snitch"]
 _PLATFORMS = _SIGNPROP_PLATFORMS + _NONSIGNPROP_PLATFORMS
 
 
@@ -78,6 +81,9 @@ def mapPlatform(platformName: str) -> Tuple[DeploymentPlatform, bool]:
     elif platformName == "Siracusa_w_neureka":
         Platform = NeurekaPlatform()
 
+    elif platformName == "Siracusa_w_neureka_v2":
+        Platform = NeurekaV2Platform()
+
     elif platformName == "Snitch":
         Platform = SnitchPlatform()
 
@@ -95,6 +101,10 @@ def setupMemoryPlatform(platform: DeploymentPlatform, memoryHierarchy: MemoryHie
         weightMemoryLevel = memoryHierarchy.memoryLevels["WeightMemory_SRAM"] \
             if "WeightMemory_SRAM" in memoryHierarchy.memoryLevels else None
         return MemoryNeurekaPlatformWrapper(platform, memoryHierarchy, defaultTargetMemoryLevel, weightMemoryLevel)
+    elif isinstance(platform, NeurekaV2Platform):
+        weightMemoryLevel = memoryHierarchy.memoryLevels["WeightMemory_SRAM"] \
+            if "WeightMemory_SRAM" in memoryHierarchy.memoryLevels else None
+        return MemoryNeurekaV2PlatformWrapper(platform, memoryHierarchy, defaultTargetMemoryLevel, weightMemoryLevel)
     else:
         return MemoryPlatformWrapper(platform, memoryHierarchy, defaultTargetMemoryLevel)
 
@@ -191,6 +201,23 @@ def mapDeployer(platform: DeploymentPlatform,
                                    name = name,
                                    default_channels_first = default_channels_first,
                                    deeployStateDir = deeployStateDir)
+
+    elif isinstance(platform, (NeurekaV2Platform, MemoryNeurekaV2Platform, MemoryNeurekaV2PlatformWrapper)):
+
+        if loweringOptimizer is None:
+            loweringOptimizer = NeurekaV2Optimizer
+
+        if default_channels_first is None:
+            default_channels_first = False
+
+        deployer = NeurekaV2Deployer(graph,
+                                     platform,
+                                     inputTypes,
+                                     loweringOptimizer,
+                                     scheduler,
+                                     name = name,
+                                     default_channels_first = default_channels_first,
+                                     deeployStateDir = deeployStateDir)
 
     elif isinstance(platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
 

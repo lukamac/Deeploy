@@ -34,11 +34,14 @@ elseif(DEEPLOY_ARCH STREQUAL PULP)
     -Wno-pointer-sign
   )
 
-  if(platform STREQUAL Siracusa OR platform STREQUAL Siracusa_w_neureka)
+  SET(SIRACUSA_PLATFORMS "Siracusa;Siracusa_w_neureka;Siracusa_w_neureka_v2")
+
+  if(platform IN_LIST SIRACUSA_PLATFORMS)
     add_subdirectory(Platforms/Siracusa)
   elseif(platform STREQUAL PULPOpen)
     add_subdirectory(Platforms/PULPOpen)
   endif()
+
 elseif(DEEPLOY_ARCH STREQUAL SNITCH)
   add_subdirectory(Platforms/Snitch)
 

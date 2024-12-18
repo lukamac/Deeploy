@@ -1,0 +1,6 @@
+{
+  "reportAttributeAccessIssue": false,
+  "reportReturnType": false,
+  "reportArgumentType": false,
+  "reportIncompatibleMethodOverride": false,
+}
