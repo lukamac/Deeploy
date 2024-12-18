@@ -31,18 +31,18 @@ from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.Lowe
     RequantizedGemmToPwPass
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, NodeTemplate, TopologyOptimizer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
-from Deeploy.Targets.Neureka.Engine import NeurekaEngine
-from Deeploy.Targets.Neureka.Templates.AllocateTemplate import neurekaGenericGlobalInitTemplate
+from Deeploy.Targets.NeurekaV2.Engine import NeurekaV2Engine
+from Deeploy.Targets.NeurekaV2.Templates.AllocateTemplate import neurekaGenericGlobalInitTemplate
 from Deeploy.Targets.PULPOpen.Platform import MemoryPULPPlatform, MemoryPULPPlatformWrapper, PULPClusterEngine, \
     PULPOptimizer, PULPPlatform, PULPStructBuffer, PULPTransientBuffer, PULPVariableBuffer
 
-NeurekaOptimizer = TopologyOptimizer([
+NeurekaV2Optimizer = TopologyOptimizer([
     *PULPOptimizer.passes,
     RequantizedGemmToPwPass(),
 ])
 
 
-class NeurekaConstantBuffer(ConstantBuffer):
+class NeurekaV2ConstantBuffer(ConstantBuffer):
 
     initTemplate = neurekaGenericGlobalInitTemplate
     allocTemplate = NodeTemplate("")
@@ -54,26 +54,26 @@ class NeurekaConstantBuffer(ConstantBuffer):
         return operatorRepresentation
 
 
-class NeurekaPlatform(PULPPlatform):
+class NeurekaV2Platform(PULPPlatform):
 
     def __init__(self,
-                 engines = [NeurekaEngine("Neureka"), PULPClusterEngine("PULPCluster")],
+                 engines = [NeurekaV2Engine("NeurekaV2"), PULPClusterEngine("PULPCluster")],
                  variableBuffer = PULPVariableBuffer,
-                 constantBuffer = NeurekaConstantBuffer,
+                 constantBuffer = NeurekaV2ConstantBuffer,
                  structBuffer = PULPStructBuffer,
                  transientBuffer = PULPTransientBuffer) -> None:
         super().__init__(engines, variableBuffer, constantBuffer, structBuffer, transientBuffer)
 
 
-class MemoryNeurekaPlatform(MemoryPULPPlatform):
+class MemoryNeurekaV2Platform(MemoryPULPPlatform):
 
     def __init__(self,
                  memoryHierarchy: MemoryHierarchy,
                  defaultTargetMemoryLevel: MemoryLevel,
                  weightMemoryLevel: Optional[MemoryLevel] = None,
-                 engines = [NeurekaEngine("Neureka"), PULPClusterEngine("PULPCluster")],
+                 engines = [NeurekaV2Engine("NeurekaV2"), PULPClusterEngine("PULPCluster")],
                  variableBuffer = PULPVariableBuffer,
-                 constantBuffer = NeurekaConstantBuffer,
+                 constantBuffer = NeurekaV2ConstantBuffer,
                  structBuffer = PULPStructBuffer,
                  transientBuffer = PULPTransientBuffer) -> None:
         super().__init__(memoryHierarchy, defaultTargetMemoryLevel, engines, variableBuffer, constantBuffer,
@@ -86,15 +86,15 @@ class MemoryNeurekaPlatform(MemoryPULPPlatform):
         return super().getTargetMemoryLevel(node, tensorName, ctxt)
 
 
-class MemoryNeurekaPlatformWrapper(MemoryPULPPlatformWrapper):
+class MemoryNeurekaV2PlatformWrapper(MemoryPULPPlatformWrapper):
 
     def __init__(self,
-                 platform: NeurekaPlatform,
+                 platform: NeurekaV2Platform,
                  memoryHierarchy: MemoryHierarchy,
                  defaultTargetMemoryLevel: MemoryLevel,
                  weightMemoryLevel: Optional[MemoryLevel] = None):
-        assert isinstance(platform, NeurekaPlatform), \
-        f"Given platform is not an instance of NeurekaPlatform. Platform type: {type(platform).__name__}"
+        assert isinstance(platform, NeurekaV2Platform), \
+        f"Given platform is not an instance of NeurekaV2Platform. Platform type: {type(platform).__name__}"
         super().__init__(platform, memoryHierarchy, defaultTargetMemoryLevel)
         self.weightMemoryLevel = weightMemoryLevel
 

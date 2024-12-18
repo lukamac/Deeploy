@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------
 #
-# File: NeurekaPointwiseConstraint.py
+# File: NeurekaV2DepthwiseConstraint.py
 #
 # Last edited: 26.07.2024
 #
@@ -28,7 +28,7 @@ from typing import Dict, List, Tuple
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import uint8_t, uint16_t, uint32_t
 from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
-from Deeploy.Targets.Neureka.Templates.ConvTemplate import Neureka2DPWConvTemplate, getInputAddrOffset, \
+from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV22DDWConvTemplate, getInputAddrOffset, \
     ioStridesFromDimensions
 from Deeploy.Targets.PULPOpen.TileConstraints.ConvTileConstraint import Conv2DTileConstraint
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
@@ -38,7 +38,7 @@ from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, HyperR
     VariableReplacementScheme, calculateRectangleOffset
 
 
-class NeurekaPWConv2DTileConstraint(TileConstraint):
+class NeurekaV2DWConv2DTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
@@ -46,6 +46,10 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
         inputBufferName = parseDict['data_in']
         weightBufferName = parseDict['weight']
         outputBufferName = parseDict['data_out']
+
+        strides = parseDict["strides"]
+        padding = parseDict["pads"]
+        dilation = parseDict["dilations"]
 
         # Add I/O dimensions to the model as variables
         for bufferName in [inputBufferName, weightBufferName, outputBufferName]:
@@ -58,21 +62,28 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
 
         weightOutChannelVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 0)
         weightInChannelMajorVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 1)
-        weightBandwidthVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 2)
+        weightBitsVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 2)
+        weightBandwidthVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 3)
 
         outputBatchVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 0)
         outputHeightVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 1)
         outputWidthVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 2)
         outputChannelVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 3)
-
         # Map output dims to inputs dims
         tilerModel.addConstraint(outputBatchVar == inputBatchVar)  # Batch
         tilerModel.addConstraint(outputChannelVar == weightOutChannelVar)  # Output Channel
-        tilerModel.addConstraint(outputHeightVar == inputHeightVar)
-        tilerModel.addConstraint(outputWidthVar == inputWidthVar)
+        tilerModel.addConstraint(outputChannelVar == inputChannelVar)  # Output Channel
 
-        tilerModel.addConstraint(inputHeightVar >= 1)
-        tilerModel.addConstraint(inputWidthVar >= 1)
+        tilerModel.addConstraint(inputHeightVar >= 3)
+        tilerModel.addConstraint(inputWidthVar >= 3)
+
+        inputBuffer = ctxt.lookup(inputBufferName)
+
+        effectiveHeight = inputHeightVar + ((padding[0] + padding[2]) * (inputHeightVar == inputBuffer.shape[1]))
+        effectiveWidth = inputWidthVar + ((padding[1] + padding[3]) * (inputWidthVar == inputBuffer.shape[2]))
+
+        tilerModel.addConstraint((outputHeightVar == (effectiveHeight - (3 - 1) - 1) // strides[0] + 1))
+        tilerModel.addConstraint((outputWidthVar == (effectiveWidth - (3 - 1) - 1) // strides[1] + 1))
 
         return tilerModel
 
@@ -88,10 +99,6 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
         inputWidthVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 2)
         inputChannelVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 3)
 
-        weightOutChannelVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 0)
-        weightInChannelMajorVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 1)
-        weightBandwidthVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 2)
-
         outputHeightVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 1)
         outputWidthVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 2)
         outputChannelVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 3)
@@ -99,42 +106,11 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
         strides = parseDict["strides"]
         padding = parseDict["pads"]
 
-        # LMACAN: Force full input channel to avoid partial results
-        tilerModel.addConstraint(inputChannelVar == inputChannelVar.Max())
-        tilerModel.addConstraint(weightInChannelMajorVar == weightInChannelMajorVar.Max())
-        tilerModel.addConstraint(weightBandwidthVar == weightBandwidthVar.Max())
-
         tilerModel.addConstraint((inputHeightVar % strides[0]) == 0)
         tilerModel.addConstraint((inputWidthVar % strides[1]) == 0)
 
-        # N-EUREKA tile constraints to align with N-EUREKA's hardware subtiling
-        if parseDict["dim_im_out_x"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_x",
-                                                      outputHeightVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 3))
-        else:
-            tilerModel.addConstraint(outputHeightVar == outputHeightVar.Max(), strategy = PerformanceHint(priority = 3))
-
-        if parseDict["dim_im_out_y"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_y",
-                                                      outputWidthVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 2))
-        else:
-            tilerModel.addConstraint(outputWidthVar == outputWidthVar.Max(), strategy = PerformanceHint(priority = 2))
-
-        if parseDict["ch_im_out"] > 32:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "ch_im_out",
-                                                      outputChannelVar,
-                                                      32,
-                                                      strategy = PerformanceHint(priority = 1))
-        else:
-            tilerModel.addConstraint(outputChannelVar == outputChannelVar.Max(),
-                                     strategy = PerformanceHint(priority = 1))
+        tilerModel.addConstraint(inputHeightVar == inputHeightVar.Max(), strategy = PerformanceHint(1))
+        tilerModel.addConstraint(inputWidthVar == inputWidthVar.Max(), strategy = PerformanceHint(1))
 
         return tilerModel
 
@@ -233,7 +209,7 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
             replacements['input_addr_offset'].append(
                 getInputAddrOffset(inWSize, dim_im_in_y_stride, padding_top, padding_left))
 
-            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = Neureka2DPWConvTemplate.getCounters(
+            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = NeurekaV22DDWConvTemplate.getCounters(
                 inCSize, HSize, WSize, CSize, padding_bottom, padding_right, operatorRepresentation)
 
             replacements["nKo"].append(nKo)
@@ -269,11 +245,11 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
         return variableReplacementSchedule, tilingSchedule
 
 
-class NeurekaRQSPWConv2DTileConstraint(NeurekaPWConv2DTileConstraint):
+class NeurekaV2RQSDWConv2DTileConstraint(NeurekaV2DWConv2DTileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
-        tilerModel = NeurekaPWConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
+        tilerModel = NeurekaV2DWConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
 
         outputBufferName = parseDict['data_out']
         mulBufferName = parseDict['mul']
@@ -323,7 +299,7 @@ class NeurekaRQSPWConv2DTileConstraint(NeurekaPWConv2DTileConstraint):
         return variableReplacementSchedule, newTilingSchedule
 
 
-class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
+class NeurekaV2WmemDWConv2DTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
@@ -331,29 +307,37 @@ class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
         weightBufferName = parseDict['weight']
         outputBufferName = parseDict['data_out']
 
+        strides = parseDict["strides"]
+        padding = parseDict["pads"]
+        dilation = parseDict["dilations"]
+
         for bufferName in [inputBufferName, weightBufferName, outputBufferName]:
             tilerModel.addTensorDimToModel(ctxt, bufferName)
 
         inputBatchVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 0)
         inputHeightVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 1)
         inputWidthVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 2)
-
-        weightOutChannelVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 0)
+        inputChannelVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 3)
 
         outputBatchVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 0)
         outputHeightVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 1)
         outputWidthVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 2)
+        outputChannelVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 3)
 
         # Map output dims to inputs dims
         tilerModel.addConstraint(outputBatchVar == inputBatchVar)
-        tilerModel.addConstraint(outputHeightVar == inputHeightVar)
-        tilerModel.addConstraint(outputWidthVar == inputWidthVar)
+        tilerModel.addConstraint(outputChannelVar == inputChannelVar)
 
-        # Don't tile weights in weight memory
-        tilerModel.addConstraint(weightOutChannelVar == weightOutChannelVar.Max())
+        tilerModel.addConstraint(inputHeightVar >= 3)
+        tilerModel.addConstraint(inputWidthVar >= 3)
 
-        tilerModel.addConstraint(inputHeightVar >= 1)
-        tilerModel.addConstraint(inputWidthVar >= 1)
+        inputBuffer = ctxt.lookup(inputBufferName)
+
+        effectiveHeight = inputHeightVar + ((padding[0] + padding[2]) * (inputHeightVar == inputBuffer.shape[1]))
+        effectiveWidth = inputWidthVar + ((padding[1] + padding[3]) * (inputWidthVar == inputBuffer.shape[2]))
+
+        tilerModel.addConstraint((outputHeightVar == (effectiveHeight - (3 - 1) - 1) // strides[0] + 1))
+        tilerModel.addConstraint((outputWidthVar == (effectiveWidth - (3 - 1) - 1) // strides[1] + 1))
 
         return tilerModel
 
@@ -365,14 +349,12 @@ class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
         weightBuffer = ctxt.lookup(name = parseDict['weight'])
         outputBuffer = ctxt.lookup(name = parseDict['data_out'])
 
+        inputBatchVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 0)
         inputHeightVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 1)
         inputWidthVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 2)
         inputChannelVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 3)
 
-        weightOutChannelVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 0)
-        weightInChannelMajorVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 1)
-        weightBandwidthVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 2)
-
+        outputBatchVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 0)
         outputHeightVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 1)
         outputWidthVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 2)
         outputChannelVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = 3)
@@ -380,42 +362,11 @@ class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
         strides = parseDict["strides"]
         padding = parseDict["pads"]
 
-        # LMACAN: Force full input channel to avoid partial results
-        tilerModel.addConstraint(inputChannelVar == inputChannelVar.Max())
-        tilerModel.addConstraint(weightInChannelMajorVar == weightInChannelMajorVar.Max())
-        tilerModel.addConstraint(weightBandwidthVar == weightBandwidthVar.Max())
-
         tilerModel.addConstraint((inputHeightVar % strides[0]) == 0)
         tilerModel.addConstraint((inputWidthVar % strides[1]) == 0)
 
-        # N-EUREKA tile constraints to align with N-EUREKA's hardware subtiling
-        if parseDict["dim_im_out_x"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_x",
-                                                      outputHeightVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 3))
-        else:
-            tilerModel.addConstraint(outputHeightVar == outputHeightVar.Max(), strategy = PerformanceHint(priority = 3))
-
-        if parseDict["dim_im_out_y"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_y",
-                                                      outputWidthVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 2))
-        else:
-            tilerModel.addConstraint(outputWidthVar == outputWidthVar.Max(), strategy = PerformanceHint(priority = 2))
-
-        if parseDict["ch_im_out"] > 32:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "ch_im_out",
-                                                      outputChannelVar,
-                                                      32,
-                                                      strategy = PerformanceHint(priority = 1))
-        else:
-            tilerModel.addConstraint(outputChannelVar == outputChannelVar.Max(),
-                                     strategy = PerformanceHint(priority = 1))
+        tilerModel.addConstraint(inputHeightVar == inputHeightVar.Max(), strategy = PerformanceHint(1))
+        tilerModel.addConstraint(inputWidthVar == inputWidthVar.Max(), strategy = PerformanceHint(1))
 
         return tilerModel
 
@@ -516,7 +467,7 @@ class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
             replacements['input_addr_offset'].append(
                 getInputAddrOffset(inWSize, dim_im_in_y_stride, padding_top, padding_left))
 
-            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = Neureka2DPWConvTemplate.getCounters(
+            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = NeurekaV22DDWConvTemplate.getCounters(
                 inCSize, HSize, WSize, CSize, padding_bottom, padding_right, operatorRepresentation)
 
             replacements["nKo"].append(nKo)
@@ -552,11 +503,11 @@ class NeurekaWmemPWConv2DTileConstraint(TileConstraint):
         return variableReplacementSchedule, tilingSchedule
 
 
-class NeurekaWmemRQSPWConv2DTileConstraint(NeurekaWmemPWConv2DTileConstraint):
+class NeurekaV2WmemRQSDWConv2DTileConstraint(NeurekaV2WmemDWConv2DTileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
-        tilerModel = NeurekaWmemPWConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
+        tilerModel = NeurekaV2WmemDWConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
 
         outputBufferName = parseDict['data_out']
         mulBufferName = parseDict['mul']

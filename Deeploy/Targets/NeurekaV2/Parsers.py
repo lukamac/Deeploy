@@ -31,7 +31,7 @@ from Deeploy.DeeployTypes import NetworkContext
 from Deeploy.Targets.Generic.Parsers import ConvParser, RQSParserInterface
 
 
-class NeurekaConv2DBaseParser(ConvParser):
+class NeurekaV2Conv2DBaseParser(ConvParser):
 
     def __init__(self, noBiasHoisting: bool = True):
         super().__init__(noBiasHoisting)
@@ -107,7 +107,7 @@ class NeurekaConv2DBaseParser(ConvParser):
         return newCtxt, True
 
 
-class NeurekaDWConv2DParser(NeurekaConv2DBaseParser):
+class NeurekaV2DWConv2DParser(NeurekaV2Conv2DBaseParser):
 
     def parseNode(self, node: gs.Node) -> bool:
         if not super().parseNode(node):
@@ -136,12 +136,12 @@ class NeurekaDWConv2DParser(NeurekaConv2DBaseParser):
         return newCtxt, True
 
 
-class NeurekaRQSDWConv2DParser(NeurekaDWConv2DParser, RQSParserInterface):
+class NeurekaV2RQSDWConv2DParser(NeurekaV2DWConv2DParser, RQSParserInterface):
 
     def parseNode(self, node: gs.Node) -> bool:
         ret = all([
             RQSParserInterface.parseNode(self, node),
-            NeurekaDWConv2DParser.parseNode(self, node),
+            NeurekaV2DWConv2DParser.parseNode(self, node),
         ])
 
         return ret
@@ -162,7 +162,7 @@ class NeurekaRQSDWConv2DParser(NeurekaDWConv2DParser, RQSParserInterface):
         return newCtxt, True
 
 
-class NeurekaPWConv2DParser(NeurekaConv2DBaseParser):
+class NeurekaV2PWConv2DParser(NeurekaV2Conv2DBaseParser):
 
     def parseNode(self, node: gs.Node) -> bool:
         if not super().parseNode(node):
@@ -192,12 +192,12 @@ class NeurekaPWConv2DParser(NeurekaConv2DBaseParser):
         return newCtxt, True
 
 
-class NeurekaRQSPWConv2DParser(NeurekaPWConv2DParser, RQSParserInterface):
+class NeurekaV2RQSPWConv2DParser(NeurekaV2PWConv2DParser, RQSParserInterface):
 
     def parseNode(self, node: gs.Node) -> bool:
         ret = all([
             RQSParserInterface.parseNode(self, node),
-            NeurekaPWConv2DParser.parseNode(self, node),
+            NeurekaV2PWConv2DParser.parseNode(self, node),
         ])
         return ret
 
@@ -217,7 +217,7 @@ class NeurekaRQSPWConv2DParser(NeurekaPWConv2DParser, RQSParserInterface):
         return newCtxt, True
 
 
-class NeurekaDenseConv2DParser(NeurekaConv2DBaseParser):
+class NeurekaV2DenseConv2DParser(NeurekaV2Conv2DBaseParser):
 
     def parseNode(self, node: gs.Node) -> bool:
         if not super().parseNode(node):
@@ -247,12 +247,12 @@ class NeurekaDenseConv2DParser(NeurekaConv2DBaseParser):
         return newCtxt, True
 
 
-class NeurekaRQSDenseConv2DParser(NeurekaDenseConv2DParser, RQSParserInterface):
+class NeurekaV2RQSDenseConv2DParser(NeurekaV2DenseConv2DParser, RQSParserInterface):
 
     def parseNode(self, node: gs.Node) -> bool:
         ret = all([
             RQSParserInterface.parseNode(self, node),
-            NeurekaDenseConv2DParser.parseNode(self, node),
+            NeurekaV2DenseConv2DParser.parseNode(self, node),
         ])
         return ret
 

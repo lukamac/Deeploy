@@ -68,7 +68,7 @@ def getInputAddrOffset(width_in: int, width_in_stride: int, padding_top: int, pa
     return (padding_top * width_in + padding_left) * width_in_stride
 
 
-class NeurekaConvTemplate(NodeTemplate):
+class NeurekaV2ConvTemplate(NodeTemplate):
 
     def __init__(self, templateStr: str):
         super().__init__(templateStr)
@@ -169,7 +169,7 @@ class NeurekaConvTemplate(NodeTemplate):
         return ctxt, operatorRepresentation, []
 
 
-class Neureka2DPWConvTemplate(NeurekaConvTemplate):
+class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
 
     def __init__(self, templateStr: str):
         super().__init__(templateStr)
@@ -216,7 +216,7 @@ class Neureka2DPWConvTemplate(NeurekaConvTemplate):
         return conf0
 
 
-class Neureka2DDWConvTemplate(NeurekaConvTemplate):
+class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
 
     def __init__(self, templateStr: str):
         super().__init__(templateStr)
@@ -265,7 +265,7 @@ class Neureka2DDWConvTemplate(NeurekaConvTemplate):
         return conf0
 
 
-class Neureka2DDenseConvTemplate(NeurekaConvTemplate):
+class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
 
     def __init__(self, templateStr: str):
         super().__init__(templateStr)
@@ -313,7 +313,7 @@ class Neureka2DDenseConvTemplate(NeurekaConvTemplate):
         return conf0
 
 
-NeurekaTaskInitTemplateStr = """
+NeurekaV2TaskInitTemplateStr = """
 // N-EUREKA Task Init
 neureka_task_t task = {
     .data = (neureka_task_data_t) {
@@ -359,19 +359,19 @@ neureka_task_t task = {
 };
 """
 
-NeurekaTaskExecutionTemplateStr = """
+NeurekaV2TaskExecutionTemplateStr = """
 // N-EUREKA Task Execution
 neureka_nnx_dispatch_wait(neureka_siracusa_get_dev());
 neureka_nnx_dispatch(neureka_siracusa_get_dev(), &task);
 neureka_nnx_resolve_wait(neureka_siracusa_get_dev(), &task);
 """
 
-NeurekaRqntPWConv2D_Template = Neureka2DPWConvTemplate(NeurekaTaskInitTemplateStr + NeurekaTaskExecutionTemplateStr)
-NeurekaPWConv2D_Template = Neureka2DPWConvTemplate(NeurekaTaskInitTemplateStr + NeurekaTaskExecutionTemplateStr)
+NeurekaV2RqntPWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2PWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
 
-NeurekaRqntDWConv2D_Template = Neureka2DDWConvTemplate(NeurekaTaskInitTemplateStr + NeurekaTaskExecutionTemplateStr)
-NeurekaDWConv2D_Template = Neureka2DDWConvTemplate(NeurekaTaskInitTemplateStr + NeurekaTaskExecutionTemplateStr)
+NeurekaV2RqntDWConv2D_Template = NeurekaV22DDWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2DWConv2D_Template = NeurekaV22DDWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
 
-NeurekaRqntDenseConv2D_Template = Neureka2DDenseConvTemplate(NeurekaTaskInitTemplateStr +
-                                                             NeurekaTaskExecutionTemplateStr)
-NeurekaDenseConv2D_Template = Neureka2DDenseConvTemplate(NeurekaTaskInitTemplateStr + NeurekaTaskExecutionTemplateStr)
+NeurekaV2RqntDenseConv2D_Template = NeurekaV22DDenseConvTemplate(NeurekaV2TaskInitTemplateStr +
+                                                             NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2DenseConv2D_Template = NeurekaV22DDenseConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)

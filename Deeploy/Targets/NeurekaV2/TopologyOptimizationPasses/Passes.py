@@ -174,7 +174,7 @@ def _neureka_adjust_weight_memory_layout_fun(graph: gs.Graph, match: Match, name
 
 
 @contextagnostic
-class NeurekaAdjustWeightMemoryLayoutPass(ReplaceSequentialPatternPass):
+class NeurekaV2AdjustWeightMemoryLayoutPass(ReplaceSequentialPatternPass):
 
     def __init__(self, default_channels_first: bool, neurekaEngineName: str):
         graph = gs.Graph()
@@ -292,7 +292,7 @@ def _neureka_reshape_pointwise_convolution_fun(graph: gs.Graph, match: Match, na
 
 
 @contextagnostic
-class NeurekaReshapePointwiseConvolutionPass(ReplaceSequentialPatternPass):
+class NeurekaV2ReshapePointwiseConvolutionPass(ReplaceSequentialPatternPass):
     """Reshape pointwise convolution's spatial dimensions so that they work better for N-EUREKA's hardware tiling"""
 
     def __init__(self, default_channels_first: bool, neurekaEngineName: str):
@@ -322,11 +322,11 @@ class ConvEngineDiscolorationPass(EngineDiscolorationPass):
 
 
 @contextagnostic
-class NeurekaOptimizationPass(SequentialPass):
+class NeurekaV2OptimizationPass(SequentialPass):
 
     def __init__(self, default_channels_first: bool, neurekaEngineName: str):
-        super().__init__(NeurekaAdjustWeightMemoryLayoutPass(default_channels_first, neurekaEngineName),
-                         NeurekaReshapePointwiseConvolutionPass(default_channels_first, neurekaEngineName),
+        super().__init__(NeurekaV2AdjustWeightMemoryLayoutPass(default_channels_first, neurekaEngineName),
+                         NeurekaV2ReshapePointwiseConvolutionPass(default_channels_first, neurekaEngineName),
                          ReshapeMergePass(),
                          ReshapeConstOptPass(),
                          RemoveGlobalOutputReshapePass(),

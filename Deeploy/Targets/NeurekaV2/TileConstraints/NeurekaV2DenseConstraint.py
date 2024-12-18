@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------
 #
-# File: NeurekaDenseConstraint.py
+# File: NeurekaV2DenseConstraint.py
 #
 # Last edited: 26.07.2024
 #
@@ -28,7 +28,7 @@ from typing import Dict, List, Tuple
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import uint8_t, uint16_t, uint32_t
 from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
-from Deeploy.Targets.Neureka.Templates.ConvTemplate import Neureka2DDenseConvTemplate, getInputAddrOffset, \
+from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV22DDenseConvTemplate, getInputAddrOffset, \
     ioStridesFromDimensions
 from Deeploy.Targets.PULPOpen.TileConstraints.ConvTileConstraint import Conv2DTileConstraint
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
@@ -38,7 +38,7 @@ from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, HyperR
     VariableReplacementScheme, calculateRectangleOffset
 
 
-class NeurekaDenseConv2DTileConstraint(TileConstraint):
+class NeurekaV2DenseConv2DTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
@@ -210,7 +210,7 @@ class NeurekaDenseConv2DTileConstraint(TileConstraint):
             replacements['input_addr_offset'].append(
                 getInputAddrOffset(inWSize, dim_im_in_y_stride, padding_top, padding_left))
 
-            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = Neureka2DDenseConvTemplate.getCounters(
+            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = NeurekaV22DDenseConvTemplate.getCounters(
                 inCSize, HSize, WSize, CSize, padding_bottom, padding_right, operatorRepresentation)
 
             replacements["nKo"].append(nKo)
@@ -246,11 +246,11 @@ class NeurekaDenseConv2DTileConstraint(TileConstraint):
         return variableReplacementSchedule, tilingSchedule
 
 
-class NeurekaRQSDenseConv2DTileConstraint(NeurekaDenseConv2DTileConstraint):
+class NeurekaV2RQSDenseConv2DTileConstraint(NeurekaV2DenseConv2DTileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
-        tilerModel = NeurekaDenseConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
+        tilerModel = NeurekaV2DenseConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
 
         outputBufferName = parseDict['data_out']
         mulBufferName = parseDict['mul']
@@ -300,7 +300,7 @@ class NeurekaRQSDenseConv2DTileConstraint(NeurekaDenseConv2DTileConstraint):
         return variableReplacementSchedule, newTilingSchedule
 
 
-class NeurekaWmemDenseConv2DTileConstraint(TileConstraint):
+class NeurekaV2WmemDenseConv2DTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
@@ -469,7 +469,7 @@ class NeurekaWmemDenseConv2DTileConstraint(TileConstraint):
             replacements['input_addr_offset'].append(
                 getInputAddrOffset(inWSize, dim_im_in_y_stride, padding_top, padding_left))
 
-            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = Neureka2DDenseConvTemplate.getCounters(
+            nKo, nKi, nHo, nWo, bKo, bKi, bHo, bWo, bHi, bWi = NeurekaV22DDenseConvTemplate.getCounters(
                 inCSize, HSize, WSize, CSize, padding_bottom, padding_right, operatorRepresentation)
 
             replacements["nKo"].append(nKo)
@@ -505,11 +505,11 @@ class NeurekaWmemDenseConv2DTileConstraint(TileConstraint):
         return variableReplacementSchedule, tilingSchedule
 
 
-class NeurekaWmemRQSDenseConv2DTileConstraint(NeurekaWmemDenseConv2DTileConstraint):
+class NeurekaV2WmemRQSDenseConv2DTileConstraint(NeurekaV2WmemDenseConv2DTileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
-        tilerModel = NeurekaWmemDenseConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
+        tilerModel = NeurekaV2WmemDenseConv2DTileConstraint.addGeometricalConstraint(tilerModel, parseDict, ctxt)
 
         outputBufferName = parseDict['data_out']
         mulBufferName = parseDict['mul']

@@ -29,14 +29,14 @@ import onnx_graphsurgeon as gs
 
 from Deeploy.AbstractDataTypes import Pointer
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
-    NeurekaNCHWtoNHWCPass, PULPNCHWtoNHWCPass
+    NeurekaV2NCHWtoNHWCPass, PULPNCHWtoNHWCPass
 from Deeploy.DeeployTypes import DeploymentPlatform, TopologyOptimizer
-from Deeploy.Targets.Neureka.TopologyOptimizationPasses.Passes import ConvEngineDiscolorationPass, \
-    NeurekaOptimizationPass
+from Deeploy.Targets.NeurekaV2.TopologyOptimizationPasses.Passes import ConvEngineDiscolorationPass, \
+    NeurekaV2OptimizationPass
 from Deeploy.Targets.PULPOpen.Deployer import PULPDeployer
 
 
-class NeurekaDeployer(PULPDeployer):
+class NeurekaV2Deployer(PULPDeployer):
 
     def __init__(self,
                  graph: gs.Graph,
@@ -54,9 +54,9 @@ class NeurekaDeployer(PULPDeployer):
         if self.Platform.engines[0].enable3x3:
             for idx in range(len(self.loweringOptimizer.passes)):
                 if isinstance(self.loweringOptimizer.passes[idx], PULPNCHWtoNHWCPass):
-                    self.loweringOptimizer.passes[idx] = NeurekaNCHWtoNHWCPass(self.default_channels_first)
+                    self.loweringOptimizer.passes[idx] = NeurekaV2NCHWtoNHWCPass(self.default_channels_first)
 
         self.loweringOptimizer.passes += [
             ConvEngineDiscolorationPass(),
-            NeurekaOptimizationPass(self.default_channels_first, "Neureka")
+            NeurekaV2OptimizationPass(self.default_channels_first, "NeurekaV2")
         ]
