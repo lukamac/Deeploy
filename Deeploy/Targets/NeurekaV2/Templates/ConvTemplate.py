@@ -212,7 +212,6 @@ class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
         conf0 |= 2 << 5  # PW MODE
         if use_wmem:
             conf0 |= 1 << 9
-        conf0 |= 1 << 15  # Layerwise weight offset mode
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
@@ -264,7 +263,6 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
         conf0 |= 1 << 5  # DW MODE
         if use_wmem:
             conf0 |= 1 << 9
-        conf0 |= 1 << 15  # Layerwise weight offset mode
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
@@ -315,7 +313,6 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
         conf0 |= weight_bits - 1
         if use_wmem:
             conf0 |= 1 << 9
-        conf0 |= 1 << 15  # Layerwise weight offset mode
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
