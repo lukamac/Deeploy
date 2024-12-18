@@ -199,8 +199,8 @@ class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
     @classmethod
     def getWeightStrides(cls, channel_in: int) -> Tuple[int, int, int]:
         n_channel_in = _getNumTiles(channel_in, 32)
-        _NEUREKA_WEIGHT_BANDWIDTH_BYTES = 32
-        return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_WEIGHT_BANDWIDTH_BYTES * n_channel_in, 0
+        _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES = 32
+        return _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES * n_channel_in, 0
 
     @classmethod
     def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
@@ -250,8 +250,8 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
     @classmethod
     def getWeightStrides(cls, channel_in: int) -> Tuple[int, int, int]:
         n_channel_in = _getNumTiles(channel_in, 28)
-        _NEUREKA_WEIGHT_BANDWIDTH_BYTES = 32
-        return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, 0, 0
+        _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES = 32
+        return _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES, 0, 0
 
     @classmethod
     def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
@@ -301,8 +301,9 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
     @classmethod
     def getWeightStrides(cls, channel_in: int) -> Tuple[int, int, int]:
         n_channel_in = _getNumTiles(channel_in, 32)
-        _NEUREKA_WEIGHT_BANDWIDTH_BYTES = 32
-        return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_WEIGHT_BANDWIDTH_BYTES * 8 * n_channel_in, 0
+        _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES = 32
+        weight_bits = 8  # Hardcoded for now
+        return _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_V2_WEIGHT_BANDWIDTH_BYTES * weight_bits * n_channel_in, 0
 
     @classmethod
     def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
