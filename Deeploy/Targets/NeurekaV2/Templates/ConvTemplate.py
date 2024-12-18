@@ -88,7 +88,8 @@ class NeurekaV2ConvTemplate(NodeTemplate):
 
     @classmethod
     @abstractmethod
-    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, use_wmem: bool) -> int:
+    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
+                 use_wmem: bool) -> int:
         pass
 
     def alignToContext(self, ctxt: NetworkContext,
@@ -98,6 +99,7 @@ class NeurekaV2ConvTemplate(NodeTemplate):
         weight: ConstantBuffer = ctxt.lookup(operatorRepresentation['weight'])
 
         operatorRepresentation['input_signed'] = data_in._type.referencedType.typeMin < 0
+        operatorRepresentation['output_signed'] = data_out._type.referencedType.typeMin < 0
         operatorRepresentation['use_relu'] = data_out._type.referencedType.typeMin >= 0
 
         operatorRepresentation['input_bits'] = data_in._type.referencedType.typeWidth
@@ -155,6 +157,7 @@ class NeurekaV2ConvTemplate(NodeTemplate):
         operatorRepresentation["conf0"] = self.getConf0(operatorRepresentation["output_bits"],
                                                         operatorRepresentation["weight_bits"],
                                                         operatorRepresentation["input_signed"],
+                                                        operatorRepresentation["output_signed"],
                                                         operatorRepresentation["use_wmem"])
 
         operatorRepresentation["wmem_addr_offset"] = 0x10400000 if operatorRepresentation["use_wmem"] else 0
@@ -202,7 +205,8 @@ class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
         return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_WEIGHT_BANDWIDTH_BYTES * n_channel_in, 0
 
     @classmethod
-    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, use_wmem: bool) -> int:
+    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
+                 use_wmem: bool) -> int:
         conf0 = 0
         conf0 |= weight_bits - 1
         conf0 |= 2 << 5  # PW MODE
@@ -213,6 +217,8 @@ class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
             conf0 |= 2 << 21
         if input_signed:
             conf0 |= 1 << 27
+        if output_signed:
+            conf0 |= 1 << 29
         return conf0
 
 
@@ -251,7 +257,8 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
         return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, 0, 0
 
     @classmethod
-    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, use_wmem: bool) -> int:
+    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
+                 use_wmem: bool) -> int:
         conf0 = 0
         conf0 |= weight_bits - 1
         conf0 |= 1 << 5  # DW MODE
@@ -262,6 +269,8 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
             conf0 |= 2 << 21
         if input_signed:
             conf0 |= 1 << 27
+        if output_signed:
+            conf0 |= 1 << 29
         return conf0
 
 
@@ -300,7 +309,8 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
         return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_WEIGHT_BANDWIDTH_BYTES * 8 * n_channel_in, 0
 
     @classmethod
-    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, use_wmem: bool) -> int:
+    def getConf0(cls, output_bits: int, weight_bits: int, input_signed: bool, output_signed: bool,
+                 use_wmem: bool) -> int:
         conf0 = 0
         conf0 |= weight_bits - 1
         if use_wmem:
@@ -310,6 +320,8 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
             conf0 |= 2 << 21
         if input_signed:
             conf0 |= 1 << 27
+        if output_signed:
+            conf0 |= 1 << 29
         return conf0
 
 
