@@ -160,8 +160,6 @@ class NeurekaV2ConvTemplate(NodeTemplate):
                                                         operatorRepresentation["output_signed"],
                                                         operatorRepresentation["use_wmem"])
 
-        operatorRepresentation["wmem_addr_offset"] = 0x10400000 if operatorRepresentation["use_wmem"] else 0
-
         # If requantized
         if operatorRepresentation["mul"] != "NULL":
             mulBuff = ctxt.lookup(operatorRepresentation["mul"])
@@ -326,7 +324,7 @@ NeurekaV2TaskInitTemplateStr = """
 // N-EUREKA Task Init
 neureka_task_t task = {
     .data = (neureka_task_data_t) {
-        .weights_addr = (uint32_t)${weight} - ${wmem_addr_offset} + ${weight_addr_offset},
+        .weights_addr = (uint32_t)${weight} - ${weight_addr_offset},
         .infeat_addr = (uint32_t)${data_in} - ${input_addr_offset},
         .outfeat_addr = (uint32_t)${data_out},
         .scale_addr = (uint32_t)${mul},
