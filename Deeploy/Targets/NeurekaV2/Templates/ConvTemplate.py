@@ -212,7 +212,7 @@ class NeurekaV22DPWConvTemplate(NeurekaV2ConvTemplate):
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
-            conf0 |= 1 << 26
+            conf0 |= 1 << 27
         return conf0
 
 
@@ -261,7 +261,7 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
-            conf0 |= 1 << 26
+            conf0 |= 1 << 27
         return conf0
 
 
@@ -309,7 +309,7 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
         if output_bits == 32:
             conf0 |= 2 << 21
         if input_signed:
-            conf0 |= 1 << 26
+            conf0 |= 1 << 27
         return conf0
 
 
