@@ -228,17 +228,17 @@ class NeurekaV22DDWConvTemplate(NeurekaV2ConvTemplate):
             operatorRepresentation: OperatorRepresentation) -> Tuple[int, int, int, int, int, int, int, int, int, int]:
         _ = operatorRepresentation  # operatorRepresentation not accessed for now because it's just for pointwise kernels
 
-        n_channel_out_subtiles = _getNumTiles(channel_out, 28)
+        n_channel_out_subtiles = _getNumTiles(channel_out, 32)
         n_channel_in_subtiles = n_channel_out_subtiles
         n_height_out_subtiles = _getNumTiles(height_out, 6)
         n_width_out_subtiles = _getNumTiles(width_out, 6)
 
-        channel_out_border = _getBorderTileSize(channel_out, 28)
+        channel_out_border = _getBorderTileSize(channel_out, 32)
         channel_in_border = channel_out_border
         height_out_border = _getBorderTileSize(height_out, 6)
         width_out_border = _getBorderTileSize(width_out, 6)
-        height_in_border = height_out_border + 2 - padding_bottom
-        width_in_border = width_out_border + 2 - padding_right
+        height_in_border = height_out_border + 2
+        width_in_border = width_out_border + 2
 
         return (n_channel_out_subtiles, n_channel_in_subtiles, n_height_out_subtiles, n_width_out_subtiles,
                 channel_out_border, channel_in_border, height_out_border, width_out_border, height_in_border,
@@ -277,17 +277,17 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
             operatorRepresentation: OperatorRepresentation) -> Tuple[int, int, int, int, int, int, int, int, int, int]:
         _ = operatorRepresentation  # operatorRepresentation not accessed for now because it's just for pointwise kernels
 
-        n_channel_out_subtiles = _getNumTiles(channel_out, 28)
-        n_channel_in_subtiles = _getNumTiles(channel_in, 28)
+        n_channel_out_subtiles = _getNumTiles(channel_out, 32)
+        n_channel_in_subtiles = _getNumTiles(channel_in, 32)
         n_height_out_subtiles = _getNumTiles(height_out, 6)
         n_width_out_subtiles = _getNumTiles(width_out, 6)
 
-        channel_out_border = _getBorderTileSize(channel_out, 28)
-        channel_in_border = _getBorderTileSize(channel_in, 28)
+        channel_out_border = _getBorderTileSize(channel_out, 32)
+        channel_in_border = _getBorderTileSize(channel_in, 32)
         height_out_border = _getBorderTileSize(height_out, 6)
         width_out_border = _getBorderTileSize(width_out, 6)
-        height_in_border = height_out_border + 2 - padding_bottom
-        width_in_border = width_out_border + 2 - padding_right
+        height_in_border = height_out_border + 2
+        width_in_border = width_out_border + 2
 
         return (n_channel_out_subtiles, n_channel_in_subtiles, n_height_out_subtiles, n_width_out_subtiles,
                 channel_out_border, channel_in_border, height_out_border, width_out_border, height_in_border,
@@ -295,7 +295,7 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
 
     @classmethod
     def getWeightStrides(cls, channel_in: int) -> Tuple[int, int, int]:
-        n_channel_in = _getNumTiles(channel_in, 28)
+        n_channel_in = _getNumTiles(channel_in, 32)
         _NEUREKA_WEIGHT_BANDWIDTH_BYTES = 32
         return _NEUREKA_WEIGHT_BANDWIDTH_BYTES, _NEUREKA_WEIGHT_BANDWIDTH_BYTES * 8 * n_channel_in, 0
 
@@ -366,12 +366,15 @@ neureka_nnx_dispatch(neureka_siracusa_get_dev(), &task);
 neureka_nnx_resolve_wait(neureka_siracusa_get_dev(), &task);
 """
 
-NeurekaV2RqntPWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2RqntPWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr +
+                                                           NeurekaV2TaskExecutionTemplateStr)
 NeurekaV2PWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
 
-NeurekaV2RqntDWConv2D_Template = NeurekaV22DDWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2RqntDWConv2D_Template = NeurekaV22DDWConvTemplate(NeurekaV2TaskInitTemplateStr +
+                                                           NeurekaV2TaskExecutionTemplateStr)
 NeurekaV2DWConv2D_Template = NeurekaV22DDWConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
 
 NeurekaV2RqntDenseConv2D_Template = NeurekaV22DDenseConvTemplate(NeurekaV2TaskInitTemplateStr +
+                                                                 NeurekaV2TaskExecutionTemplateStr)
+NeurekaV2DenseConv2D_Template = NeurekaV22DDenseConvTemplate(NeurekaV2TaskInitTemplateStr +
                                                              NeurekaV2TaskExecutionTemplateStr)
-NeurekaV2DenseConv2D_Template = NeurekaV22DDenseConvTemplate(NeurekaV2TaskInitTemplateStr + NeurekaV2TaskExecutionTemplateStr)
