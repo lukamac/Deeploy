@@ -211,7 +211,7 @@ def setupDeployer(graph: gs.Graph,
                            scheduler = _mockScheduler)
 
     # Make the deployer engine-color-aware
-    if args.platform == "Siracusa_w_neureka":
+    if args.platform in ["Siracusa_w_neureka", "Siracusa_w_neureka_v2"]:
         deployer = EngineColoringDeployerWrapper(deployer)
 
     # Make platform memory-aware after mapDeployer because it requires the platform to be an instance of an unwrapped platform
