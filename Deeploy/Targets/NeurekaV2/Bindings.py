@@ -30,9 +30,9 @@ from Deeploy.CommonExtensions.DataTypes import int8_t, int32_t, uint8_t
 from Deeploy.DeeployTypes import NodeBinding
 from Deeploy.MemoryLevelExtension.MemoryLevels import NodeMemoryLevelChecker, memoryAwareNodeBindingExtension
 from Deeploy.Targets.Generic.TypeCheckers import ConvChecker
-from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV2DenseConv2D_Template, NeurekaV2DWConv2D_Template, \
-    NeurekaV2PWConv2D_Template, NeurekaV2RqntDenseConv2D_Template, NeurekaV2RqntDWConv2D_Template, \
-    NeurekaV2RqntPWConv2D_Template
+from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV2DenseConv2D_Template, \
+    NeurekaV2DWConv2D_Template, NeurekaV2PWConv2D_Template, NeurekaV2RqntDenseConv2D_Template, \
+    NeurekaV2RqntDWConv2D_Template, NeurekaV2RqntPWConv2D_Template
 from Deeploy.Targets.PULPOpen.Bindings import ClusterTransformer
 from Deeploy.Targets.PULPOpen.TypeCheckers import PULPConvChecker
 

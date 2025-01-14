@@ -57,7 +57,8 @@ class NeurekaV2ConstantBuffer(ConstantBuffer):
 class NeurekaV2Platform(PULPPlatform):
 
     def __init__(self,
-                 engines = [NeurekaV2Engine("NeurekaV2"), PULPClusterEngine("PULPCluster")],
+                 engines = [NeurekaV2Engine("NeurekaV2"),
+                            PULPClusterEngine("PULPCluster")],
                  variableBuffer = PULPVariableBuffer,
                  constantBuffer = NeurekaV2ConstantBuffer,
                  structBuffer = PULPStructBuffer,
@@ -71,7 +72,8 @@ class MemoryNeurekaV2Platform(MemoryPULPPlatform):
                  memoryHierarchy: MemoryHierarchy,
                  defaultTargetMemoryLevel: MemoryLevel,
                  weightMemoryLevel: Optional[MemoryLevel] = None,
-                 engines = [NeurekaV2Engine("NeurekaV2"), PULPClusterEngine("PULPCluster")],
+                 engines = [NeurekaV2Engine("NeurekaV2"),
+                            PULPClusterEngine("PULPCluster")],
                  variableBuffer = PULPVariableBuffer,
                  constantBuffer = NeurekaV2ConstantBuffer,
                  structBuffer = PULPStructBuffer,

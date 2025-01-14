@@ -29,31 +29,32 @@ import onnx_graphsurgeon as gs
 
 from Deeploy.DeeployTypes import DeploymentEngine, NodeMapper
 from Deeploy.Targets.Generic.Layers import ConvLayer
-from Deeploy.Targets.NeurekaV2.Parsers import NeurekaV2DenseConv2DParser, NeurekaV2DWConv2DParser, NeurekaV2PWConv2DParser, \
-    NeurekaV2RQSDenseConv2DParser, NeurekaV2RQSDWConv2DParser, NeurekaV2RQSPWConv2DParser
-from Deeploy.Targets.NeurekaV2.Tiler import NeurekaV2DenseConv2DTilingReadyBindings, NeurekaV2DWConv2DTilingReadyBindings, \
-    NeurekaV2PWConv2DTilingReadyBindings, NeurekaV2RQSDenseConv2DTilingReadyBindings, \
-    NeurekaV2RQSDWConv2DTilingReadyBindings, NeurekaV2RQSPWConv2DTilingReadyBindings, \
-    NeurekaV2WmemDenseConv2DTilingReadyBindings, NeurekaV2WmemDWConv2DTilingReadyBindings, \
-    NeurekaV2WmemPWConv2DTilingReadyBindings, NeurekaV2WmemRQSDenseConv2DTilingReadyBindings, \
-    NeurekaV2WmemRQSDWConv2DTilingReadyBindings, NeurekaV2WmemRQSPWConv2DTilingReadyBindings
+from Deeploy.Targets.NeurekaV2.Parsers import NeurekaV2DenseConv2DParser, NeurekaV2DWConv2DParser, \
+    NeurekaV2PWConv2DParser, NeurekaV2RQSDenseConv2DParser, NeurekaV2RQSDWConv2DParser, NeurekaV2RQSPWConv2DParser
+from Deeploy.Targets.NeurekaV2.Tiler import NeurekaV2DenseConv2DTilingReadyBindings, \
+    NeurekaV2DWConv2DTilingReadyBindings, NeurekaV2PWConv2DTilingReadyBindings, \
+    NeurekaV2RQSDenseConv2DTilingReadyBindings, NeurekaV2RQSDWConv2DTilingReadyBindings, \
+    NeurekaV2RQSPWConv2DTilingReadyBindings, NeurekaV2WmemDenseConv2DTilingReadyBindings, \
+    NeurekaV2WmemDWConv2DTilingReadyBindings, NeurekaV2WmemPWConv2DTilingReadyBindings, \
+    NeurekaV2WmemRQSDenseConv2DTilingReadyBindings, NeurekaV2WmemRQSDWConv2DTilingReadyBindings, \
+    NeurekaV2WmemRQSPWConv2DTilingReadyBindings
 from Deeploy.Targets.PULPOpen.Layers import PULPRQSConvLayer
 
 NeurekaV2RqntPWConv2DMapper = NodeMapper(
     NeurekaV2RQSPWConv2DParser(), NeurekaV2WmemRQSPWConv2DTilingReadyBindings + NeurekaV2RQSPWConv2DTilingReadyBindings)
 NeurekaV2PWConv2DMapper = NodeMapper(NeurekaV2PWConv2DParser(),
-                                   NeurekaV2WmemPWConv2DTilingReadyBindings + NeurekaV2PWConv2DTilingReadyBindings)
+                                     NeurekaV2WmemPWConv2DTilingReadyBindings + NeurekaV2PWConv2DTilingReadyBindings)
 
 NeurekaV2RqntDWConv2DMapper = NodeMapper(
     NeurekaV2RQSDWConv2DParser(), NeurekaV2WmemRQSDWConv2DTilingReadyBindings + NeurekaV2RQSDWConv2DTilingReadyBindings)
 NeurekaV2DWConv2DMapper = NodeMapper(NeurekaV2DWConv2DParser(),
-                                   NeurekaV2WmemDWConv2DTilingReadyBindings + NeurekaV2DWConv2DTilingReadyBindings)
+                                     NeurekaV2WmemDWConv2DTilingReadyBindings + NeurekaV2DWConv2DTilingReadyBindings)
 
 NeurekaV2RqntDenseConv2DMapper = NodeMapper(
     NeurekaV2RQSDenseConv2DParser(),
     NeurekaV2WmemRQSDenseConv2DTilingReadyBindings + NeurekaV2RQSDenseConv2DTilingReadyBindings)
-NeurekaV2DenseConv2DMapper = NodeMapper(NeurekaV2DenseConv2DParser(),
-                                      NeurekaV2WmemDenseConv2DTilingReadyBindings + NeurekaV2DenseConv2DTilingReadyBindings)
+NeurekaV2DenseConv2DMapper = NodeMapper(
+    NeurekaV2DenseConv2DParser(), NeurekaV2WmemDenseConv2DTilingReadyBindings + NeurekaV2DenseConv2DTilingReadyBindings)
 
 NeurekaV2Mapping = {
     'RequantizedConv':
