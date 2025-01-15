@@ -23,10 +23,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import math
 from functools import partial
-from typing import Generator, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -36,9 +33,7 @@ from Deeploy.CommonExtensions.OptimizationPasses.Matchers import Match, NonBranc
 from Deeploy.CommonExtensions.OptimizationPasses.PassClasses import ReplaceSequentialPatternPass, SequentialPass, \
     contextagnostic
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
-    RemoveGlobalOutputReshapePass, _createReshape
-from Deeploy.EngineExtension.OptimizationPasses.TopologyOptimizationPasses.EngineColoringPasses import \
-    EngineDiscolorationPass
+    RemoveGlobalOutputReshapePass
 from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import ReshapeConstOptPass, ReshapeMergePass
 from Deeploy.Targets.Neureka.TopologyOptimizationPasses.Passes import NeurekaReshapePointwiseConvolutionPass
 
