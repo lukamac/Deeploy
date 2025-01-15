@@ -24,46 +24,46 @@
 # limitations under the License.
 
 
+from Deeploy.Targets.Neureka.TileConstraints.NeurekaDenseConstraint import NeurekaDenseConv2DTileConstraint, \
+    NeurekaRQSDenseConv2DTileConstraint, NeurekaWmemDenseConv2DTileConstraint, \
+    NeurekaWmemRQSDenseConv2DTileConstraint
+from Deeploy.Targets.Neureka.TileConstraints.NeurekaDepthwiseConstraint import NeurekaDWConv2DTileConstraint, \
+    NeurekaRQSDWConv2DTileConstraint, NeurekaWmemDWConv2DTileConstraint, NeurekaWmemRQSDWConv2DTileConstraint
+from Deeploy.Targets.Neureka.TileConstraints.NeurekaPointwiseConstraint import NeurekaPWConv2DTileConstraint, \
+    NeurekaRQSPWConv2DTileConstraint, NeurekaWmemPWConv2DTileConstraint, NeurekaWmemRQSPWConv2DTileConstraint
 from Deeploy.Targets.NeurekaV2.Bindings import NeurekaV2DenseConv2DBindings, NeurekaV2DWConv2DBindings, \
     NeurekaV2PWConv2DBindings, NeurekaV2RQSDenseConv2DBindings, NeurekaV2RQSDWConv2DBindings, \
     NeurekaV2RQSPWConv2DBindings, NeurekaV2WmemDenseConv2DBindings, NeurekaV2WmemDWConv2DBindings, \
     NeurekaV2WmemPWConv2DBindings, NeurekaV2WmemRQSDenseConv2DBindings, NeurekaV2WmemRQSDWConv2DBindings, \
     NeurekaV2WmemRQSPWConv2DBindings
-from Deeploy.Targets.NeurekaV2.TileConstraints.NeurekaV2DenseConstraint import NeurekaV2DenseConv2DTileConstraint, \
-    NeurekaV2RQSDenseConv2DTileConstraint, NeurekaV2WmemDenseConv2DTileConstraint, \
-    NeurekaV2WmemRQSDenseConv2DTileConstraint
-from Deeploy.Targets.NeurekaV2.TileConstraints.NeurekaV2DepthwiseConstraint import NeurekaV2DWConv2DTileConstraint, \
-    NeurekaV2RQSDWConv2DTileConstraint, NeurekaV2WmemDWConv2DTileConstraint, NeurekaV2WmemRQSDWConv2DTileConstraint
-from Deeploy.Targets.NeurekaV2.TileConstraints.NeurekaV2PointwiseConstraint import NeurekaV2PWConv2DTileConstraint, \
-    NeurekaV2RQSPWConv2DTileConstraint, NeurekaV2WmemPWConv2DTileConstraint, NeurekaV2WmemRQSPWConv2DTileConstraint
 from Deeploy.TilingExtension.TilerExtension import TilingReadyNodeBindings
 
 NeurekaV2RQSPWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2RQSPWConv2DBindings,
-                                                                  tileConstraint = NeurekaV2RQSPWConv2DTileConstraint())
+                                                                  tileConstraint = NeurekaRQSPWConv2DTileConstraint())
 NeurekaV2PWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2PWConv2DBindings,
-                                                               tileConstraint = NeurekaV2PWConv2DTileConstraint())
+                                                               tileConstraint = NeurekaPWConv2DTileConstraint())
 
 NeurekaV2WmemRQSPWConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemRQSPWConv2DBindings, tileConstraint = NeurekaV2WmemRQSPWConv2DTileConstraint())
-NeurekaV2WmemPWConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemPWConv2DBindings, tileConstraint = NeurekaV2WmemPWConv2DTileConstraint())
+    nodeBindings = NeurekaV2WmemRQSPWConv2DBindings, tileConstraint = NeurekaWmemRQSPWConv2DTileConstraint())
+NeurekaV2WmemPWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2WmemPWConv2DBindings,
+                                                                   tileConstraint = NeurekaWmemPWConv2DTileConstraint())
 
 NeurekaV2RQSDWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2RQSDWConv2DBindings,
-                                                                  tileConstraint = NeurekaV2RQSDWConv2DTileConstraint())
+                                                                  tileConstraint = NeurekaRQSDWConv2DTileConstraint())
 NeurekaV2DWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2DWConv2DBindings,
-                                                               tileConstraint = NeurekaV2DWConv2DTileConstraint())
+                                                               tileConstraint = NeurekaDWConv2DTileConstraint())
 
 NeurekaV2WmemRQSDWConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemRQSDWConv2DBindings, tileConstraint = NeurekaV2WmemRQSDWConv2DTileConstraint())
-NeurekaV2WmemDWConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemDWConv2DBindings, tileConstraint = NeurekaV2WmemDWConv2DTileConstraint())
+    nodeBindings = NeurekaV2WmemRQSDWConv2DBindings, tileConstraint = NeurekaWmemRQSDWConv2DTileConstraint())
+NeurekaV2WmemDWConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2WmemDWConv2DBindings,
+                                                                   tileConstraint = NeurekaWmemDWConv2DTileConstraint())
 
 NeurekaV2RQSDenseConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2RQSDenseConv2DBindings, tileConstraint = NeurekaV2RQSDenseConv2DTileConstraint())
+    nodeBindings = NeurekaV2RQSDenseConv2DBindings, tileConstraint = NeurekaRQSDenseConv2DTileConstraint())
 NeurekaV2DenseConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = NeurekaV2DenseConv2DBindings,
-                                                                  tileConstraint = NeurekaV2DenseConv2DTileConstraint())
+                                                                  tileConstraint = NeurekaDenseConv2DTileConstraint())
 
 NeurekaV2WmemRQSDenseConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemRQSDenseConv2DBindings, tileConstraint = NeurekaV2WmemRQSDenseConv2DTileConstraint())
+    nodeBindings = NeurekaV2WmemRQSDenseConv2DBindings, tileConstraint = NeurekaWmemRQSDenseConv2DTileConstraint())
 NeurekaV2WmemDenseConv2DTilingReadyBindings = TilingReadyNodeBindings(
-    nodeBindings = NeurekaV2WmemDenseConv2DBindings, tileConstraint = NeurekaV2WmemDenseConv2DTileConstraint())
+    nodeBindings = NeurekaV2WmemDenseConv2DBindings, tileConstraint = NeurekaWmemDenseConv2DTileConstraint())
