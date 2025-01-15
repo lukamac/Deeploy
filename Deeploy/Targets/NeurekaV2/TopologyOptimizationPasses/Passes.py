@@ -40,6 +40,10 @@ from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.Lowe
 from Deeploy.EngineExtension.OptimizationPasses.TopologyOptimizationPasses.EngineColoringPasses import \
     EngineDiscolorationPass
 from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import ReshapeConstOptPass, ReshapeMergePass
+from Deeploy.Targets.Neureka.TopologyOptimizationPasses.Passes import NeurekaReshapePointwiseConvolutionPass
+
+_WEIGHT_BANDWIDTH = 288
+_CIN_SUBTILE = 32
 
 
 def _weightEncode(weight: npt.NDArray[np.uint8], bits: int, depthwise: bool = False) -> npt.NDArray[np.uint8]:
@@ -51,15 +55,11 @@ def _weightEncode(weight: npt.NDArray[np.uint8], bits: int, depthwise: bool = Fa
       - 1x1: (cout, cinMajor, Bits x H x W x cinMinor_1x1 packed into Weight Bandwidth bits),
     where cinMajor is the ceil(cin / cin subtile <mode>) and cinMinor has to be padded with 0 to cin subtile <mode>.
     """
-    _NEUREKA_WEIGHT_BANDWIDTH = 256
-    _NEUREKA_CIN_SUBTILE_1x1 = 32
-    _NEUREKA_CIN_SUBTILE_3x3 = 28
-
     if depthwise:
         weight = weight.transpose(1, 0, 2, 3)  # Swap cout and cin
 
     cout, cin, height, width = weight.shape
-    cinSubtile = (_NEUREKA_CIN_SUBTILE_3x3 if height == 3 else _NEUREKA_CIN_SUBTILE_1x1)
+    cinSubtile = (_CIN_SUBTILE if height == 3 else _CIN_SUBTILE)
 
     # Pad cin to be divisible with CIN_SUBTILE
     if cin % cinSubtile != 0:
@@ -84,61 +84,27 @@ def _weightEncode(weight: npt.NDArray[np.uint8], bits: int, depthwise: bool = Fa
     # (cout, cinMajor, Bits, Flattened spatial, cinSubtile)
     weight = weight.transpose(0, 1, 4, 3, 2)
 
-    # Pack dimensions to fit into weight bandwidth
-    if height == 3 and width == 3:
-        # (cout * cinMajor * Bits, H * W * cinSubtile)
-        weight = weight.reshape(-1, height * width * cinSubtile)
-        # Pad only the last dimension to weight bandwidth size
-        # (-1, Weight Bandwidth)
-        weight = np.pad(
-            weight,
-            ((0, 0), (0, _NEUREKA_WEIGHT_BANDWIDTH - weight.shape[-1])),
-            "constant",
-            constant_values = 0,
-        )
-    elif height == 1 and width == 1:
-        # Tile cinSubtile into tiles of size 4
-        # (cout, cinMajor, Bits, Flattened spatial, cinSubtileMajor, cinSubtileTile)
-        weight = weight.reshape(cout, cinMajor, bits, height * width, cinSubtile // 4,
-                                4)  # cout, cinMajor, bits, 1, 8, 4
-        # Pad bits to 8
-        if bits < 8:
-            # (cout, cinMajor, PaddedBits, Flattened spatial, cinSubtileMajor, cinSubtileTile)
-            weight = np.pad(
-                weight,
-                ((0, 0), (0, 0), (0, 8 - bits), (0, 0), (0, 0), (0, 0)),
-                mode = "constant",
-                constant_values = 0,
-            )
-        # (cout, cinMajor, Flattened spatial, cinSubtileMajor, PaddedBits, cinSubtileTile)
-        weight = weight.transpose(0, 1, 3, 4, 2, 5)
-        # (-1, Weight Bandwidth)
-        weight = weight.reshape(cout * cinMajor, _NEUREKA_WEIGHT_BANDWIDTH)  # cout*cinMajor, 256b
-
-    # Prepare for packing
-    # (-1, Weight Bandwidth Bytes, 8)
-    weightBandwidthBytes = int(np.ceil(_NEUREKA_WEIGHT_BANDWIDTH / 8))
-    weight = np.stack(np.split(weight, weightBandwidthBytes, axis = -1), axis = -2)
-
-    # Pack bits
-    # (-1, Weight Bandwidth Bytes)
+    # Pack bits into bytes
+    # (-1, 8)
+    weight = weight.reshape(-1, 8)
+    # (-1, 1)
     weight = np.packbits(weight, axis = -1, bitorder = "little")
 
     if height == 1 and width == 1:
         # (cout, cinMajor, Weight Bandwidth Bytes)
-        return weight.reshape(cout, cinMajor, weightBandwidthBytes)
+        return weight.reshape(cout, cinMajor, _WEIGHT_BANDWIDTH // 8)
     elif depthwise:
-        return weight.reshape(cout, cinMajor, bits, weightBandwidthBytes)
+        return weight.reshape(cout, cinMajor, bits, _WEIGHT_BANDWIDTH // 8)
     else:
-        return weight.reshape(cout, cinMajor, bits, weightBandwidthBytes)
+        return weight.reshape(cout, cinMajor, bits, _WEIGHT_BANDWIDTH // 8)
 
 
 def _neureka_adjust_weight_memory_layout_fun(graph: gs.Graph, match: Match, name: str, default_channels_first: bool,
-                                             neurekaEngineName: str):
+                                             engineName: str):
     matched_nodes = list(match.nodes_map.values())
     node = matched_nodes[0]
 
-    if not ("engine" in node.attrs and node.attrs["engine"] == neurekaEngineName):
+    if not ("engine" in node.attrs and node.attrs["engine"] == engineName):
         return graph
 
     weightTensor = node.inputs[1]
@@ -163,11 +129,9 @@ def _neureka_adjust_weight_memory_layout_fun(graph: gs.Graph, match: Match, name
     if not channels_first:
         values = values.transpose(0, 3, 1, 2)
 
-    bits = 8  # Support only 8 bit weights for now
-    if node.attrs['group'] == 1:
-        weightTensor.values = _weightEncode(values.astype(np.uint8), bits, depthwise = False)
-    else:
-        weightTensor.values = _weightEncode(values.astype(np.uint8), bits, depthwise = True)
+    weightBits = 8  # Support only 8 bit weights for now
+    weightTensor.values = _weightEncode(values.astype(np.uint8), weightBits, depthwise = node.attrs['group'] == 1)
+
     weightTensor.name = f"{name}_{weightTensor.name}"
 
     return graph
@@ -176,7 +140,7 @@ def _neureka_adjust_weight_memory_layout_fun(graph: gs.Graph, match: Match, name
 @contextagnostic
 class NeurekaV2AdjustWeightMemoryLayoutPass(ReplaceSequentialPatternPass):
 
-    def __init__(self, default_channels_first: bool, neurekaEngineName: str):
+    def __init__(self, default_channels_first: bool, engineName: str):
         graph = gs.Graph()
         _input = gs.Variable(name = 'input_1')
         output = graph.layer(inputs = [_input], outputs = ['out'], op = 'RequantizedConv|Conv', name = 'node')
@@ -187,146 +151,16 @@ class NeurekaV2AdjustWeightMemoryLayoutPass(ReplaceSequentialPatternPass):
             graph,
             partial(_neureka_adjust_weight_memory_layout_fun,
                     default_channels_first = default_channels_first,
-                    neurekaEngineName = neurekaEngineName), "_NEUREKA_ADJUST_WEIGHT_MEMORY_LAYOUT_PASS",
+                    engineName = engineName), "_NEUREKA_ADJUST_WEIGHT_MEMORY_LAYOUT_PASS",
             NonBranchingMatcher(regex_op = True))
-
-
-def _findAllMultiplicands(x: int) -> List[int]:
-    multiplicands = []
-    tmpX = x
-    for i in range(2, math.ceil(math.sqrt(x))):  # Ceil cause range doesn't include the last number
-        while tmpX % i == 0:
-            multiplicands.append(i)
-            tmpX = tmpX / i
-
-    if x // math.prod(multiplicands) > 1:
-        multiplicands.append(x // math.prod(multiplicands))
-
-    return multiplicands
-
-
-def _findAllReshapeOptions(dim: int) -> Generator[Tuple[int, int], None, None]:
-    multiplicands = _findAllMultiplicands(dim)
-    for combLen in range(1, 1 + (len(multiplicands) // 2)):
-        for comb in itertools.combinations(multiplicands, combLen):
-            a = math.prod(comb)
-            b = dim // a
-            yield a, b
-
-
-def _nSubtiles(dims: Tuple[int, int]):
-    return math.ceil(dims[0] / 6) * math.ceil(dims[1] / 6)
-
-
-def _findLowestNumberOfSubtilesReshapeOptions(dim: int) -> List[Tuple[int, int]]:
-    lowestNumberOfSubtiles = dim
-    bestOptions: List[Tuple[int, int]] = [(dim, 1)]
-    for option in _findAllReshapeOptions(dim):
-        nSubtiles = _nSubtiles(option)
-        if nSubtiles < lowestNumberOfSubtiles:
-            lowestNumberOfSubtiles = nSubtiles
-            bestOptions = [option]
-        elif nSubtiles == lowestNumberOfSubtiles:
-            bestOptions.append(option)
-    return bestOptions
-
-
-def _bestReshapeOption(dim: int) -> Tuple[int, int]:
-    smallestDim = dim
-    biggestDim = 1
-    for option in _findLowestNumberOfSubtilesReshapeOptions(dim):
-        if option[0] < smallestDim:
-            smallestDim = option[0]
-            biggestDim = option[1]
-        elif option[1] < smallestDim:
-            smallestDim = option[1]
-            biggestDim = option[0]
-    return biggestDim, smallestDim
-
-
-def _neureka_reshape_pointwise_convolution_fun(graph: gs.Graph, match: Match, name: str, default_channels_first: bool,
-                                               neurekaEngineName: str):
-    matched_nodes = list(match.nodes_map.values())
-    node = matched_nodes[0]
-
-    if not ("engine" in node.attrs and node.attrs["engine"] == neurekaEngineName):
-        return graph
-
-    if not (node.attrs["kernel_shape"] == [1, 1]):
-        return graph
-
-    if "channels_first" in node.attrs:
-        channels_first = node.attrs["channels_first"]
-    else:
-        channels_first = default_channels_first
-
-    def extractSpatialDims(shape: List[int]) -> List[int]:
-        if channels_first:
-            return shape[-2:]
-        else:
-            return shape[-3:-1]
-
-    def replaceSpatialDims(shape: List[int], newSpatialDims: Tuple[int, int]) -> List[int]:
-        if channels_first:
-            return shape[:-2] + list(newSpatialDims)
-        else:
-            return shape[:-3] + list(newSpatialDims) + shape[-1:]
-
-    _input = node.inputs[0]
-    spatialDims = extractSpatialDims(_input.shape)
-    newSpatialDims = _bestReshapeOption(math.prod(spatialDims))
-    newInputShape = replaceSpatialDims(_input.shape, newSpatialDims)
-
-    inputReshapeNode, reshapedInput = _createReshape(_input, name, newInputShape)
-    graph.nodes.append(inputReshapeNode)
-    node.inputs[0] = reshapedInput
-
-    output = node.outputs[0]
-    newOutputShape = replaceSpatialDims(output.shape, newSpatialDims)
-    reshapedOutput = gs.Variable(output.name + "_Reshaped", dtype = output.dtype, shape = newOutputShape)
-    outputReshapeNode, _ = _createReshape(reshapedOutput, name, output.shape, output)
-    graph.nodes.append(outputReshapeNode)
-    node.outputs[0] = reshapedOutput
-
-    return graph
-
-
-@contextagnostic
-class NeurekaV2ReshapePointwiseConvolutionPass(ReplaceSequentialPatternPass):
-    """Reshape pointwise convolution's spatial dimensions so that they work better for N-EUREKA's hardware tiling"""
-
-    def __init__(self, default_channels_first: bool, neurekaEngineName: str):
-        graph = gs.Graph()
-        _input = gs.Variable(name = 'input_1')
-        output = graph.layer(inputs = [_input], outputs = ['out'], op = 'RequantizedConv|Conv', name = 'node')
-        graph.outputs.append(output)
-        graph.inputs.append(_input)
-
-        super().__init__(
-            graph,
-            partial(_neureka_reshape_pointwise_convolution_fun,
-                    default_channels_first = default_channels_first,
-                    neurekaEngineName = neurekaEngineName), "_NEUREKA_RESHAPE_POINTWISE_CONVOLUTION_PASS",
-            NonBranchingMatcher(regex_op = True))
-
-
-class ConvEngineDiscolorationPass(EngineDiscolorationPass):
-
-    def __init__(self):
-        pattern = gs.Graph()
-        _input = gs.Variable(name = 'input')
-        output = pattern.layer(inputs = [_input], outputs = ['output'], op = 'RequantizedConv|Conv', name = 'conv')
-        pattern.outputs.append(output)
-        pattern.inputs.append(_input)
-        super().__init__(pattern, "_CONV_ENGINE_DISCOLORATION_PASS", matcher = NonBranchingMatcher(regex_op = True))
 
 
 @contextagnostic
 class NeurekaV2OptimizationPass(SequentialPass):
 
-    def __init__(self, default_channels_first: bool, neurekaEngineName: str):
-        super().__init__(NeurekaV2AdjustWeightMemoryLayoutPass(default_channels_first, neurekaEngineName),
-                         NeurekaV2ReshapePointwiseConvolutionPass(default_channels_first, neurekaEngineName),
+    def __init__(self, default_channels_first: bool, engineName: str):
+        super().__init__(NeurekaV2AdjustWeightMemoryLayoutPass(default_channels_first, engineName),
+                         NeurekaReshapePointwiseConvolutionPass(default_channels_first, engineName),
                          ReshapeMergePass(),
                          ReshapeConstOptPass(),
                          RemoveGlobalOutputReshapePass(),
