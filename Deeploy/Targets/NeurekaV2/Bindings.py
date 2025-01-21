@@ -25,6 +25,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import int8_t, int32_t, uint8_t
 from Deeploy.DeeployTypes import NodeBinding
@@ -35,6 +37,19 @@ from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV2DenseConv2
     NeurekaV2RqntDWConv2D_Template, NeurekaV2RqntPWConv2D_Template
 from Deeploy.Targets.PULPOpen.Bindings import ClusterTransformer
 from Deeploy.Targets.PULPOpen.TypeCheckers import PULPConvChecker
+
+
+def annotateWmemChecker(bindings: List[NodeBinding], rqs: bool = False) -> List[NodeBinding]:
+    annotated_bindings = []
+    for wmem in ["WeightMemory_SRAM", "WeightMemory_MRAM"]:
+        if rqs:
+            checker = NodeMemoryLevelChecker([None, wmem, None, None], [None])
+        else:
+            checker = NodeMemoryLevelChecker([None, wmem], [None])
+
+        annotated_bindings.extend([memoryAwareNodeBindingExtension(binding, checker) for binding in bindings])
+    return annotated_bindings
+
 
 NeurekaV2RQSPWConv2DBindings = [
     NodeBinding(
@@ -56,14 +71,8 @@ NeurekaV2PWConv2DBindings = [
     for weight_type in [uint8_t, int8_t]
 ]
 
-NeurekaV2WmemRQSPWConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM", None, None], [None]))
-    for binding in NeurekaV2RQSPWConv2DBindings
-]
-NeurekaV2WmemPWConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM"], [None]))
-    for binding in NeurekaV2PWConv2DBindings
-]
+NeurekaV2WmemRQSPWConv2DBindings = annotateWmemChecker(NeurekaV2RQSPWConv2DBindings, rqs = True)
+NeurekaV2WmemPWConv2DBindings = annotateWmemChecker(NeurekaV2PWConv2DBindings)
 
 NeurekaV2RQSDWConv2DBindings = [
     NodeBinding(
@@ -85,14 +94,8 @@ NeurekaV2DWConv2DBindings = [
     for weight_type in [uint8_t, int8_t]
 ]
 
-NeurekaV2WmemRQSDWConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM", None, None], [None]))
-    for binding in NeurekaV2RQSDWConv2DBindings
-]
-NeurekaV2WmemDWConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM"], [None]))
-    for binding in NeurekaV2DWConv2DBindings
-]
+NeurekaV2WmemRQSDWConv2DBindings = annotateWmemChecker(NeurekaV2RQSDWConv2DBindings, rqs = True)
+NeurekaV2WmemDWConv2DBindings = annotateWmemChecker(NeurekaV2DWConv2DBindings)
 
 NeurekaV2RQSDenseConv2DBindings = [
     NodeBinding(
@@ -115,11 +118,5 @@ NeurekaV2DenseConv2DBindings = [
     for weight_type in [uint8_t, int8_t]
 ]
 
-NeurekaV2WmemRQSDenseConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM", None, None], [None]))
-    for binding in NeurekaV2RQSDenseConv2DBindings
-]
-NeurekaV2WmemDenseConv2DBindings = [
-    memoryAwareNodeBindingExtension(binding, NodeMemoryLevelChecker([None, "WeightMemory_SRAM"], [None]))
-    for binding in NeurekaV2DenseConv2DBindings
-]
+NeurekaV2WmemRQSDenseConv2DBindings = annotateWmemChecker(NeurekaV2RQSDenseConv2DBindings, rqs = True)
+NeurekaV2WmemDenseConv2DBindings = annotateWmemChecker(NeurekaV2DenseConv2DBindings)
