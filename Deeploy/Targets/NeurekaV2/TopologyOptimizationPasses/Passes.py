@@ -54,7 +54,7 @@ def _weightEncode(weight: npt.NDArray[np.uint8], bits: int, depthwise: bool = Fa
         weight = weight.transpose(1, 0, 2, 3)  # Swap cout and cin
 
     cout, cin, height, width = weight.shape
-    cinSubtile = (_CIN_SUBTILE if height == 3 else _CIN_SUBTILE)
+    cinSubtile = _CIN_SUBTILE
 
     # Pad cin to be divisible with CIN_SUBTILE
     if cin % cinSubtile != 0:
@@ -86,11 +86,10 @@ def _weightEncode(weight: npt.NDArray[np.uint8], bits: int, depthwise: bool = Fa
     weight = np.packbits(weight, axis = -1, bitorder = "little")
 
     if height == 1 and width == 1:
-        # (cout, cinMajor, Weight Bandwidth Bytes)
-        return weight.reshape(cout, cinMajor, _WEIGHT_BANDWIDTH // 8)
-    elif depthwise:
-        return weight.reshape(cout, cinMajor, bits, _WEIGHT_BANDWIDTH // 8)
+        # (cout, cinMajor, cinSubtile)
+        return weight.reshape(cout, cinMajor, cinSubtile)
     else:
+        # (cout, cinMajor, Bits, Weight Bandwidth Bytes)
         return weight.reshape(cout, cinMajor, bits, _WEIGHT_BANDWIDTH // 8)
 
 
