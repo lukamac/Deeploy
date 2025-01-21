@@ -322,32 +322,32 @@ class NeurekaV22DDenseConvTemplate(NeurekaV2ConvTemplate):
 
 
 NeurekaV2TaskInitTemplateStr = """
-// N-EUREKA Task Init
-neureka_task_t task = {
-    .data = (neureka_task_data_t) {
+// N-EUREKA v2 Task Init
+neureka_v2_task_t task = {
+    .data = (neureka_v2_task_data_t) {
         .weights_addr = (uint32_t)${weight} - ${weight_addr_offset},
         .infeat_addr = (uint32_t)${data_in} - ${input_addr_offset},
         .outfeat_addr = (uint32_t)${data_out},
         .scale_addr = (uint32_t)${mul},
         .scale_shift_addr = (uint32_t)${shift},
         .scale_bias_addr = (uint32_t)${add},
-        .cfg = (neureka_cfg_t) {
-            .input_stride = (neureka_stride_t) {
+        .cfg = (neureka_v2_cfg_t) {
+            .input_stride = (neureka_v2_stride_t) {
                 .d0 = ${dim_im_in_y_stride},
                 .d1 = ${dim_im_in_x_stride},
                 .d2 = 0
             },
-            .output_stride = (neureka_stride_t) {
-                .d0 = NEUREKA_OUTPUT_BANDWIDTH_BYTES,
+            .output_stride = (neureka_v2_stride_t) {
+                .d0 = NEUREKA_V2_OUTPUT_BANDWIDTH_BYTES,
                 .d1 = ${dim_im_out_y_stride},
                 .d2 = ${dim_im_out_x_stride}
             },
-            task.data.cfg.weights_stride = (neureka_stride_t) {
+            task.data.cfg.weights_stride = (neureka_v2_stride_t) {
                 .d0 = ${weightStrideD0},
                 .d1 = ${weightStrideD1},
                 .d2 = ${weightStrideD2}
             },
-            .subtile = (neureka_subtile_t) {
+            .subtile = (neureka_v2_subtile_t) {
                 .number = {
                     .KoKi = nnx_concat_half(${nKo}, ${nKi}),
                     .HoWo = nnx_concat_half(${nHo}, ${nWo})
@@ -369,9 +369,9 @@ neureka_task_t task = {
 
 NeurekaV2TaskExecutionTemplateStr = """
 // N-EUREKA Task Execution
-neureka_nnx_dispatch_wait(neureka_siracusa_get_dev());
-neureka_nnx_dispatch(neureka_siracusa_get_dev(), &task);
-neureka_nnx_resolve_wait(neureka_siracusa_get_dev(), &task);
+neureka_v2_nnx_dispatch_wait(neureka_v2_siracusa_get_dev());
+neureka_v2_nnx_dispatch(neureka_v2_siracusa_get_dev(), &task);
+neureka_v2_nnx_resolve_wait(neureka_v2_siracusa_get_dev(), &task);
 """
 
 NeurekaV2RqntPWConv2D_Template = NeurekaV22DPWConvTemplate(NeurekaV2TaskInitTemplateStr +
