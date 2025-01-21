@@ -2,10 +2,16 @@ file(GLOB_RECURSE SOURCES
   "src/**"
 )
 
-if(platform STREQUAL "Siracusa" OR platform STREQUAL "Siracusa_w_neureka")
+if(NOT DEFINED ENV{PULP_SDK_HOME})
+  message(FATAL_ERROR "Environemnt variable PULP_SDK_HOME not set.")
+endif()
+
+if(platform STREQUAL "Siracusa" OR platform STREQUAL "Siracusa_w_neureka" OR platform STREQUAL "Siracusa_w_neureka_v2")
   include(cmake/pulp-sdk-siracusa.cmake)
 elseif(platform STREQUAL "PULPOpen")
   include(cmake/pulp-sdk-pulp-open.cmake)
+else()
+  message(FATAL_ERROR "Unrecognized platform: ${platform}")
 endif()
 
 add_deeploy_library(deeploypulp STATIC ${SOURCES})
@@ -28,7 +34,6 @@ add_subdirectory(third_party/pulp-nn-mixed)
 target_include_directories(pulp-nn-mixed PUBLIC ${PULP_SDK_INCLUDES})
 target_compile_options(pulp-nn-mixed PUBLIC ${PULP_SDK_COMPILE_FLAGS})
 
-set(USE_NEUREKA ON)
 add_subdirectory(third_party/pulp-nnx)
 target_include_directories(pulp-nnx PUBLIC ${PULP_SDK_INCLUDES})
 target_compile_options(pulp-nnx PUBLIC ${PULP_SDK_COMPILE_FLAGS})

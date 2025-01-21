@@ -53,3 +53,18 @@ macro(add_banshee_simulation name)
 	VERBATIM
     )
 endmacro()
+
+macro(add_gvsoc_simulation name target)
+	if(NOT DEFINED ENV{GVSOC_INSTALL_DIR})
+		message(FATAL_ERROR "Environment variable GVSOC_INSTALL_DIR not set")
+	endif()
+	add_custom_target(gvsoc_${name}
+	WORKING_DIRECTORY $ENV{GVSOC_INSTALL_DIR}
+	DEPENDS ${name}
+	COMMAND ./bin/gvsoc --target=${target} --binary ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name} image flash run
+	COMMENT "Simulating deeploytest ${name} with gvsoc for the target ${target}"
+	POST_BUILD
+	USES_TERMINAL
+	VERBATIM
+	)
+endmacro()
