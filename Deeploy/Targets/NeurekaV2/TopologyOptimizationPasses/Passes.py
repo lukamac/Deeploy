@@ -124,7 +124,12 @@ def _neureka_adjust_weight_memory_layout_fun(graph: gs.Graph, match: Match, name
         values = values.transpose(0, 3, 1, 2)
 
     weightBits = 8  # Support only 8 bit weights for now
-    weightTensor.values = _weightEncode(values.astype(np.uint8), weightBits, depthwise = node.attrs['group'] == 1)
+    group = node.attrs['group']
+    channel_out = values.shape[0]
+    channel_in = values.shape[1]
+    assert (group == channel_out and channel_out == channel_in) or (group == 1), \
+        f"Grouped convolution unsupported. Got group {group} for channel_in {channel_in} and channel_out {channel_out}"
+    weightTensor.values = _weightEncode(values.astype(np.uint8), weightBits, depthwise = not (node.attrs['group'] == 1))
 
     weightTensor.name = f"{name}_{weightTensor.name}"
 

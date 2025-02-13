@@ -31,9 +31,7 @@ from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import int8_t, int32_t, uint8_t
 from Deeploy.DeeployTypes import NodeBinding
 from Deeploy.MemoryLevelExtension.MemoryLevels import NodeMemoryLevelChecker, memoryAwareNodeBindingExtension
-from Deeploy.Targets.Generic.TypeCheckers import ConvChecker
-from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV2DenseConv2D_Template, \
-    NeurekaV2DWConv2D_Template, NeurekaV2PWConv2D_Template, NeurekaV2RqntDenseConv2D_Template, \
+from Deeploy.Targets.NeurekaV2.Templates.ConvTemplate import NeurekaV2RqntDenseConv2D_Template, \
     NeurekaV2RqntDWConv2D_Template, NeurekaV2RqntPWConv2D_Template
 from Deeploy.Targets.PULPOpen.Bindings import ClusterTransformer
 from Deeploy.Targets.PULPOpen.TypeCheckers import PULPConvChecker
@@ -45,7 +43,7 @@ def annotateWmemChecker(bindings: List[NodeBinding], rqs: bool = False) -> List[
         if rqs:
             checker = NodeMemoryLevelChecker([None, wmem, None, None], [None])
         else:
-            checker = NodeMemoryLevelChecker([None, wmem], [None])
+            checker = NodeMemoryLevelChecker([None, wmem, None], [None])
 
         annotated_bindings.extend([memoryAwareNodeBindingExtension(binding, checker) for binding in bindings])
     return annotated_bindings
@@ -56,46 +54,46 @@ NeurekaV2RQSPWConv2DBindings = [
         PULPConvChecker(
             [PointerClass(data_in_type),
              PointerClass(weight_type),
-             PointerClass(int32_t),
+             PointerClass(int8_t),
              PointerClass(int32_t)], [PointerClass(data_out_type)]), NeurekaV2RqntPWConv2D_Template, ClusterTransformer)
     for data_in_type in [uint8_t, int8_t]
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
 ]
-NeurekaV2PWConv2DBindings = [
-    NodeBinding(
-        ConvChecker(
-            [PointerClass(data_in_type), PointerClass(weight_type),
-             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2PWConv2D_Template, ClusterTransformer)
-    for data_in_type in [uint8_t, int8_t]
-    for weight_type in [uint8_t, int8_t]
-]
+#NeurekaV2PWConv2DBindings = [
+#    NodeBinding(
+#        ConvChecker(
+#            [PointerClass(data_in_type), PointerClass(weight_type),
+#             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2PWConv2D_Template, ClusterTransformer)
+#    for data_in_type in [uint8_t, int8_t]
+#    for weight_type in [uint8_t, int8_t]
+#]
 
 NeurekaV2WmemRQSPWConv2DBindings = annotateWmemChecker(NeurekaV2RQSPWConv2DBindings, rqs = True)
-NeurekaV2WmemPWConv2DBindings = annotateWmemChecker(NeurekaV2PWConv2DBindings)
+#NeurekaV2WmemPWConv2DBindings = annotateWmemChecker(NeurekaV2PWConv2DBindings)
 
 NeurekaV2RQSDWConv2DBindings = [
     NodeBinding(
         PULPConvChecker(
             [PointerClass(data_in_type),
              PointerClass(weight_type),
-             PointerClass(int32_t),
+             PointerClass(int8_t),
              PointerClass(int32_t)], [PointerClass(data_out_type)]), NeurekaV2RqntDWConv2D_Template, ClusterTransformer)
     for data_in_type in [uint8_t, int8_t]
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
 ]
-NeurekaV2DWConv2DBindings = [
-    NodeBinding(
-        ConvChecker(
-            [PointerClass(data_in_type), PointerClass(weight_type),
-             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2DWConv2D_Template, ClusterTransformer)
-    for data_in_type in [uint8_t, int8_t]
-    for weight_type in [uint8_t, int8_t]
-]
+#NeurekaV2DWConv2DBindings = [
+#    NodeBinding(
+#        ConvChecker(
+#            [PointerClass(data_in_type), PointerClass(weight_type),
+#             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2DWConv2D_Template, ClusterTransformer)
+#    for data_in_type in [uint8_t, int8_t]
+#    for weight_type in [uint8_t, int8_t]
+#]
 
 NeurekaV2WmemRQSDWConv2DBindings = annotateWmemChecker(NeurekaV2RQSDWConv2DBindings, rqs = True)
-NeurekaV2WmemDWConv2DBindings = annotateWmemChecker(NeurekaV2DWConv2DBindings)
+#NeurekaV2WmemDWConv2DBindings = annotateWmemChecker(NeurekaV2DWConv2DBindings)
 
 NeurekaV2RQSDenseConv2DBindings = [
     NodeBinding(
@@ -109,14 +107,14 @@ NeurekaV2RQSDenseConv2DBindings = [
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
 ]
-NeurekaV2DenseConv2DBindings = [
-    NodeBinding(
-        ConvChecker(
-            [PointerClass(data_in_type), PointerClass(weight_type),
-             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2DenseConv2D_Template, ClusterTransformer)
-    for data_in_type in [uint8_t, int8_t]
-    for weight_type in [uint8_t, int8_t]
-]
+#NeurekaV2DenseConv2DBindings = [
+#    NodeBinding(
+#        ConvChecker(
+#            [PointerClass(data_in_type), PointerClass(weight_type),
+#             PointerClass(int32_t)], [PointerClass(int32_t)]), NeurekaV2DenseConv2D_Template, ClusterTransformer)
+#    for data_in_type in [uint8_t, int8_t]
+#    for weight_type in [uint8_t, int8_t]
+#]
 
 NeurekaV2WmemRQSDenseConv2DBindings = annotateWmemChecker(NeurekaV2RQSDenseConv2DBindings, rqs = True)
-NeurekaV2WmemDenseConv2DBindings = annotateWmemChecker(NeurekaV2DenseConv2DBindings)
+#NeurekaV2WmemDenseConv2DBindings = annotateWmemChecker(NeurekaV2DenseConv2DBindings)

@@ -58,10 +58,14 @@ macro(add_gvsoc_simulation name target)
 	if(NOT DEFINED ENV{GVSOC_INSTALL_DIR})
 		message(FATAL_ERROR "Environment variable GVSOC_INSTALL_DIR not set")
 	endif()
+	set(GVSOC_READFS_FILES_OPTS ${GVSOC_READFS_FILES})
+	list(TRANSFORM GVSOC_READFS_FILES_OPTS PREPEND "--flash-property=")
+	list(TRANSFORM GVSOC_READFS_FILES_OPTS APPEND "@hyperflash:readfs:files")
+	set(GVSOC_WORKDIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/gvsoc_workdir)
+	make_directory(${GVSOC_WORKDIR})
 	add_custom_target(gvsoc_${name}
-	WORKING_DIRECTORY $ENV{GVSOC_INSTALL_DIR}
 	DEPENDS ${name}
-	COMMAND ./bin/gvsoc --target=${target} --binary ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name} image flash run
+	COMMAND $ENV{GVSOC_INSTALL_DIR}/bin/gvsoc --target=${target} --binary ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name} ${GVSOC_READFS_FILES_OPTS} --work-dir=${GVSOC_WORKDIR} image flash run
 	COMMENT "Simulating deeploytest ${name} with gvsoc for the target ${target}"
 	POST_BUILD
 	USES_TERMINAL

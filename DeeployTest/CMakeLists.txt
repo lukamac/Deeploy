@@ -22,7 +22,13 @@ elseif(DEEPLOY_ARCH STREQUAL PULP)
   file(GLOB_RECURSE HEXLIST
     "${GENERATED_SOURCE}/hex/**"
   )
-  list(TRANSFORM HEXLIST PREPEND "--config-opt=flash/content/partitions/readfs/files=")
+  set(GVSOC_READFS_FILES ${HEXLIST})
+  if(platform STREQUAL Siracusa_w_neureka_v2)
+    set(HEX_PREPEND "--config-opt=hyperflash/content/partitions/readfs/files=")
+  else()
+    set(HEX_PREPEND "--config-opt=flash/content/partitions/readfs/files=")
+  endif()
+  list(TRANSFORM HEXLIST PREPEND ${HEX_PREPEND})
   set(GVSOCHEXINCLUDE ${HEXLIST})
 
   if (NOT HEXLIST)

@@ -23,17 +23,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict, Type
+from typing import Callable, Dict, List, Type
 
 import onnx_graphsurgeon as gs
 
 from Deeploy.AbstractDataTypes import Pointer
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
     NeurekaNCHWtoNHWCPass, PULPNCHWtoNHWCPass
-from Deeploy.DeeployTypes import DeploymentPlatform, TopologyOptimizer
+from Deeploy.DeeployTypes import ConstantBuffer, DeploymentPlatform, NodeTemplate, TopologyOptimizer, VariableBuffer
 from Deeploy.Targets.Neureka.TopologyOptimizationPasses.Passes import ConvEngineDiscolorationPass
 from Deeploy.Targets.NeurekaV2.TopologyOptimizationPasses.Passes import NeurekaV2OptimizationPass
 from Deeploy.Targets.PULPOpen.Deployer import PULPDeployer
+
+_L3CopyTemplate = NodeTemplate("""load_file_to_local(${locPtr}, "${extName}.hex");\n""")
 
 
 class NeurekaV2Deployer(PULPDeployer):
@@ -60,3 +62,22 @@ class NeurekaV2Deployer(PULPDeployer):
             ConvEngineDiscolorationPass(),
             NeurekaV2OptimizationPass(self.default_channels_first, "NeurekaV2")
         ]
+
+    def _wmemBuffers(self) -> List[ConstantBuffer]:
+        return [
+            buf for buf in self.ctxt.globalObjects.values()
+            if hasattr(buf, "_memoryLevel") and buf._memoryLevel in ["WeightMemory_SRAM", "WeightMemory_MRAM"]
+        ]
+
+    def _generateL3CopyCode(self, buf: VariableBuffer) -> str:
+        buf.extName = self._newExtName()
+        return _L3CopyTemplate.generate({
+            "locPtr": str(buf._instance),
+            "extName": buf.extName,
+        })
+
+    def generateBufferAllocationCode(self) -> str:
+        retStr = super().generateBufferAllocationCode()
+        for buf in self._wmemBuffers():
+            retStr += self._generateL3CopyCode(buf)
+        return retStr
