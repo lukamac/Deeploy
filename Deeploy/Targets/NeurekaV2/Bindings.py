@@ -54,11 +54,12 @@ NeurekaV2RQSPWConv2DBindings = [
         PULPConvChecker(
             [PointerClass(data_in_type),
              PointerClass(weight_type),
-             PointerClass(int8_t),
+             PointerClass(scale_type),
              PointerClass(int32_t)], [PointerClass(data_out_type)]), NeurekaV2RqntPWConv2D_Template, ClusterTransformer)
     for data_in_type in [uint8_t, int8_t]
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
+    for scale_type in [int8_t, int32_t]
 ]
 #NeurekaV2PWConv2DBindings = [
 #    NodeBinding(
@@ -77,11 +78,12 @@ NeurekaV2RQSDWConv2DBindings = [
         PULPConvChecker(
             [PointerClass(data_in_type),
              PointerClass(weight_type),
-             PointerClass(int8_t),
+             PointerClass(scale_type),
              PointerClass(int32_t)], [PointerClass(data_out_type)]), NeurekaV2RqntDWConv2D_Template, ClusterTransformer)
     for data_in_type in [uint8_t, int8_t]
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
+    for scale_type in [int8_t, int32_t]
 ]
 #NeurekaV2DWConv2DBindings = [
 #    NodeBinding(
@@ -100,12 +102,13 @@ NeurekaV2RQSDenseConv2DBindings = [
         PULPConvChecker(
             [PointerClass(data_in_type),
              PointerClass(weight_type),
-             PointerClass(int32_t),
+             PointerClass(scale_type),
              PointerClass(int32_t)], [PointerClass(data_out_type)]), NeurekaV2RqntDenseConv2D_Template,
         ClusterTransformer)
     for data_in_type in [uint8_t, int8_t]
     for data_out_type in [uint8_t, int8_t]
     for weight_type in [uint8_t, int8_t]
+    for scale_type in [int8_t, int32_t]
 ]
 #NeurekaV2DenseConv2DBindings = [
 #    NodeBinding(
