@@ -47,8 +47,8 @@ from Deeploy.Targets.PULPOpen.Platform import MemoryPULPPlatform, MemoryPULPPlat
 from Deeploy.Targets.Snitch.Deployer import SnitchDeployer
 from Deeploy.Targets.Snitch.Platform import SnitchOptimizer, SnitchPlatform
 
-_SIGNPROP_PLATFORMS = ["Apollo3", "Apollo4", "QEMU-ARM", "Generic", "MemPool"]
-_NONSIGNPROP_PLATFORMS = ["Siracusa", "Siracusa_w_neureka", "Siracusa_w_neureka_v2", "PULPOpen", "Snitch"]
+_SIGNPROP_PLATFORMS = ["Apollo3", "Apollo4", "QEMU-ARM", "MemPool"]
+_NONSIGNPROP_PLATFORMS = ["Siracusa", "Siracusa_w_neureka", "Siracusa_w_neureka_v2", "PULPOpen", "Generic", "Snitch"]
 _PLATFORMS = _SIGNPROP_PLATFORMS + _NONSIGNPROP_PLATFORMS
 
 

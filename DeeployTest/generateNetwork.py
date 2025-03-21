@@ -37,7 +37,6 @@ from testUtils.platformMapping import mapDeployer, mapPlatform
 from testUtils.testRunner import TestGeneratorArgumentParser
 from testUtils.typeMapping import inferInputType
 
-from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.DebugPasses import EmulateCMSISRequantPass
 from Deeploy.DeeployTypes import _NoVerbosity
 from Deeploy.Targets.CortexM.Platform import CMSISPlatform
 from Deeploy.Targets.PULPOpen.Platform import PULPPlatform
@@ -102,10 +101,12 @@ if __name__ == '__main__':
 
     deployer = mapDeployer(platform, graph, inputTypes, deeployStateDir = _DEEPLOYSTATEDIR, inputOffsets = inputOffsets)
 
+    # TODO: Make a list of all the networks that require the CMSISRequant emulation
+    # how? remove it, run tests and see which fail?
     if not isinstance(
             platform, CMSISPlatform
     ) and not "simpleCNN" in args.dir and not "testRQMatMul" in args.dir and not "testRQGEMM" in args.dir:
-        deployer.loweringOptimizer.passes.insert(0, EmulateCMSISRequantPass())
+        pass
 
     verbosityCfg = _NoVerbosity
     if isinstance(platform, PULPPlatform):
