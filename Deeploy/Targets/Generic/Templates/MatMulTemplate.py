@@ -49,6 +49,9 @@ class _MatMulTemplate(NodeTemplate):
         if hasattr(C, "_signed") and hasattr(C, "nLevels"):
             operatorRepresentation['C_offset'] = -(C._signed == 0) * int(C.nLevels / 2)
 
+        operatorRepresentation['is_batch_A'] = len(A.shape) > 2
+        operatorRepresentation['is_batch_B'] = len(B.shape) > 2
+
         return ctxt, operatorRepresentation, []
 
 
@@ -70,8 +73,12 @@ BEGIN_SINGLE_CORE
             ${A_offset}, ${B_offset}, ${C_offset}
         );
 
+        % if is_batch_A:
         ref_${data_out}_${A} += ${M} * ${N};
+        % endif
+        % if is_batch_B:
         ref_${data_out}_${B} += ${N} * ${O};
+        % endif
         ref_${data_out}_${data_out} += ${M} * ${O};
     }
 END_SINGLE_CORE
