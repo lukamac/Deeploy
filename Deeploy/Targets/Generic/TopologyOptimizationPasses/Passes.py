@@ -60,7 +60,7 @@ def _merge_trueintegerdiv_rq_fun(graph: gs.Graph, match: Match, name: str):
     eps = integerDiv.attrs['eps']
     y = integerDiv.attrs['y']
 
-    stretch = 2**8
+    stretch = 2**4
 
     coeff = np.floor(((Delta * eta) / (y * eta + eps))) * stretch
 

@@ -33,7 +33,8 @@ from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.Debu
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
     NCHWtoNHWCPass, TransposeMatmulInputsPass
 from Deeploy.DeeployTypes import DeploymentPlatform, TopologyOptimizer
-from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import TransposeConstOptPass, TransposeMergePass
+from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import MergeTrueIntegerDivRequantShiftPass, \
+    TransposeConstOptPass, TransposeMergePass
 
 
 class GenericDeployer(SignPropDeployer):
@@ -65,5 +66,6 @@ class GenericDeployer(SignPropDeployer):
             NCHWtoNHWCPass(self.default_channels_first),
             TransposeMergePass(),
             TransposeConstOptPass(),
-            DebugPrintMergePass()
+            MergeTrueIntegerDivRequantShiftPass(),
+            DebugPrintMergePass(),
         ]
