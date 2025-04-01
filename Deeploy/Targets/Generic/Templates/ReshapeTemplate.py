@@ -41,14 +41,10 @@ class _ReshapeTemplate(NodeTemplate):
             ctxt.globalObjects[operatorRepresentation['indices']]._deploy = False
             ctxt.globalObjects[operatorRepresentation['indices']]._live = False
 
-        inBuffer = ctxt.lookup(operatorRepresentation['data_in'])
-        outBuffer = ctxt.lookup(operatorRepresentation['data_out'])
-        outBuffer._alias = inBuffer.name
-
         return ctxt, operatorRepresentation, []
 
 
 referenceTemplate = _ReshapeTemplate("""
 // Reshape (Name: ${nodeName}, Op: ${nodeOp})
-SINGLE_CORE ${data_out} = ${data_in};
+SINGLE_CORE memcpy(${data_out}, ${data_in}, ${size} * ${data_in_type.referencedType.typeWidth // 8});
 """)
