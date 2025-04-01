@@ -55,6 +55,8 @@ class _GemmTemplate(NodeTemplate):
         if hasattr(Y, "_signed") and hasattr(Y, "nLevels"):
             operatorRepresentation['Y_offset'] = -(Y._signed == 0) * int(Y.nLevels / 2)
 
+        operatorRepresentation["is_batch_B"] = len(B.shape) > 2
+
         return ctxt, operatorRepresentation, []
 
 
@@ -86,8 +88,10 @@ BEGIN_SINGLE_CORE
         );
 
         ref_${data_out}_${A} += ${M} * ${N};
+        % if is_batch_B:
         ref_${data_out}_${B} += ${N} * ${O};
         ref_${data_out}_${C} += ${M} * ${O};
+        % endif
         ref_${data_out}_${data_out} += ${M} * ${O};
     }
 END_SINGLE_CORE
