@@ -132,4 +132,46 @@ void RequantShift_s32_s8_NCHW(int32_t *data_in, int32_t size, int32_t *mul,
                               int32_t output_offset, int8_t output_min,
                               int8_t output_max, bool rounding);
 
+/*
+ * Re-quantization and Shift  ----------------------------------
+ * kernel           = RequantShift_s8_layerwise
+ * layout           = /
+ * input data type  = 8-bit integer
+ * output data type = 8-bit integer
+ * unrolling        = no
+ * simd             = no
+ */
+void RequantShift_s8_layerwise(int8_t *data_in, int32_t size, int32_t mul,
+                               int32_t add, int8_t *data_out, int32_t log2D,
+                               int32_t input_offset, int32_t output_offset,
+                               int8_t output_min, int8_t output_max);
+
+/*
+ * Re-quantization and Shift  ----------------------------------
+ * kernel           = RequantShift_s16_layerwise
+ * layout           = /
+ * input data type  = 16-bit integer
+ * output data type = 8-bit integer
+ * unrolling        = no
+ * simd             = no
+ */
+void RequantShift_s16_layerwise(int16_t *data_in, int32_t size, int32_t mul,
+                                int32_t add, int8_t *data_out, int32_t log2D,
+                                int32_t input_offset, int32_t output_offset,
+                                int8_t output_min, int8_t output_max);
+
+/*
+ * Re-quantization and Shift  ----------------------------------
+ * kernel           = RequantShift_s32_layerwise
+ * layout           = /
+ * input data type  = 32-bit integer
+ * output data type = 8-bit integer
+ * unrolling        = no
+ * simd             = no
+ */
+void RequantShift_s32_layerwise(int32_t *data_in, int32_t size, int32_t mul,
+                                int32_t add, int8_t *data_out, int32_t log2D,
+                                int32_t input_offset, int32_t output_offset,
+                                int8_t output_min, int8_t output_max);
+
 #endif //__DEEPLOY_BASIC_MATH_REQUANTSHIFT_KERNEL_HEADER_

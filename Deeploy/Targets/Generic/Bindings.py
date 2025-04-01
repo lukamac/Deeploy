@@ -39,9 +39,9 @@ from Deeploy.Targets.Generic.Templates import AddTemplate, ConcatTemplate, ConvT
     FloatDivTemplate, FloatGELUTemplate, FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, \
     FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, FloatReluTemplate, FloatSoftmaxTemplate, GatherTemplate, \
     GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, MatMulTemplate, MaxPoolTemplate, \
-    MulTemplate, PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, RequantShiftTemplate, \
-    ReshapeTemplate, RQIntegerDivTemplate, RQSiGELUTemplate, SiluTemplate, SliceTemplate, TransposeTemplate, \
-    iGELUTemplate, iLayernormTemplate, iRMSNormTemplate, iSoftmaxTemplate
+    MulTemplate, PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, RequantShiftLayerwiseTemplate, \
+    RequantShiftTemplate, ReshapeTemplate, RQIntegerDivTemplate, RQSiGELUTemplate, SiluTemplate, SliceTemplate, \
+    TransposeTemplate, iGELUTemplate, iLayernormTemplate, iRMSNormTemplate, iSoftmaxTemplate
 from Deeploy.Targets.Generic.TypeCheckers import AddChecker, ConcatChecker, ConvChecker, DebugPrintChecker, \
     DequantChecker, DequantShiftChecker, DivChecker, DummyChecker, GatherChecker, GELUChecker, GEMMChecker, \
     LayerNormChecker, MatMulChecker, MaxPoolChecker, MulChecker, PadChecker, QuantChecker, ReduceMeanChecker, \
@@ -214,6 +214,13 @@ BasicReshapeBindings = [
                 ReshapeTemplate.referenceTemplate, ReshapeSkipTransformer) for type in IntegerDataTypes
 ]
 
+BasicRQSLayerwiseBindings = [
+    NodeBinding(
+        RequantShiftChecker([PointerClass(type), PointerClass(int32_t),
+                             PointerClass(int32_t)], [PointerClass(int8_t)]),
+        RequantShiftLayerwiseTemplate.referenceTemplate, BasicTransformer) for type in SignedIntegerDataTypes
+]
+
 BasicRQSBindings = [
     NodeBinding(
         RequantShiftChecker([PointerClass(type), PointerClass(int32_t),
@@ -222,9 +229,8 @@ BasicRQSBindings = [
 ]
 
 BasicDQSBindings = [
-    NodeBinding(
-        DequantShiftChecker([PointerClass(in_type)], [PointerClass(float32_t)]), DequantShiftTemplate.referenceTemplate,
-        BasicTransformer) for in_type in [uint8_t, int8_t]
+    NodeBinding(DequantShiftChecker([PointerClass(in_type)], [PointerClass(float32_t)]),
+                DequantShiftTemplate.referenceTemplate, BasicTransformer) for in_type in [uint8_t, int8_t]
 ]
 
 BasicSiluBindings = [

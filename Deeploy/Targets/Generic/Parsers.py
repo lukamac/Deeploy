@@ -1052,6 +1052,38 @@ class RequantShiftParser(NodeParser, RQSParserInterface):
         return ctxt, True
 
 
+class RequantShiftLayerwiseParser(RequantShiftParser):
+
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
+        return np.prod(node.inputs[1].shape) == 1 and np.prod(node.inputs[2].shape) == 1
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        _ = channels_first
+
+        inputs = ['data_in']
+        outputs = ['data_out']
+
+        for idx, inputNode in enumerate(node.inputs[:1]):
+            self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
+        for idx, outputNode in enumerate(node.outputs):
+            self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
+
+        data_in = ctxt.lookup(node.inputs[0].name)
+        assert isinstance(data_in, VariableBuffer)
+        shape = data_in.shape
+
+        self.operatorRepresentation['size'] = np.prod(shape)
+        self.operatorRepresentation['mul'] = int(self._unpack_const(node.inputs[1]))
+        self.operatorRepresentation['add'] = int(self._unpack_const(node.inputs[2]))
+
+        return ctxt, True
+
+
 class DequantShiftParser(NodeParser):
 
     def __init__(self):
