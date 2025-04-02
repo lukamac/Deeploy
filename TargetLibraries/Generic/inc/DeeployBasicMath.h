@@ -56,6 +56,7 @@
 #include "util.h"
 
 #include "kernel/Convolution.h"
+#include "kernel/DequantShift.h"
 #include "kernel/DWConvolution.h"
 #include "kernel/Div.h"
 #include "kernel/GELU.h"

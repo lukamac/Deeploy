@@ -152,6 +152,16 @@ class RequantShiftLayer(ONNXLayer):
         return self.mapper.parser.operatorRepresentation['size'] * 3  # One add, one mul, one div
 
 
+class DequantShiftLayer(ONNXLayer):
+
+    def __init__(self, maps: List[NodeMapper]):
+        super().__init__(maps)
+
+    def computeOps(self):
+        # TODO: how does casting to float count as ops?
+        return self.mapper.parser.operatorRepresentation['size'] * 3  # One mul, one sub, one div
+
+
 class AddLayer(ONNXLayer):
 
     def __init__(self, maps: List[NodeMapper]):

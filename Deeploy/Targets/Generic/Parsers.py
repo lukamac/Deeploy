@@ -1052,6 +1052,48 @@ class RequantShiftParser(NodeParser, RQSParserInterface):
         return ctxt, True
 
 
+class DequantShiftParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> (bool):
+        if not all([
+                'div' in node.attrs,
+                'mul' in node.attrs,
+                'add' in node.attrs,
+                len(node.inputs) == 1,
+                len(node.outputs) == 1,
+        ]):
+            return False
+
+        self.operatorRepresentation['log2D'] = int(math.log2(self._unpack_const(node.attrs['div'])))
+        self.operatorRepresentation['mul'] = int(self._unpack_const(node.attrs['mul']))
+        self.operatorRepresentation['add'] = int(self._unpack_const(node.attrs['add']))
+        return True
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        _ = channels_first
+
+        inputs = ['data_in']
+        outputs = ['data_out']
+
+        for idx, inputNode in enumerate(node.inputs):
+            self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
+        for idx, outputNode in enumerate(node.outputs):
+            self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
+
+        data_in = ctxt.lookup(node.inputs[0].name)
+        assert isinstance(data_in, VariableBuffer)
+        shape = data_in.shape
+        self.operatorRepresentation['size'] = np.prod(shape)
+
+        return ctxt, True
+
+
 class UniformRequantShiftParser(RequantShiftParser):
 
     def __init__(self):
