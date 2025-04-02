@@ -511,6 +511,9 @@ class RequantShiftChecker(SignPropTypeChecker):
         return [operatorRepresentation["signed"]]
 
 
+SiluChecker = NodeTypeChecker
+
+
 class DummyChecker(SignPropTypeChecker):
 
     def __init__(self, input_types: Sequence[Type[Pointer]], output_types: Sequence[Type[Pointer]]):

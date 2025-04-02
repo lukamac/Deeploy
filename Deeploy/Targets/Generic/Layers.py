@@ -179,6 +179,16 @@ class RequantShiftLayer(ONNXLayer):
         return self.mapper.parser.operatorRepresentation['size'] * 3  # One add, one mul, one div
 
 
+class SiluLayer(ONNXLayer):
+
+    def __init__(self, maps: List[NodeMapper]):
+        super().__init__(maps)
+
+    def computeOps(self) -> int:
+        # TODO: How do ops count in mixed float/int world?
+        return 0
+
+
 class AddLayer(ONNXLayer):
 
     def __init__(self, maps: List[NodeMapper]):

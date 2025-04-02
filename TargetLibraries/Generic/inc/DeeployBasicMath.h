@@ -69,6 +69,7 @@
 #include "kernel/RQGELU.h"
 #include "kernel/RQHardswish.h"
 #include "kernel/RequantShift.h"
+#include "kernel/Silu.h"
 #include "kernel/Softmax.h"
 
 #endif //__DEEPLOY_BASIC_MATH_HEADER_

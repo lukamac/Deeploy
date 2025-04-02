@@ -1094,6 +1094,34 @@ class RequantShiftParser(NodeParser, RQSParserInterface):
         return ctxt, True
 
 
+class SiluParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> (bool):
+        return len(node.inputs) == 1 and len(node.outputs) == 1
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        _ = channels_first
+
+        inputs = ['data_in']
+        outputs = ['data_out']
+
+        for idx, inputNode in enumerate(node.inputs):
+            self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
+        for idx, outputNode in enumerate(node.outputs):
+            self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
+
+        shape = ctxt.lookup(node.inputs[0].name).shape
+        self.operatorRepresentation['size'] = np.prod(shape)
+
+        return ctxt, True
+
+
 class UniformRequantShiftParser(RequantShiftParser):
 
     def __init__(self):
