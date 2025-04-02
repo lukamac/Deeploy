@@ -512,6 +512,7 @@ class RequantShiftChecker(SignPropTypeChecker):
 
 
 DequantShiftChecker = NodeTypeChecker
+SiluChecker = NodeTypeChecker
 
 
 class DummyChecker(SignPropTypeChecker):
