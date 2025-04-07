@@ -138,14 +138,15 @@ class RequantShiftLayer(ONNXLayer):
     def __init__(self, maps: List[NodeMapper]):
         super().__init__(maps)
 
-    def computeShapes(self, inputShapes: List[Shape], outputShapes: Shape, operatorRepresentation,
-                      channels_first) -> Tuple[Shape, Shape]:
-
-        channel_dim = inputShapes[0][1]
-        inputShapes[2] = [inputShapes[0][0], channel_dim] + list(inputShapes[2][1:])
-        inputShapes[1] = [inputShapes[0][0], channel_dim] + list(inputShapes[1][1:])
-
-        return (inputShapes, outputShapes)
+    def computeShapes(self, inputShapes: List[Shape], outputShapes: List[Shape], operatorRepresentation,
+                      channels_first) -> Tuple[List[Shape], List[Shape]]:
+        _ = channels_first
+        if np.prod(inputShapes[1]) == 1 and np.prod(inputShapes[2]) == 1:
+            return (inputShapes, outputShapes)
+        else:
+            batch = operatorRepresentation['batch'] if 'batch' in operatorRepresentation else 1
+            channels = inputShapes[0][-3]
+            return ([inputShapes[0], [batch, channels], [batch, channels]], outputShapes)
 
     def computeOps(self):
         return self.mapper.parser.operatorRepresentation['size'] * 3  # One add, one mul, one div
