@@ -23,7 +23,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Tuple
 
 import onnx_graphsurgeon as gs
 
@@ -87,25 +87,35 @@ class NeurekaV2Engine(DeploymentEngine):
         self.enable3x3 = enable3x3
         self.enableStrides = enableStrides
 
-    def isDenseConv(self, node) -> bool:
+    def _convKernelShape(self, node: gs.Node) -> Tuple[int, int]:
+        assert node.op in ["Conv", "RequantizedConv"]
+        if "kernel_shape" in node.attrs:
+            return tuple(node.attrs["kernel_shape"])
+        else:
+            assert len(node.inputs) >= 2
+            weight_tensor = node.inputs[1]
+            assert isinstance(weight_tensor, gs.Constant)
+            return tuple(weight_tensor.shape[-2:])
+
+    def isDenseConv(self, node: gs.Node) -> bool:
         return node.op in ["Conv", "RequantizedConv"] and \
             isinstance(node.inputs[1], gs.Constant) and \
-            node.attrs['kernel_shape'] == [3, 3] and \
+            self._convKernelShape(node) == (3, 3) and \
             node.attrs['dilations'] == [1, 1] and \
             node.attrs['group'] == 1 and \
             (node.attrs['strides'] == [1, 1] or self.enableStrides)
 
-    def isPWConv(self, node) -> bool:
+    def isPWConv(self, node: gs.Node) -> bool:
         return node.op in ["Conv", "RequantizedConv"] and \
             isinstance(node.inputs[1], gs.Constant) and \
-            node.attrs['kernel_shape'] == [1, 1] and \
+            self._convKernelShape(node) == (1, 1) and \
             node.attrs['dilations'] == [1, 1] and \
             (node.attrs['strides'] == [1, 1] or self.enableStrides)
 
-    def isDWConv(self, node) -> bool:
+    def isDWConv(self, node: gs.Node) -> bool:
         return node.op in ["Conv", "RequantizedConv"] and \
             isinstance(node.inputs[1], gs.Constant) and \
-            node.attrs['kernel_shape'] == [3, 3] and \
+            self._convKernelShape(node) == (3, 3) and \
             node.attrs['dilations'] == [1, 1] and \
             node.attrs['group'] != 1 and \
             (node.attrs['strides'] == [1, 1] or self.enableStrides)
