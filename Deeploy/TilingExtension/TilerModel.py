@@ -31,7 +31,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import numpy as np
 from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, SolutionCollector, Solver
 
-from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
+from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryLevel
 
 _COPYIDXSUFFIX = "_copyIdx_"
@@ -260,6 +260,15 @@ class TilerModel():
         self.addConstraint(intvar == tileSizeVar, strategy = strategy)
 
         return addVar
+
+    def addLimitTiledBufferDimensionsConstraint(self, buffer: VariableBuffer, max: int) -> IntVar:
+        vars = [self.getTensorDimVar(tensorName = buffer.name, dimIdx = dimIdx) for dimIdx in range(len(buffer.shape))]
+
+        def isTiled(var):
+            return var != var.Max()
+
+        countTiledVars = sum(isTiled(var) for var in vars)
+        self.addConstraint(countTiledVars <= max)
 
     def debugConstraints(self) -> bool:
 

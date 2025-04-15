@@ -37,7 +37,6 @@ from Deeploy.Targets.Generic.TileConstraints.MulTileConstraint import MulTileCon
 from Deeploy.Targets.Generic.TileConstraints.NOPTileConstraint import NOPTileConstraint
 from Deeploy.Targets.Generic.TileConstraints.RQSiGELUTileConstraint import RQSiGELUTileConstraint
 from Deeploy.Targets.Generic.TileConstraints.RQSiHardswishTileConstraint import RQSiHardswishTileConstraint
-from Deeploy.Targets.Generic.TileConstraints.TransposeTileConstraint import TransposeTileConstraint
 from Deeploy.Targets.Generic.TileConstraints.UnaryTileConstraint import UnaryTileConstraint
 from Deeploy.Targets.Generic.TileConstraints.UntiledTileConstraint import UntiledTileConstraint
 from Deeploy.Targets.PULPOpen.Bindings import ForkTransformer, PULPConcatBindings, PULPFloatConv2DBindings, \
@@ -60,6 +59,7 @@ from Deeploy.Targets.PULPOpen.TileConstraints.RequantShiftTileConstraint import 
 from Deeploy.Targets.PULPOpen.TileConstraints.SGDTileConstraint import SGDTileConstraint
 from Deeploy.Targets.PULPOpen.TileConstraints.SoftmaxCrossEntropyTileConstraint import \
     SoftmaxCrossEntropyGradTileConstraint, SoftmaxCrossEntropyTileConstraint
+from Deeploy.Targets.PULPOpen.TileConstraints.TransposeTileConstraint import TransposeTileConstraint
 from Deeploy.TilingExtension.TilerExtension import TilingReadyNodeBindings
 
 PULPRQSConv2DTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = PULPRQSConv2DBindings,

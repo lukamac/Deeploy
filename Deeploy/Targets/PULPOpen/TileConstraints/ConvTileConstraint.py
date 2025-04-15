@@ -102,6 +102,7 @@ class RQConv2DTileConstraint(TileConstraint):
         # Get to-be-tiled tensor's buffers
         inputBuffer = ctxt.lookup(name = parseDict['data_in'])
         weightBuffer = ctxt.lookup(name = parseDict['weight'])
+        outputBuffer = ctxt.lookup(name = parseDict['data_out'])
 
         inputHeightVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 1)
         inputWidthVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 2)
@@ -134,6 +135,10 @@ class RQConv2DTileConstraint(TileConstraint):
 
         tilerModel.addConstraint((inputHeightVar % strides[0]) == 0)
         tilerModel.addConstraint((inputWidthVar % strides[1]) == 0)
+
+        # Limit the number of tiled dimensions for the input and output buffer to 1 because PULP Dma currently allows at max 2d transfers
+        tilerModel.addLimitTiledBufferDimensionsConstraint(inputBuffer, 1)
+        tilerModel.addLimitTiledBufferDimensionsConstraint(outputBuffer, 1)
 
         return tilerModel
 
@@ -342,6 +347,7 @@ class Conv2DTileConstraint(TileConstraint):
         # Get to-be-tiled tensor's buffers
         inputBuffer = ctxt.lookup(name = parseDict['data_in'])
         weightBuffer = ctxt.lookup(name = parseDict['weight'])
+        outputBuffer = ctxt.lookup(name = parseDict['data_out'])
 
         inputHeightVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 1)
         inputWidthVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 2)
@@ -374,6 +380,10 @@ class Conv2DTileConstraint(TileConstraint):
 
         tilerModel.addConstraint((inputHeightVar % strides[0]) == 0)
         tilerModel.addConstraint((inputWidthVar % strides[1]) == 0)
+
+        # Limit the number of tiled dimensions for the input and output buffer to 1 because PULP Dma currently allows at max 2d transfers
+        tilerModel.addLimitTiledBufferDimensionsConstraint(inputBuffer, 1)
+        tilerModel.addLimitTiledBufferDimensionsConstraint(outputBuffer, 1)
 
         return tilerModel
 

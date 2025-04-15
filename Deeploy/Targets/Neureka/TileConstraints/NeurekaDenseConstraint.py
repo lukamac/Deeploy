@@ -113,6 +113,9 @@ class NeurekaDenseConv2DTileConstraint(TileConstraint):
         tilerModel.addConstraint(inputHeightVar >= parseDict['dim_kernel_x'])
         tilerModel.addConstraint(inputWidthVar >= parseDict['dim_kernel_y'])
 
+        # PULP can only do at max 2D transfers
+        tilerModel.addConstraint((inputHeightVar != inputHeightVar.Max()) != (inputWidthVar != inputWidthVar.Max()))
+
         return tilerModel
 
     @classmethod
