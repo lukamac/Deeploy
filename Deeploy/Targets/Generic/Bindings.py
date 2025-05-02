@@ -12,7 +12,7 @@ from Deeploy.CommonExtensions.DataTypes import FloatDataTypes, IntegerDataTypes,
 from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTypeChecker
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
 from Deeploy.Targets.Generic.Templates import AddTemplate, ConcatTemplate, ConvTemplate, DebugPrintTemplate, \
-    DequantTemplate, DummyTemplate, DWConvTemplate, FloatAddTemplate, FloatAvgPoolTemplate, FloatConvTemplate, FloatDivTemplate, \
+    DequantTemplate, DummyTemplate, DWConvTemplate, FloatFusedAddReluTemplate, FloatAddTemplate, FloatAvgPoolTemplate, FloatConvTemplate, FloatDivTemplate, \
     FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, \
     FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, FloatReduceMeanTemplate, FloatReluTemplate, \
     FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, \
@@ -52,6 +52,8 @@ BasicAddBindings = [
     NodeBinding(AddChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]),
                 FloatAddTemplate.referenceTemplate, BasicTransformer)
 ]
+
+BasicFusedAddReluBinding = NodeBinding(AddChecker([PointerClass(float32_t),PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedAddReluTemplate.referenceTemplate, BasicTransformer)
 
 BasicConv1DBinding = NodeBinding(ConvChecker([PointerClass(int8_t), PointerClass(int8_t)], [PointerClass(int32_t)]),
                                  ConvTemplate.reference1DTemplate, BasicTransformer)

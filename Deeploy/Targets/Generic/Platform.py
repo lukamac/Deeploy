@@ -18,7 +18,7 @@ from Deeploy.Targets.Generic.Bindings import BasicFloatFusedConv2dReluBinding, B
     BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, BasicPad1DBindings, \
     BasicPad2DBindings, BasicQuantBindings, BasicReduceMeanBindings, BasicReduceSumBindings, BasicReluBinding, \
     BasicReshapeBindings, BasicRQIntegerDivBinding, BasicRQSBindings, BasicRQSGELUBinding, BasicSliceBindings, \
-    BasicSoftmaxBindings, BasicTransposeBindings, DummyBinding, BasicAvgPool2DBinding
+    BasicSoftmaxBindings, BasicTransposeBindings, DummyBinding, BasicAvgPool2DBinding, BasicFusedAddReluBinding
 from Deeploy.Targets.Generic.Layers import AddLayer, ConcatLayer, ConvLayer, DebugPrintLayer, DequantLayer, DivLayer, \
     GatherLayer, GELULayer, GEMMLayer, ITAMaxLayer, LayerNormLayer, MatMulLayer, MaxPoolLayer, MulLayer, PadLayer, \
     QuantLayer, ReduceMeanLayer, ReduceSumLayer, ReluLayer, RequantShiftLayer, ReshapeLayer, RQIntegerDivLayer, \
@@ -48,6 +48,7 @@ Conv1DMapper = NodeMapper(GenericConv1DParser(), [BasicConv1DBinding])
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings)
 ConcatMapper = NodeMapper(ConcatParser(), BasicConcatBindings)
 FloatFusedConv2DReluMapper = NodeMapper(GenericConv2DParser(), [BasicFloatFusedConv2dReluBinding])
+FloatFusedAddReluMapper = NodeMapper(AddParser(), [BasicFusedAddReluBinding])
 DebugMapper = NodeMapper(DebugParser(), BasicDebugPrintBindings)
 DWConv1DMapper = NodeMapper(GenericDWConv1DParser(), [BasicDWConv1DBinding])
 DWConv2DMapper = NodeMapper(GenericDWConv2DParser(), BasicDWConv2DBindings)
@@ -92,6 +93,7 @@ GenericMapping = {
     'Conv': ConvLayer([Conv2DMapper, DWConv2DMapper, Conv1DMapper, DWConv1DMapper]),
     'Concat': ConcatLayer([ConcatMapper]),
     'FusedConvRelu': ConvLayer([FloatFusedConv2DReluMapper]),
+    'FusedAddRelu': AddLayer([FloatFusedAddReluMapper]),
     'DebugPrint': DebugPrintLayer([DebugMapper]),
     'Div': DivLayer([DivMapper]),
     'Flatten': ReshapeLayer([FlattenMapper]),
