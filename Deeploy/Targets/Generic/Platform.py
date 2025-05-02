@@ -6,7 +6,7 @@ from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.Lowe
     RemoveEmptyConvBiasPass
 from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, ONNXLayer, \
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
-from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicConcatBindings, BasicConv1DBinding, \
+from Deeploy.Targets.Generic.Bindings import BasicFloatFusedConv2dReluBinding, BasicAddBindings, BasicConcatBindings, BasicConv1DBinding, \
     BasicConv2DBindings, BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, \
     BasicDWConv2DBindings, BasicGatherBindings, BasicGELUBindings, BasicGEMMBindings, BasicITAPartialSoftmaxBinding, \
     BasicITASoftmaxBinding, BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, \
@@ -47,6 +47,7 @@ AvgPoolMapper = NodeMapper(GenericAvgPool2DParser(), [BasicAvgPool2DBinding])
 Conv1DMapper = NodeMapper(GenericConv1DParser(), [BasicConv1DBinding])
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings)
 ConcatMapper = NodeMapper(ConcatParser(), BasicConcatBindings)
+FloatFusedConv2DReluMapper = NodeMapper(GenericConv2DParser(), [BasicFloatFusedConv2dReluBinding])
 DebugMapper = NodeMapper(DebugParser(), BasicDebugPrintBindings)
 DWConv1DMapper = NodeMapper(GenericDWConv1DParser(), [BasicDWConv1DBinding])
 DWConv2DMapper = NodeMapper(GenericDWConv2DParser(), BasicDWConv2DBindings)
@@ -90,6 +91,7 @@ GenericMapping = {
     'AveragePool': ONNXLayer([AvgPoolMapper]),
     'Conv': ConvLayer([Conv2DMapper, DWConv2DMapper, Conv1DMapper, DWConv1DMapper]),
     'Concat': ConcatLayer([ConcatMapper]),
+    'FusedConvRelu': ConvLayer([FloatFusedConv2DReluMapper]),
     'DebugPrint': DebugPrintLayer([DebugMapper]),
     'Div': DivLayer([DivMapper]),
     'Flatten': ReshapeLayer([FlattenMapper]),

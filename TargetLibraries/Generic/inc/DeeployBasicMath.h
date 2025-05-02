@@ -20,7 +20,7 @@
 #define SINGLE_CORE
 #endif
 
-#include <ctype.h>
+//#include <ctype.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -33,6 +33,7 @@
 
 #include "kernel/AvgPool.h"
 #include "kernel/Convolution.h"
+#include "kernel/FusedConvolutionRelu.h"
 #include "kernel/DWConvolution.h"
 #include "kernel/Div.h"
 #include "kernel/GELU.h"
