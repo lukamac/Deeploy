@@ -9,10 +9,10 @@ from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import A
     MemoryManagementGeneration, MemoryPassthroughGeneration
 from Deeploy.CommonExtensions.DataTypes import FloatDataTypes, IntegerDataTypes, SignedIntegerDataTypes, float32_t, \
     int8_t, int32_t, uint8_t
-from Deeploy.DeeployTypes import CodeTransformation, NodeBinding
+from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTypeChecker
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
 from Deeploy.Targets.Generic.Templates import AddTemplate, ConcatTemplate, ConvTemplate, DebugPrintTemplate, \
-    DequantTemplate, DummyTemplate, DWConvTemplate, FloatAddTemplate, FloatConvTemplate, FloatDivTemplate, \
+    DequantTemplate, DummyTemplate, DWConvTemplate, FloatAddTemplate, FloatAvgPoolTemplate, FloatConvTemplate, FloatDivTemplate, \
     FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, \
     FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, FloatReduceMeanTemplate, FloatReluTemplate, \
     FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, \
@@ -154,6 +154,8 @@ BasicMaxPool2DBindings = [
     NodeBinding(MaxPoolChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
                 FloatMaxPoolTemplate.referenceTemplate, BasicTransformer)
 ]
+
+BasicAvgPool2DBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), FloatAvgPoolTemplate.referenceTemplate, BasicTransformer)
 
 BasicMulBindings = [
     NodeBinding(MulChecker([PointerClass(typeA), PointerClass(typeB)], [PointerClass(int32_t)]),

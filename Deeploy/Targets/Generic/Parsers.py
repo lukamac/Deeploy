@@ -283,6 +283,108 @@ class MaxPool2DParser(MaxPoolParser):
         return newCtxt, wellFormed
 
 
+class AvgPoolParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+
+        ret = all([
+            'kernel_shape' in node.attrs,
+            len(node.inputs) == 1,
+            len(node.outputs) == 1
+        ])
+
+        if ret:
+            self.operatorRepresentation['ceil_mode'] = node.attrs['ceil_mode'] if 'ceil_mode' in node.attrs else 0
+            self.operatorRepresentation['pads'] = node.attrs['pads'] if 'pads' in node.attrs else [0] * len(node.attrs['kernel_shape']) * 2
+            self.operatorRepresentation['kernel_shape'] = node.attrs['kernel_shape']
+            self.operatorRepresentation['strides'] = node.attrs['strides'] if 'strides' in node.attrs else [1] * len(node.attrs['kernel_shape'])
+
+        return ret
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+
+        data_in = ctxt.lookup(node.inputs[0].name)
+        data_out = ctxt.lookup(node.outputs[0].name)
+        self.operatorRepresentation['data_in'] = data_in.name
+        self.operatorRepresentation['data_out'] = data_out.name
+        self.operatorRepresentation['data_in_size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['data_out_size'] = np.prod(data_out.shape)
+
+        return ctxt, True
+
+
+class AvgPool2DParser(AvgPoolParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
+
+        pads = self.operatorRepresentation['pads']
+        kernel_shape = self.operatorRepresentation['kernel_shape']
+        strides = self.operatorRepresentation['strides']
+
+        if not all([
+            len(pads) == 4,
+            len(kernel_shape) == 2,
+            len(strides) == 2,
+        ]):
+            wellFormed = False
+
+        self.operatorRepresentation['padding_x'] = int(self.operatorRepresentation['pads'][0])
+        self.operatorRepresentation['padding_y'] = int(self.operatorRepresentation['pads'][1])
+        self.operatorRepresentation['padding_x_left'] = int(self.operatorRepresentation['pads'][0])
+        self.operatorRepresentation['padding_y_top'] = int(self.operatorRepresentation['pads'][1])
+        self.operatorRepresentation['padding_x_right'] = int(self.operatorRepresentation['pads'][2])
+        self.operatorRepresentation['padding_y_bottom'] = int(self.operatorRepresentation['pads'][3])
+        self.operatorRepresentation['stride_x'] = int(self.operatorRepresentation['strides'][0])
+        self.operatorRepresentation['stride_y'] = int(self.operatorRepresentation['strides'][1])
+        self.operatorRepresentation['dim_kernel_x'] = int(self.operatorRepresentation['kernel_shape'][0])
+        self.operatorRepresentation['dim_kernel_y'] = int(self.operatorRepresentation['kernel_shape'][1])
+
+        return True
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+
+        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+        wellFormed = False
+        if ret:
+            data_in = newCtxt.lookup(self.operatorRepresentation['data_in'])
+            data_out = newCtxt.lookup(self.operatorRepresentation['data_out'])
+
+            self.operatorRepresentation['batch'] = data_in.shape[0]
+            if channels_first:
+                self.operatorRepresentation['ch_im_in'] = data_in.shape[1]
+                self.operatorRepresentation['dim_im_in_x'] = data_in.shape[2]
+                self.operatorRepresentation['dim_im_in_y'] = data_in.shape[3]
+                self.operatorRepresentation['ch_im_out'] = data_out.shape[1]
+                self.operatorRepresentation['dim_im_out_x'] = data_out.shape[2]
+                self.operatorRepresentation['dim_im_out_y'] = data_out.shape[3]
+            else:
+                self.operatorRepresentation['ch_im_in'] = data_in.shape[3]
+                self.operatorRepresentation['dim_im_in_x'] = data_in.shape[1]
+                self.operatorRepresentation['dim_im_in_y'] = data_in.shape[2]
+                self.operatorRepresentation['ch_im_out'] = data_out.shape[3]
+                self.operatorRepresentation['dim_im_out_x'] = data_out.shape[1]
+                self.operatorRepresentation['dim_im_out_y'] = data_out.shape[2]
+
+            if len(data_in.shape) == 4 and len(data_out.shape) == 4:
+                wellFormed = True
+
+        return newCtxt, wellFormed
+
+
 class PadParser(NodeParser):
 
     def __init__(self):
@@ -2072,24 +2174,28 @@ class GenericMaxPool2DParser(MaxPool2DParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                all([pad == 0 for pad in self.operatorRepresentation['pads']]), self.operatorRepresentation['ceil_mode']
-                == 0
-            ],)
+        return all([
+            all([pad == 0 for pad in self.operatorRepresentation['pads']]),
+            self.operatorRepresentation['ceil_mode'] == 0,
+        ])
 
-            return ret
 
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+class GenericAvgPool2DParser(AvgPool2DParser):
 
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+    def __init__(self):
+        super().__init__()
 
-        return newCtxt, ret
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
+
+        return all([
+            all([pad == 0 for pad in self.operatorRepresentation['pads']]),
+            self.operatorRepresentation['ceil_mode'] == 0,
+        ])
 
 
 class GenericConv1DParser(Conv1DParser):

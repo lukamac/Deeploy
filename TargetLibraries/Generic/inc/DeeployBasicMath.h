@@ -31,6 +31,7 @@
 #include "types.h"
 #include "utils.h"
 
+#include "kernel/AvgPool.h"
 #include "kernel/Convolution.h"
 #include "kernel/DWConvolution.h"
 #include "kernel/Div.h"
