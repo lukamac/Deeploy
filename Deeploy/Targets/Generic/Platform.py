@@ -33,7 +33,7 @@ from Deeploy.Targets.Generic.Parsers import AddParser, ConcatParser, DebugParser
     QuantParser, ReduceMeanParser, ReduceSumParser, ReluParser, RequantShiftParser, ReshapeParser, RQIntegerDivParser, \
     AddParser, DebugParser, DequantParser, DivParser, DummyParser, \
     FlattenParser, GatherParser, GELUParser, GenericAvgPool2DParser, GenericConv1DParser, GenericConv2DParser, GenericDWConv1DParser, \
-    GenericDWConv2DParser, GenericGEMMParser, GenericMaxPool2DParser, IntegerDivParser, ITAMaxParser, \
+    GenericDWConv2DParser, GenericFusedConv2DReluParser, GenericGEMMParser, GenericMaxPool2DParser, IntegerDivParser, ITAMaxParser, \
     ITAPartialMaxParser, LayerNormParser, MatMulParser, MulParser, Pad1DParser, Pad2DParser, QuantParser, \
     ReduceMeanParser, ReduceSumParser, ReluParser, RequantShiftParser, ReshapeParser, RQIntegerDivParser, \
     RQSiGELUParser, SliceParser, SoftmaxParser, TransposeParser, UnsqueezeParser, iLayerNormParser, iSoftmaxParser
@@ -47,7 +47,7 @@ AvgPoolMapper = NodeMapper(GenericAvgPool2DParser(), [BasicAvgPool2DBinding])
 Conv1DMapper = NodeMapper(GenericConv1DParser(), [BasicConv1DBinding])
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings)
 ConcatMapper = NodeMapper(ConcatParser(), BasicConcatBindings)
-FloatFusedConv2DReluMapper = NodeMapper(GenericConv2DParser(), [BasicFloatFusedConv2dReluBinding])
+FloatFusedConv2DReluMapper = NodeMapper(GenericFusedConv2DReluParser(), [BasicFloatFusedConv2dReluBinding])
 FloatFusedAddReluMapper = NodeMapper(AddParser(), [BasicFusedAddReluBinding])
 DebugMapper = NodeMapper(DebugParser(), BasicDebugPrintBindings)
 DWConv1DMapper = NodeMapper(GenericDWConv1DParser(), [BasicDWConv1DBinding])

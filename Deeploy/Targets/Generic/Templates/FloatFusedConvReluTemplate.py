@@ -39,6 +39,7 @@ BEGIN_SINGLE_CORE
     for (uint32_t n=0; n<${batch}; ++n) {
         FusedConv2dRelu_fp32_fp32_fp32_NCHW(
             ref_${nodeName}_${data_in}, ${ch_im_in}, ${dim_im_in_x}, ${dim_im_in_y},
+            ${pads[0]}, ${pads[1]}, ${pads[2]}, ${pads[3]},
             ${weight}, ${bias}, ${ch_im_out}, ${dim_kernel_x}, ${dim_kernel_y},
             ${stride_x}, ${stride_y},
             ref_${nodeName}_${data_out}

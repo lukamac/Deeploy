@@ -1846,12 +1846,12 @@ class GEMMParser(MatMulParser):
             if 'alpha' in node.attrs:
                 self.operatorRepresentation['alpha'] = node.attrs['alpha']
             else:
-                self.operatorRepresentation['alpha'] = 1
+                self.operatorRepresentation['alpha'] = 1.0
 
             if 'beta' in node.attrs:
                 self.operatorRepresentation['beta'] = node.attrs['beta']
             else:
-                self.operatorRepresentation['beta'] = 1
+                self.operatorRepresentation['beta'] = 1.0
 
             if 'transA' in node.attrs:
                 self.operatorRepresentation['transA'] = node.attrs['transA']
@@ -2272,9 +2272,6 @@ class GenericDWConv1DParser(Conv1DParser):
 
 class GenericConv2DParser(Conv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
-
     def parseNode(self, node: gs.Node) -> (bool):
         if not super().parseNode(node):
             return False
@@ -2307,6 +2304,18 @@ class GenericConv2DParser(Conv2DParser):
             self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
 
         return newCtxt, True
+
+
+class GenericFusedConv2DReluParser(Conv2DParser):
+
+    def parseNode(self, node: gs.Node) -> (bool):
+        if not super().parseNode(node):
+            return False
+
+        return all([
+            self.operatorRepresentation['group'] == 1,
+            all(dilation == 1 for dilation in self.operatorRepresentation['dilations']),
+        ])
 
 
 class GenericDWConv2DParser(Conv2DParser):

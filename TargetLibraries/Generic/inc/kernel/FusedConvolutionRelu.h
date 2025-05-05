@@ -54,6 +54,8 @@
  */
 void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, uint32_t C,
                                          uint32_t H_padded, uint32_t W_padded,
+                                         uint32_t pad_bottom, uint32_t pad_left,
+                                         uint32_t pad_top, uint32_t pad_right,
                                          const float32_t *__restrict__ weights,
                                          const float32_t *__restrict__ bias,
                                          uint32_t F, uint32_t P, uint32_t Q, uint32_t SP,
