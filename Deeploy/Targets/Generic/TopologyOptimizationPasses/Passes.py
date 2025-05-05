@@ -1177,3 +1177,47 @@ class DequantPatternPass(ReplaceSequentialPatternPass):
 
         name = "_RECOGNIZE_DEQUANT_PASS"
         super().__init__(graph, _recognize_dequant_fun, name)
+
+
+def _merge_gemm_add_fun(graph: gs.Graph, match: Match, name: str):
+    gemm, add = match.nodes_map.values()
+
+    if len(gemm.inputs) != 2:
+        return graph
+
+    if len(add.inputs) != 2:
+        return graph
+
+    assert len(gemm.outputs) == 1
+    add_gemm_out_index = add.inputs.index(gemm.outputs[0])
+    add_bias_index = 1 - add_gemm_out_index
+
+    if not isinstance(add.inputs[add_bias_index], gs.Constant):
+        return graph
+
+    gemm.inputs.append(add.inputs[add_bias_index])
+
+    assert len(add.outputs) == 1
+    gemm.outputs[0] = add.outputs[0]
+
+    add.inputs.clear()
+    add.outputs.clear()
+
+    graph.cleanup()
+
+    return graph
+
+
+@contextagnostic
+class MergeGemmAddPass(ReplaceSequentialPatternPass):
+
+    def __init__(self):
+        graph = gs.Graph()
+        _input = gs.Variable(name = 'input_0')
+        gemm_out = graph.layer(inputs = [_input], outputs = ['gemm_out'], op = 'Gemm', name = 'gemm')
+        add_out = graph.layer(inputs = gemm_out, outputs = ['add_out'], op = 'Add', name = 'add')
+        graph.outputs.append(add_out)
+        graph.inputs.append(_input)
+
+        name = "_MERGE_GEMM_ADD_PASS"
+        super().__init__(graph, _merge_gemm_add_fun, name)
