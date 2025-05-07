@@ -1128,7 +1128,6 @@ class ConvParser(NodeParser):
     def parseNode(self, node: gs.Node) -> (bool):
 
         wellFormed = all([
-            'dilations' in node.attrs,
             'group' in node.attrs,
             'pads' in node.attrs,
             'strides' in node.attrs,
@@ -1139,7 +1138,8 @@ class ConvParser(NodeParser):
             self.operatorRepresentation['group'] = node.attrs['group']
             self.operatorRepresentation['pads'] = node.attrs['pads']
             self.operatorRepresentation['strides'] = node.attrs['strides']
-            self.operatorRepresentation['dilations'] = node.attrs['dilations']
+            if 'dilations' in node.attrs:
+                self.operatorRepresentation['dilations'] = node.attrs['dilations']
 
         return wellFormed
 
@@ -1178,17 +1178,20 @@ class Conv2DParser(ConvParser):
         super().__init__(noBiasHoisting)
 
     def parseNode(self, node: gs.Node) -> (bool):
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        ret = False
+        ret = all([
+            # Make sure strides are 2D
+            len(node.attrs['strides']) == 2,
+            len(node.attrs['pads']) == 4,
+        ])
 
-        if wellFormed:
-            ret = all([
-                # Make sure strides are 2D
-                len(node.attrs['strides']) == 2,
-                len(node.attrs['pads']) == 4,
-                len(node.attrs['dilations']) == 2,
-            ])
+        if 'dilations' in node.attrs:
+            if len(node.attrs['dilations']) != 2:
+                return False
+        else:
+            self.operatorRepresentation['dilations'] = [1, 1]
 
         if ret:
             if 'kernel_shape' not in node.attrs:
@@ -1264,17 +1267,20 @@ class Conv1DParser(ConvParser):
         super().__init__(noBiasHoisting)
 
     def parseNode(self, node: gs.Node) -> (bool):
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        ret = False
+        ret = all([
+            # Make sure strides are 1D
+            len(node.attrs['strides']) == 1,
+            len(node.attrs['pads']) == 2,
+        ])
 
-        if wellFormed:
-            ret = all([
-                # Make sure strides are 2D
-                len(node.attrs['strides']) == 1,
-                len(node.attrs['pads']) == 2,
-                len(node.attrs['dilations']) == 1,
-            ])
+        if 'dilations' in node.attrs:
+            if len(node.attrs['dilations']) != 1:
+                return False
+        else:
+            self.operatorRepresentation['dilations'] = [1]
 
         if ret:
             if 'kernel_shape' not in node.attrs:
@@ -2164,20 +2170,14 @@ class GenericConv2DParser(Conv2DParser):
         super().__init__(noBiasHoisting)
 
     def parseNode(self, node: gs.Node) -> (bool):
-        wellFormed = super().parseNode(node)
+        if not super().parseNode(node):
+            return False
 
-        if wellFormed:
-            ret = all([
-                # Make sure padding is square
-                self.operatorRepresentation['group'] == 1,
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][2],
-                self.operatorRepresentation['pads'][1] == self.operatorRepresentation['pads'][3],
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
-                self.operatorRepresentation['pads'][0] == 0,
-                all([coeff == 1 for coeff in self.operatorRepresentation['dilations']]),
-            ])
-
-            return ret
+        return all([
+            self.operatorRepresentation['group'] == 1,
+            all(pad == 0 for pad in self.operatorRepresentation['pads']),
+            all(dilation == 1 for dilation in self.operatorRepresentation['dilations']),
+        ])
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
