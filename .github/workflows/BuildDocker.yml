@@ -9,33 +9,42 @@ jobs:
   build-docker:
     permissions: write-all
     name: Deploy Docker image
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       # Free up disk space on Github-hosted runner
-      - name: Disk usage
+      - name: Disk usage before freeing up space
         run: df -h
-      - uses: jlumbroso/free-disk-space@v1.3.1
+
+      - name: Free up space
+        uses: jlumbroso/free-disk-space@v1.3.1
         with:
           android: true
           dotnet: true
           haskell: true
           large-packages: true
+
       - name: Disk usage after freeing up space
         run: df -h
+
       # Actually build the Docker container
-      - uses: actions/checkout@v2
-      - uses: docker/setup-buildx-action@v1
       - name: GHCR Log-in
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
-          context: .
+          platforms: linux/amd64,linux/arm64
           file: Container/Dockerfile
           push: true
           # JUNGVI: If you operate from a fork and want to build a new docker make sure to replace 'pulp-platform' by your uname. 
-          tags: ghcr.io/pulp-platform/deeploy:main
+          tags: ghcr.io/lukamac/deeploy:main
