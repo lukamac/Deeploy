@@ -40,7 +40,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git-lfs \
     texinfo \
     libtool \
     libsdl2-ttf-dev \
-    gcc-multilib \
+    gcc \
     wget \
     clang-format
 
