@@ -290,17 +290,15 @@ class AvgPoolParser(NodeParser):
 
     def parseNode(self, node: gs.Node) -> bool:
 
-        ret = all([
-            'kernel_shape' in node.attrs,
-            len(node.inputs) == 1,
-            len(node.outputs) == 1
-        ])
+        ret = all(['kernel_shape' in node.attrs, len(node.inputs) == 1, len(node.outputs) == 1])
 
         if ret:
             self.operatorRepresentation['ceil_mode'] = node.attrs['ceil_mode'] if 'ceil_mode' in node.attrs else 0
-            self.operatorRepresentation['pads'] = node.attrs['pads'] if 'pads' in node.attrs else [0] * len(node.attrs['kernel_shape']) * 2
+            self.operatorRepresentation['pads'] = node.attrs['pads'] if 'pads' in node.attrs else [0] * len(
+                node.attrs['kernel_shape']) * 2
             self.operatorRepresentation['kernel_shape'] = node.attrs['kernel_shape']
-            self.operatorRepresentation['strides'] = node.attrs['strides'] if 'strides' in node.attrs else [1] * len(node.attrs['kernel_shape'])
+            self.operatorRepresentation['strides'] = node.attrs['strides'] if 'strides' in node.attrs else [1] * len(
+                node.attrs['kernel_shape'])
 
         return ret
 
@@ -333,9 +331,9 @@ class AvgPool2DParser(AvgPoolParser):
         strides = self.operatorRepresentation['strides']
 
         if not all([
-            len(pads) == 4,
-            len(kernel_shape) == 2,
-            len(strides) == 2,
+                len(pads) == 4,
+                len(kernel_shape) == 2,
+                len(strides) == 2,
         ]):
             wellFormed = False
 

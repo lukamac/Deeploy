@@ -12,13 +12,14 @@ from Deeploy.CommonExtensions.DataTypes import FloatDataTypes, IntegerDataTypes,
 from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTypeChecker
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
 from Deeploy.Targets.Generic.Templates import AddTemplate, ConcatTemplate, ConvTemplate, DebugPrintTemplate, \
-    DequantTemplate, DummyTemplate, DWConvTemplate, FloatFusedAddReluTemplate, FloatAddTemplate, FloatAvgPoolTemplate, FloatConvTemplate, FloatDivTemplate, \
-    FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, \
-    FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, FloatReduceMeanTemplate, FloatReluTemplate, \
-    FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, \
-    MatMulTemplate, MaxPoolTemplate, MulTemplate, PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, \
-    RequantShiftTemplate, ReshapeTemplate, RQIntegerDivTemplate, RQSiGELUTemplate, SliceTemplate, TransposeTemplate, \
-    iGELUTemplate, iLayernormTemplate, iRMSNormTemplate, iSoftmaxTemplate, FloatFusedConvReluTemplate
+    DequantTemplate, DummyTemplate, DWConvTemplate, FloatAddTemplate, FloatAvgPoolTemplate, FloatConvTemplate, \
+    FloatDivTemplate, FloatDWConvTemplate, FloatFusedAddReluTemplate, FloatFusedConvReluTemplate, FloatGELUTemplate, \
+    FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, FloatMaxPoolTemplate, FloatMulTemplate, \
+    FloatPadTemplate, FloatReduceMeanTemplate, FloatReluTemplate, FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, \
+    IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, MatMulTemplate, MaxPoolTemplate, MulTemplate, \
+    PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, RequantShiftTemplate, ReshapeTemplate, \
+    RQIntegerDivTemplate, RQSiGELUTemplate, SliceTemplate, TransposeTemplate, iGELUTemplate, iLayernormTemplate, \
+    iRMSNormTemplate, iSoftmaxTemplate
 from Deeploy.Targets.Generic.TypeCheckers import AddChecker, ConcatChecker, ConvChecker, DebugPrintChecker, \
     DequantChecker, DivChecker, DummyChecker, GatherChecker, GELUChecker, GEMMChecker, LayerNormChecker, \
     MatMulChecker, MaxPoolChecker, MulChecker, PadChecker, QuantChecker, ReduceMeanChecker, ReduceSumChecker, \
@@ -53,7 +54,9 @@ BasicAddBindings = [
                 FloatAddTemplate.referenceTemplate, BasicTransformer)
 ]
 
-BasicFusedAddReluBinding = NodeBinding(AddChecker([PointerClass(float32_t),PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedAddReluTemplate.referenceTemplate, BasicTransformer)
+BasicFusedAddReluBinding = NodeBinding(
+    AddChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]),
+    FloatFusedAddReluTemplate.referenceTemplate, BasicTransformer)
 
 BasicConv1DBinding = NodeBinding(ConvChecker([PointerClass(int8_t), PointerClass(int8_t)], [PointerClass(int32_t)]),
                                  ConvTemplate.reference1DTemplate, BasicTransformer)
@@ -71,8 +74,10 @@ BasicConv2DBindings = [
         BasicTransformer)
 ]
 
-BasicFloatFusedConv2dReluBinding = NodeBinding(ConvChecker([PointerClass(float32_t), PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]),
-                                               FloatFusedConvReluTemplate.referenceTemplate, BasicTransformer)
+BasicFloatFusedConv2dReluBinding = NodeBinding(
+    ConvChecker([PointerClass(float32_t), PointerClass(float32_t),
+                 PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedConvReluTemplate.referenceTemplate,
+    BasicTransformer)
 
 BasicDWConv2DBindings = [
     NodeBinding(ConvChecker([PointerClass(int8_t), PointerClass(int8_t)], [PointerClass(int32_t)]),
@@ -160,7 +165,8 @@ BasicMaxPool2DBindings = [
                 FloatMaxPoolTemplate.referenceTemplate, BasicTransformer)
 ]
 
-BasicAvgPool2DBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), FloatAvgPoolTemplate.referenceTemplate, BasicTransformer)
+BasicAvgPool2DBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+                                    FloatAvgPoolTemplate.referenceTemplate, BasicTransformer)
 
 BasicMulBindings = [
     NodeBinding(MulChecker([PointerClass(typeA), PointerClass(typeB)], [PointerClass(int32_t)]),
