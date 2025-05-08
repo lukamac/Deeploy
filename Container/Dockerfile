@@ -42,12 +42,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git-lfs \
     libsdl2-ttf-dev \
     gcc \
     wget \
-    clang-format
-
-# Install cmake 3.31.1
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.31.1/cmake-3.31.1-linux-x86_64.sh && \
-    chmod +x cmake-3.31.1-linux-x86_64.sh && \
-    ./cmake-3.31.1-linux-x86_64.sh --prefix=/usr --skip-license
+    clang-format \
+    cmake
 
 # Compile minimalloc
 RUN make minimalloc
