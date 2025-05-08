@@ -65,7 +65,7 @@ BANSHEE_COMMIT_HASH ?= 0e105921e77796e83d01c2aa4f4cadfa2005b4d9
 MEMPOOL_COMMIT_HASH ?= affd45d94e05e375a6966af6a762deeb182a7bd6
 SNITCH_COMMIT_HASH ?= e02cc9e3f24b92d4607455d5345caba3eb6273b2
 GVSOC_COMMIT_HASH ?= eeb7ef8c1dfcb944ac80d797a8cea35aacc14ac5
-MINIMALLOC_COMMMIT_HASH ?= e9eaf54094025e1c246f9ec231b905f8ef42a29d
+MINIMALLOC_COMMIT_HASH ?= e9eaf54094025e1c246f9ec231b905f8ef42a29d
 XTL_VERSION ?= 0.7.5
 XSIMD_VERSION ?= 13.2.0
 XTENSOR_VERSION ?= 0.25.0
@@ -405,21 +405,21 @@ ${XTL_INSTALL_DIR}:
 	cd ${TOOLCHAIN_DIR} && \
 	git clone https://github.com/xtensor-stack/xtl.git && \
 	cd ${TOOLCHAIN_DIR}/xtl && git checkout ${XTL_VERSION} && \
-	cmake -D CMAKE_INSTALL_PREFIX=${XTL_INSTALL_DIR} && \
+	${CMAKE} -D CMAKE_INSTALL_PREFIX=${XTL_INSTALL_DIR} && \
 	make install
 
 ${XSIMD_INSTALL_DIR}:
 	cd ${TOOLCHAIN_DIR} && \
 	git clone https://github.com/xtensor-stack/xsimd.git && \
 	cd ${TOOLCHAIN_DIR}/xsimd && git checkout ${XSIMD_VERSION} && \
-	cmake -D CMAKE_INSTALL_PREFIX=${XSIMD_INSTALL_DIR} && \
+	${CMAKE} -D CMAKE_INSTALL_PREFIX=${XSIMD_INSTALL_DIR} && \
 	make install
 
 ${XTENSOR_INSTALL_DIR}: ${XTL_INSTALL_DIR}
 	cd ${TOOLCHAIN_DIR} && \
 	git clone https://github.com/xtensor-stack/xtensor.git && \
 	cd ${TOOLCHAIN_DIR}/xtensor && git checkout ${XTENSOR_VERSION} && \
-	cmake -DCMAKE_PREFIX_PATH=${XTL_INSTALL_DIR}/share/cmake -DCMAKE_INSTALL_PREFIX=${XTENSOR_INSTALL_DIR} && \
+	${CMAKE} -DCMAKE_PREFIX_PATH=${XTL_INSTALL_DIR}/share/cmake -DCMAKE_INSTALL_PREFIX=${XTENSOR_INSTALL_DIR} && \
 	make install
 
 xtensor: ${XTENSOR_INSTALL_DIR} ${XSIMD_INSTALL_DIR}
@@ -472,9 +472,9 @@ minimalloc: ${TOOLCHAIN_DIR}/minimalloc
 ${TOOLCHAIN_DIR}/minimalloc:
 	cd ${TOOLCHAIN_DIR} && \
 	git clone --recursive https://github.com/google/minimalloc.git && \
-	cd ${TOOLCHAIN_DIR}/minimalloc && git checkout ${MINIMALLOC_COMMMIT_HASH} && \
-	cmake -DCMAKE_BUILD_TYPE=Release && make -j && \
-	mkdir -p ${MINIMALLOC_INSTALL_DIR} && cp minimalloc ${MINIMALLOC_INSTALL_DIR}
+	cd ${TOOLCHAIN_DIR}/minimalloc && git checkout ${MINIMALLOC_COMMIT_HASH} && \
+	${CMAKE} -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && \
+	mkdir -p ${MINIMALLOC_INSTALL_DIR} && cp build/minimalloc ${MINIMALLOC_INSTALL_DIR}
 
 .PHONY: docs clean-docs format
 
