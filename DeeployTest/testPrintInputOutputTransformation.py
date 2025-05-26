@@ -71,20 +71,22 @@ if __name__ == "__main__":
 
     platform, signProp = mapPlatform(args.platform)
 
+    if isinstance(platform, MemoryPlatform):
+        printCodeTransformations = [
+            MemoryAwarePrintInputGeneration(defaultTargetMemoryLevel),
+            MemoryAwarePrintOutputGeneration(defaultTargetMemoryLevel),
+        ]
+    else:
+        printCodeTransformations = [
+            PrintInputGeneration(),
+            PrintOutputGeneration(),
+        ]
+
     for engine in platform.engines:
-        for mapping in engine.Mapping:
-            for map in engine.Mapping[mapping].maps:
+        for layer in engine.Mapping.values():
+            for map in layer.maps:
                 for binding in map.bindings:
-                    if isinstance(platform, MemoryPlatform):
-                        binding.codeTransformer.passes += [
-                            MemoryAwarePrintInputGeneration(defaultTargetMemoryLevel),
-                            MemoryAwarePrintOutputGeneration(defaultTargetMemoryLevel),
-                        ]
-                    else:
-                        binding.codeTransformer.passes += [
-                            PrintInputGeneration(),
-                            PrintOutputGeneration(),
-                        ]
+                    binding.codeTransformer.passes += printCodeTransformations
 
     test_inputs = [inputs[x].reshape(-1).astype(np.float64) for x in inputs.files]
     test_outputs = [outputs[x].reshape(-1).astype(np.float64) for x in outputs.files]

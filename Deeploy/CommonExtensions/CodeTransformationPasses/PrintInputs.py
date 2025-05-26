@@ -24,16 +24,15 @@
 # limitations under the License.
 
 import re
-from typing import Optional, Tuple
+from typing import Callable, Literal, Tuple
 
 from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransformation import \
     IntrospectiveCodeTransformationMixIn
 from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ConstantBuffer, ExecutionBlock, \
-    NetworkContext, NodeTemplate, StructBuffer, TransientBuffer, _NoVerbosity
+    NetworkContext, NodeTemplate, StructBuffer, TransientBuffer, VariableBuffer, _NoVerbosity
 
 _DebugPrintTemplate = NodeTemplate("""
 <%
-import numpy as np
 accessStr = ""
 dimStr = ""
 for idx, dim in enumerate(bufferShape):
@@ -57,197 +56,145 @@ printf("], \\n");
 """)
 
 
-class PrintInputGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn):
+class BufferPrintGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn):
 
-    def _getRepDict(self, ctxt: NetworkContext, ref: str, name: str):
-        _buf = ctxt.lookup(ref)
-        refbuf = _buf
+    def __init__(self, addDirection: Literal["left", "right"], filter: Callable[[NetworkContext, VariableBuffer, str],
+                                                                                bool]):
+        self.addDirection = addDirection
+        self.filter = filter
 
-        while hasattr(_buf, "_referenceName"):
-            _buf = ctxt.lookup(_buf._referenceName)
-
-        if isinstance(_buf, (TransientBuffer, ConstantBuffer, StructBuffer)):
-            return None
-
-        if name not in _buf._users:
-            return None
-
-        return {"bufferName": refbuf.name, "bufferType": _buf._type, "bufferShape": _buf.shape, "nodeName": name}
+    def unrollReference(self, ctxt: NetworkContext, reference: str) -> VariableBuffer:
+        buffer = ctxt.lookup(reference)
+        while hasattr(buffer, "_referenceName"):
+            buffer = ctxt.lookup(buffer._referenceName)
+        return buffer
 
     def apply(self,
               ctxt: NetworkContext,
               executionBlock: ExecutionBlock,
               name: str,
               verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
         references = self.extractDynamicReferences(ctxt,
                                                    executionBlock,
                                                    unrollStructs = True,
                                                    includeGobalReferences = True)
 
         for ref in references:
-            refDict = self._getRepDict(ctxt, ref, name)
-            if refDict is not None:
-                executionBlock.addLeft(_DebugPrintTemplate, refDict)
+            buffer = self.unrollReference(ctxt, ref)
+            if self.filter(ctxt, buffer, ref):
+                operatorRepresentation = {
+                    "bufferName": ref,
+                    "bufferType": buffer._type,
+                    "bufferShape": buffer.shape,
+                    "nodeName": name,
+                }
+                if self.addDirection == "left":
+                    executionBlock.addLeft(_DebugPrintTemplate, operatorRepresentation)
+                elif self.addDirection == "right":
+                    executionBlock.addRight(_DebugPrintTemplate, operatorRepresentation)
+                else:
+                    raise RuntimeError(f"Unrecognized addDirection {self.addDirection}")
 
         return ctxt, executionBlock
 
 
-class MemoryAwareGeneration():
+class PrintInputGeneration(BufferPrintGeneration):
 
-    def __init__(self, memoryHierarchyRegex: Optional[str] = None):
+    def __init__(self):
+
+        def filter(ctxt: NetworkContext, buffer: VariableBuffer, nodeName: str) -> bool:
+            return all([
+                not isinstance(buffer, (TransientBuffer, ConstantBuffer, StructBuffer)),
+                nodeName in buffer._users,
+            ])
+
+        super().__init__("left", filter)
+
+
+class PrintOutputGeneration(BufferPrintGeneration):
+
+    def __init__(self):
+
+        def filter(ctxt: NetworkContext, buffer: VariableBuffer, nodeName: str) -> bool:
+            return all([
+                not isinstance(buffer, (TransientBuffer, ConstantBuffer, StructBuffer)),
+                nodeName in buffer._users,
+                len(buffer._users) > 0 or ctxt.is_global(buffer.name),
+            ])
+
+        super().__init__("right", filter)
+
+
+class PrintConstantGeneration(BufferPrintGeneration):
+
+    def __init__(self):
+
+        def filter(ctxt: NetworkContext, buffer: VariableBuffer, nodeName: str) -> bool:
+            return isinstance(buffer, ConstantBuffer) and len(buffer._users) > 0
+
+        super().__init__("left", filter)
+
+
+class MemoryUnawareMixIn():
+
+    def memoryUnawareFilter(self):
+
+        def newFilter(ctxt: NetworkContext, buffer: VariableBuffer, nodeName: str) -> bool:
+            return not hasattr(buffer, "_memoryLevel") and self.filter(ctxt, buffer, nodeName)
+
+
+class MemoryAwareMixIn():
+
+    def __init__(self, regex: str) -> None:
+        self.regex = re.compile(regex)
+
+    def memoryAwareFilter(self):
+
+        def newFilter(ctxt: NetworkContext, buffer: VariableBuffer, nodeName: str) -> bool:
+            return hasattr(buffer, "_memoryLevel") and self.regex.fullmatch(
+                buffer._memoryLevel) is not None and self.filter(ctxt, buffer, nodeName)
+
+
+class MemoryAwarePrintInputGeneration(PrintInputGeneration, MemoryAwareMixIn):
+
+    def __init__(self, memoryLevelRegex: str):
         super().__init__()
-        if memoryHierarchyRegex is not None:
-            self.regex = re.compile(memoryHierarchyRegex)
-        else:
-            self.regex = None
-
-    def _matchesRegex(self, ctxt: NetworkContext, key: str) -> bool:
-        _buffer = ctxt.lookup(key)
-
-        if self.regex is None:
-            return not hasattr(_buffer, "_memoryLevel")
-
-        if not hasattr(_buffer, "_memoryLevel"):
-            return False
-
-        ret = self.regex.findall(ctxt.lookup(key)._memoryLevel)
-        return ret != []
+        MemoryAwareMixIn.__init__(self, memoryLevelRegex)
+        self.filter = self.memoryAwareFilter()
 
 
-class MemoryAwarePrintInputGeneration(MemoryAwareGeneration, PrintInputGeneration):
+class MemoryUnawarePrintInputGeneration(PrintInputGeneration, MemoryUnawareMixIn):
 
-    def apply(self,
-              ctxt: NetworkContext,
-              executionBlock: ExecutionBlock,
-              name: str,
-              verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        references = self.extractDynamicReferences(ctxt,
-                                                   executionBlock,
-                                                   unrollStructs = True,
-                                                   includeGobalReferences = True)
-
-        filteredReferences = [ref for ref in references if self._matchesRegex(ctxt, ref)]
-
-        for ref in filteredReferences:
-            refDict = self._getRepDict(ctxt, ref, name)
-            if refDict is not None:
-                executionBlock.addLeft(_DebugPrintTemplate, refDict)
-
-        return ctxt, executionBlock
+    def __init__(self):
+        super().__init__()
+        self.filter = self.memoryUnawareFilter()
 
 
-class PrintOutputGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn):
+class MemoryAwarePrintOutputGeneration(PrintOutputGeneration, MemoryAwareMixIn):
 
-    def _getRepDict(self, ctxt: NetworkContext, ref: str, name: str):
-        _buf = ctxt.lookup(ref)
-        refbuf = _buf
-
-        while hasattr(_buf, "_referenceName"):
-            _buf = ctxt.lookup(_buf._referenceName)
-
-        if isinstance(_buf, (TransientBuffer, ConstantBuffer, StructBuffer)):
-            return None
-
-        if name in _buf._users:
-            return None
-
-        if _buf._users == [] and not ctxt.is_global(_buf.name):
-            return None
-
-        return {"bufferName": refbuf.name, "bufferType": _buf._type, "bufferShape": _buf.shape, "nodeName": name}
-
-    def apply(self,
-              ctxt: NetworkContext,
-              executionBlock: ExecutionBlock,
-              name: str,
-              verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        references = self.extractDynamicReferences(ctxt,
-                                                   executionBlock,
-                                                   unrollStructs = True,
-                                                   includeGobalReferences = True)
-
-        for ref in references:
-            rep = self._getRepDict(ctxt, ref, name)
-            if rep is not None:
-                executionBlock.addRight(_DebugPrintTemplate, rep)
-
-        return ctxt, executionBlock
+    def __init__(self, memoryLevelRegex: str):
+        super().__init__()
+        MemoryAwareMixIn.__init__(self, memoryLevelRegex)
+        self.filter = self.memoryAwareFilter()
 
 
-class MemoryAwarePrintOutputGeneration(MemoryAwareGeneration, PrintOutputGeneration):
+class MemoryUnawarePrintOutputGeneration(PrintOutputGeneration, MemoryUnawareMixIn):
 
-    def apply(self,
-              ctxt: NetworkContext,
-              executionBlock: ExecutionBlock,
-              name: str,
-              verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        references = self.extractDynamicReferences(ctxt,
-                                                   executionBlock,
-                                                   unrollStructs = True,
-                                                   includeGobalReferences = True)
-
-        filteredReferences = [ref for ref in references if self._matchesRegex(ctxt, ref)]
-
-        for ref in filteredReferences:
-            refDict = self._getRepDict(ctxt, ref, name)
-            if refDict is not None:
-                executionBlock.addRight(_DebugPrintTemplate, refDict)
-
-        return ctxt, executionBlock
+    def __init__(self):
+        super().__init__()
+        self.filter = self.memoryUnawareFilter()
 
 
-class PrintConstantGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn):
+class MemoryAwarePrintConstantGeneration(PrintConstantGeneration, MemoryAwareMixIn):
 
-    def _getRepDict(self, ctxt: NetworkContext, ref: str, name: str):
-        _buf = ctxt.lookup(ref)
-        refbuf = _buf
-
-        while hasattr(_buf, "_referenceName"):
-            _buf = ctxt.lookup(_buf._referenceName)
-
-        if not isinstance(_buf, ConstantBuffer) or _buf._users == []:
-            return None
-
-        return {"bufferName": refbuf.name, "bufferType": _buf._type, "bufferShape": _buf.shape, "nodeName": name}
-
-    def apply(self, ctxt: NetworkContext, executionBlock: ExecutionBlock,
-              name: str) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        references = self.extractDynamicReferences(ctxt,
-                                                   executionBlock,
-                                                   unrollStructs = True,
-                                                   includeGobalReferences = True)
-
-        for ref in references:
-            rep = self._getRepDict(ctxt, ref, name)
-            if rep is not None:
-                executionBlock.addLeft(_DebugPrintTemplate, rep)
-
-        return ctxt, executionBlock
+    def __init__(self, memoryLevelRegex: str):
+        super().__init__()
+        MemoryAwareMixIn.__init__(self, memoryLevelRegex)
+        self.filter = self.memoryAwareFilter()
 
 
-class MemoryAwarePrintConstantGeneration(MemoryAwareGeneration, PrintConstantGeneration):
+class MemoryUnawarePrintConstantGeneration(PrintConstantGeneration, MemoryUnawareMixIn):
 
-    def apply(self,
-              ctxt: NetworkContext,
-              executionBlock: ExecutionBlock,
-              name: str,
-              verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        references = self.extractDynamicReferences(ctxt,
-                                                   executionBlock,
-                                                   unrollStructs = True,
-                                                   includeGobalReferences = True)
-
-        filteredReferences = [ref for ref in references if self._matchesRegex(ctxt, ref)]
-
-        for ref in filteredReferences:
-            refDict = self._getRepDict(ctxt, ref, name)
-            if refDict is not None:
-                executionBlock.addLeft(_DebugPrintTemplate, refDict)
-
-        return ctxt, executionBlock
+    def __init__(self):
+        super().__init__()
+        self.filter = self.memoryUnawareFilter()
