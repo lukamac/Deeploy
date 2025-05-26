@@ -960,9 +960,30 @@ class NetworkContext():
 class NodeParser():
     """Deeploy's core Parser class. Analyzes network nodes and evaluates whether they can be mapped by it.
 
+    Parameters
+    ----------
+    input_sym_names : Optional[List[str]]
+        Symbolic names for input tensors
+
+    output_sym_names : Optional[List[str]]
+        Symbolic names for output tensors
+
+    required_attrs : Optional[List[str]]
+        Attributes that have to be set in the node's attributes
+
+    optional_attrs : Optional[OperatorRepresentation]
+        Dictionary of optional attributes with their default values
     """
 
-    def __init__(self):
+    def __init__(self,
+                 input_sym_names: Optional[List[str]] = None,
+                 output_sym_names: Optional[List[str]] = None,
+                 required_attrs: Optional[List[str]] = None,
+                 optional_attrs: Optional[OperatorRepresentation] = None):
+        self.input_sym_names = input_sym_names
+        self.output_sym_names = output_sym_names
+        self.required_attrs = required_attrs
+        self.optional_attrs = optional_attrs
         self.operatorRepresentation: OperatorRepresentation = {
         }  #: Dict[str, Any]: The internal representation of the operator this parser has analyzed that describes all relevant attributes of the node to be used by code generation
 
@@ -982,7 +1003,33 @@ class NodeParser():
             correctly.
 
         """
+        wellFormed = True
+        if self.input_sym_names is not None:
+            wellFormed = wellFormed and len(node.inputs) == len(self.input_sym_names)
+        if self.output_sym_names is not None:
+            wellFormed = wellFormed and len(node.outputs) == len(self.output_sym_names)
+        if self.required_attrs is not None:
+            wellFormed = wellFormed and all(attr in node.attrs for attr in self.required_attrs)
+
+        if not wellFormed:
+            return False
+
+        if self.required_attrs is not None:
+            self.operatorRepresentation.update({attr: node.attrs[attr] for attr in self.required_attrs})
+        # Merge optional attributes with the operatorRepresentation. Optional attributes get overwritten
+        # with anything already existing in the operatorRepresentation
+        if self.optional_attrs is not None:
+            self.operatorRepresentation = self.optional_attrs | self.operatorRepresentation
+
         return True
+
+    def _parseTensors(self, ctxt: NetworkContext, sym_names: List[str], tensors: Sequence[gs.Tensor]) -> None:
+        for sym_name, tensor in zip(sym_names, tensors):
+            buffer = ctxt.lookup(tensor.name)
+            self.operatorRepresentation[sym_name] = buffer.name
+            # LMACAN: Shape and size are commonly parsed information
+            self.operatorRepresentation[f"{sym_name}_shape"] = buffer.shape
+            self.operatorRepresentation[f"{sym_name}_size"] = np.prod(buffer.shape)
 
     @abstractmethod
     def parseNodeCtxt(self,
@@ -1009,7 +1056,10 @@ class NodeParser():
             be mapped.
 
         """
-
+        if self.input_sym_names is not None:
+            self._parseTensors(ctxt, self.input_sym_names, node.inputs)
+        if self.output_sym_names is not None:
+            self._parseTensors(ctxt, self.output_sym_names, node.outputs)
         return ctxt, True
 
     @classmethod
@@ -1075,19 +1125,33 @@ class NodeParser():
         return ctxt
 
     @staticmethod
-    def _unpack_const(attr) -> Union[int, float]:
+    def _unpack_const(value) -> Union[int, float]:
         """DON'T OVERRIDE - Helper function to get a Python scalar from an ONNX attribute.
         The attributes can either be a numpy scalar value or a Constant tensor.
         This expects the numpy value to be of size 1.
         """
-        if isinstance(attr, gs.Constant):
-            value = attr.values
-        elif isinstance(attr, np.ndarray):
-            value = attr
+        # Already a python scalar
+        if isinstance(value, (int, float)):
+            return value
+
+        if isinstance(value, gs.Constant):
+            value = value.values
+        elif isinstance(value, np.ndarray):
+            value = value
         else:
-            assert False, f"Unsupported attribute type {type(attr)}"
+            assert False, f"Unsupported attribute type {type(value)}"
         assert value.size == 1, f"Expected attribute of size 1. Got an array of shape {value.shape}"
         return value.item()
+
+    def _int_unpack_attr(self, attr: str) -> int:
+        """DON'T OVERRIDE - Helper function to unpack an attribute to an integer.
+        """
+        return int(self._unpack_const(self.operatorRepresentation[attr]))
+
+    def _log2_int_unpack_attr(self, attr: str) -> int:
+        """DON'T OVERRIDE - Helper function to unpack an attribute to an integer.
+        """
+        return int(np.log2(self._int_unpack_attr(attr)))
 
     # Don't touch this
     def parse(self,
