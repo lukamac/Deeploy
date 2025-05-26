@@ -23,7 +23,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from typing import Tuple
 
 import numpy as np
@@ -40,478 +39,305 @@ class CMSISMaxPool2DParser(MaxPool2DParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                self.operatorRepresentation['pads'][0] == 0,
-                self.operatorRepresentation['pads'][1] == 0,
-            ])
-
-            return ret
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        return super().parseNodeCtxt(ctxt, node, channels_first)
+        return all([
+            self.operatorRepresentation['pads'][0] == 0,
+            self.operatorRepresentation['pads'][1] == 0,
+        ])
 
 
 class CMSISDWConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
+        assert self.input_sym_names is not None, "Assuming input_sym_names are used."
+        self.input_sym_names.append('shift')
 
-    def parseNode(self, node: gs.Node) -> (bool):
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                # Make sure padding is square
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][2],
-                self.operatorRepresentation['pads'][1] == self.operatorRepresentation['pads'][3],
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
-                self.operatorRepresentation['pads'][0] == 0,
-                # Don't support dilations
-                #all([coeff == 1 for coeff in self.operatorRepresentation['dilations']]),
-                len(node.inputs) == 5,
-            ])
-
-            return ret
+        return all(pad == 0 for pad in self.operatorRepresentation['pads'])
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        newCtxt, wellFormed = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not wellFormed:
+            return ctxt, False
 
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not self.operatorRepresentation['group'] == self.operatorRepresentation['weight_shape'][0]:
+            return ctxt, False
 
-        if ret:
+        if not newCtxt.is_global(self.operatorRepresentation['weight']):
+            return ctxt, False
 
-            if not self.operatorRepresentation['group'] == newCtxt.lookup(
-                    self.operatorRepresentation['weight']).shape[0]:
-                return ctxt, False
-
-            inputs = ['data_in', 'weight', 'mul', 'add', 'shift']
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = newCtxt.lookup(inputNode.name).name
-
-            data_in = newCtxt.lookup(self.operatorRepresentation['data_in'])
-            data_out = newCtxt.lookup(self.operatorRepresentation['data_out'])
-            weight = newCtxt.lookup(self.operatorRepresentation['weight'])
-
-            if not newCtxt.is_global(self.operatorRepresentation['weight']):
-                return ctxt, False
-
-            # SCHEREMO: Transpose weights to be num filters last
-            newCtxt.globalObjects[self.operatorRepresentation['weight']].values = np.transpose(
-                weight.values,
-                list(range(len(weight.shape)))[1:] + [0])
-
-            return newCtxt, True
-
-        return ctxt, False
+        # SCHEREMO: Transpose weights to be num filters last
+        weight = newCtxt.lookup(self.operatorRepresentation['weight'])
+        weight.values = np.transpose(weight.values, list(range(len(weight.shape)))[1:] + [0])
+        return newCtxt, True
 
 
 class CMSISConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
+        assert self.input_sym_names is not None, "Assuming input_sym_names are used."
+        self.input_sym_names.append('shift')
 
-    def parseNode(self, node: gs.Node) -> (bool):
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                # Make sure padding is square
-                self.operatorRepresentation['group'] == 1,
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][2],
-                self.operatorRepresentation['pads'][1] == self.operatorRepresentation['pads'][3],
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
-                #self.operatorRepresentation['pads'][0] == 0,
-                # Don't support dilations
-                #all([coeff == 1 for coeff in self.operatorRepresentation['dilations']]),
-                len(node.inputs) == 5,
-            ])
-
-            return ret
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            inputs = ['data_in', 'weight', 'mul', 'add', 'shift']
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
-
-            return newCtxt, True
-
-        return ctxt, False
+        return all([
+            self.operatorRepresentation['group'] == 1,
+            # Make sure padding is square
+            self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][2],
+            self.operatorRepresentation['pads'][1] == self.operatorRepresentation['pads'][3],
+            self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
+        ])
 
 
 class CMSISDWConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
+        assert self.input_sym_names is not None, "Assuming we are using input_sym_names"
+        self.input_sym_names.append('shift')
 
-    def parseNode(self, node: gs.Node) -> (bool):
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
 
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                # Make sure padding is square
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
-                #self.operatorRepresentation['pads'][0] == 0,
-                # Don't support dilations
-                #all([coeff == 1 for coeff in self.operatorRepresentation['dilations']]),
-                len(node.inputs) == 5,
-            ])
-
-            return ret
+        # Make sure padding is square
+        return self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1]
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        newCtxt, wellFormed = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not wellFormed:
+            return ctxt, False
 
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not self.operatorRepresentation['group'] == self.operatorRepresentation['weight_shape'][-1]:
+            return ctxt, False
 
-        if ret:
-
-            inputs = ['data_in', 'weight', 'mul', 'add', 'shift']
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = newCtxt.lookup(inputNode.name).name
-
-            if not self.operatorRepresentation['group'] == newCtxt.lookup(
-                    self.operatorRepresentation['weight']).shape[-1]:
-                return ctxt, False
-
-            return newCtxt, True
-
-        return ctxt, False
+        return newCtxt, True
 
 
 class CMSISConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-        if wellFormed:
-            ret = all([
-                # Make sure padding is square
-                self.operatorRepresentation['group'] == 1,
-                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
-                #self.operatorRepresentation['pads'][0] == 0,
-                # Don't support dilations
-                #all([coeff == 1 for coeff in self.operatorRepresentation['dilations']]),
-                len(node.inputs) == 5,
-            ])
-
-            return ret
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            inputs = ['data_in', 'weight', 'mul', 'add', 'shift']
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
-
-            return newCtxt, True
-
-        return ctxt, False
+    def __init__(self):
+        super().__init__()
+        assert self.input_sym_names is not None, "Assuming we are using input_sym_names"
+        self.input_sym_names.append('shift')
 
 
 class CMSISLinearParser(GEMMParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-        return wellFormed
-
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        newCtxt, wellFormed = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not wellFormed:
+            return ctxt, False
 
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-        if ret:
-            # Try to transpose A offline if possible, else fail
-            if self.operatorRepresentation['transA'] == 1:
-                nameA = self.operatorRepresentation['A']
-                if newCtxt.is_global(nameA) and isinstance(newCtxt.lookup(nameA), ConstantBuffer):
-                    A = newCtxt.lookup(nameA)
-                    npA = np.asarray(A.values).reshape(A.shape)
-                    newA = np.transpose(npA, list(range(len(A.shape) - 2)) + [len(A.shape) - 1, len(A.shape) - 2])
-                    newCtxt.globalObjects[nameA].shape = newA.shape
-                    newCtxt.globalObjects[nameA].values = newA
-                    self.operatorRepresentation['transA'] = 0
-                else:
-                    return newCtxt, False
+        # Try to transpose A offline if possible, else fail
+        if self.operatorRepresentation['transA'] == 1:
+            nameA = self.operatorRepresentation['A']
+            if newCtxt.is_global(nameA) and isinstance(newCtxt.lookup(nameA), ConstantBuffer):
+                A = newCtxt.lookup(nameA)
+                npA = np.asarray(A.values).reshape(A.shape)
+                newA = np.transpose(npA, list(range(len(A.shape) - 2)) + [len(A.shape) - 1, len(A.shape) - 2])
+                newCtxt.globalObjects[nameA].shape = newA.shape
+                newCtxt.globalObjects[nameA].values = newA
+                self.operatorRepresentation['transA'] = 0
+            else:
+                return newCtxt, False
 
-            # Try to transpose B offline if possible, else fail
-            # SCHEREMO: Magic trick - CMSIS works a bit weirdly with matmuls...
-            if self.operatorRepresentation['transB'] == 0:
-                nameB = self.operatorRepresentation['B']
-                if newCtxt.is_global(nameB) and isinstance(newCtxt.lookup(nameB), ConstantBuffer):
-                    B = newCtxt.lookup(nameB)
-                    npB = np.asarray(B.values).reshape(B.shape)
-                    newB = np.transpose(npB, list(range(len(B.shape) - 2)) + [len(B.shape) - 1, len(B.shape) - 2])
-                    newCtxt.globalObjects[nameB].values = newB
-                    newCtxt.globalObjects[nameB].shape = newB.shape
-                    self.operatorRepresentation['transB'] = 1
-                else:
-                    return newCtxt, False
+        # Try to transpose B offline if possible, else fail
+        # SCHEREMO: Magic trick - CMSIS works a bit weirdly with matmuls...
+        if self.operatorRepresentation['transB'] == 0:
+            nameB = self.operatorRepresentation['B']
+            if newCtxt.is_global(nameB) and isinstance(newCtxt.lookup(nameB), ConstantBuffer):
+                B = newCtxt.lookup(nameB)
+                npB = np.asarray(B.values).reshape(B.shape)
+                newB = np.transpose(npB, list(range(len(B.shape) - 2)) + [len(B.shape) - 1, len(B.shape) - 2])
+                newCtxt.globalObjects[nameB].values = newB
+                newCtxt.globalObjects[nameB].shape = newB.shape
+                self.operatorRepresentation['transB'] = 1
+            else:
+                return newCtxt, False
 
-            # Try to scale A offline if possible, else fail
-            if self.operatorRepresentation['alpha'] != 1.0:
-                nameA = self.operatorRepresentation['A']
-                if newCtxt.is_global(nameA) and isinstance(newCtxt.lookup(nameA), ConstantBuffer):
-                    A = newCtxt.lookup(nameA)
-                    npA = np.asarray(A.values).reshape(A.shape)
-                    newA = npA * self.operatorRepresentation['beta']
-                    newCtxt.globalObjects[nameA].values = newA
-                    self.operatorRepresentation['alpha'] = 1.0
-                else:
-                    return newCtxt, False
+        # Try to scale A offline if possible, else fail
+        if self.operatorRepresentation['alpha'] != 1.0:
+            nameA = self.operatorRepresentation['A']
+            if newCtxt.is_global(nameA) and isinstance(newCtxt.lookup(nameA), ConstantBuffer):
+                A = newCtxt.lookup(nameA)
+                npA = np.asarray(A.values).reshape(A.shape)
+                newA = npA * self.operatorRepresentation['beta']
+                newCtxt.globalObjects[nameA].values = newA
+                self.operatorRepresentation['alpha'] = 1.0
+            else:
+                return newCtxt, False
 
-            # Try to scale B offline if possible, else fail
-            if self.operatorRepresentation['beta'] != 1.0:
-                nameB = self.operatorRepresentation['B']
-                if newCtxt.is_global(nameB) and isinstance(newCtxt.lookup(nameB), ConstantBuffer):
-                    B = newCtxt.lookup(nameB)
-                    npB = np.asarray(B.values).reshape(B.shape)
-                    newB = npB * self.operatorRepresentation['beta']
-                    newCtxt.globalObjects[nameB].values = newB
-                    self.operatorRepresentation['beta'] = 1.0
-                else:
-                    return newCtxt, False
+        # Try to scale B offline if possible, else fail
+        if self.operatorRepresentation['beta'] != 1.0:
+            nameB = self.operatorRepresentation['B']
+            if newCtxt.is_global(nameB) and isinstance(newCtxt.lookup(nameB), ConstantBuffer):
+                B = newCtxt.lookup(nameB)
+                npB = np.asarray(B.values).reshape(B.shape)
+                newB = npB * self.operatorRepresentation['beta']
+                newCtxt.globalObjects[nameB].values = newB
+                self.operatorRepresentation['beta'] = 1.0
+            else:
+                return newCtxt, False
 
-            return newCtxt, True
-
-        return ctxt, False
+        return newCtxt, True
 
 
 class CMSISGEMMParser(CMSISLinearParser, RQSParserInterface):
 
     def __init__(self):
-        super().__init__(noBiasHoisting = True)
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        ret_linear = CMSISLinearParser.parseNode(self, node)
-        ret_rqs = RQSParserInterface.parseNode(self, node)
-
-        ret = all([
-            ret_linear == True,
-            ret_rqs == True,
-            'shift' in node.attrs,
-            len(node.inputs) == 4,
-        ])
-
-        if ret:
-            self.operatorRepresentation['shift'] = int(node.attrs['shift'].values)
-
-        return ret
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            inputs = ['A', 'B', 'C', 'mul', 'add']
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = newCtxt.lookup(inputNode.name).name
-
-            return newCtxt, True
-
+        CMSISLinearParser.__init__(self, noBiasHoisting = True)
+        RQSParserInterface.__init__(self, "mul add")
+        if self.required_attrs is not None:
+            self.required_attrs.append('shift')
         else:
-            return ctxt, False
+            self.required_attrs = ['shift']
+
+    def parseNode(self, node: gs.Node) -> bool:
+        if all([
+                CMSISLinearParser.parseNode(self, node),
+                RQSParserInterface.parseNode(self, node),
+        ]):
+            return False
+
+        self.operatorRepresentation['shift'] = int(self._unpack_const(self.operatorRepresentation['shift']))
+        return True
 
 
 class CMSISMHSAParser(MHSAParser):
 
     def __init__(self):
         super().__init__()
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-
-        if wellFormed:
-            ret = all([
-                'isoftmaxA' in node.attrs,
-                'isoftmaxB' in node.attrs,
-                'isoftmaxC' in node.attrs,
-                'isoftmaxlog2' in node.attrs,
-            ])
-
-            if ret:
-                self.operatorRepresentation['signed'] = 1
-                self.operatorRepresentation['preattn_requant_shift'] = int(node.attrs['preattn_requant_shift'].values)
-                self.operatorRepresentation['preattn_requant_div'] = int(
-                    math.log2(int(node.attrs['preattn_requant_div'].values)))
-                self.operatorRepresentation['postattn_requant_shift'] = int(node.attrs['postattn_requant_shift'].values)
-                self.operatorRepresentation['postattn_requant_div'] = int(
-                    math.log2(int(node.attrs['postattn_requant_div'].values)))
-                self.operatorRepresentation['wo_requant_shift'] = int(node.attrs['wo_requant_shift'].values)
-                self.operatorRepresentation['wo_requant_div'] = int(math.log2(int(node.attrs['wo_requant_div'].values)))
-                self.operatorRepresentation['wq_requant_shift'] = int(node.attrs['wq_requant_shift'].values)
-                self.operatorRepresentation['wq_requant_div'] = int(math.log2(int(node.attrs['wq_requant_div'].values)))
-                self.operatorRepresentation['wk_requant_shift'] = int(node.attrs['wk_requant_shift'].values)
-                self.operatorRepresentation['wk_requant_div'] = int(math.log2(int(node.attrs['wk_requant_div'].values)))
-                self.operatorRepresentation['wv_requant_shift'] = int(node.attrs['wv_requant_shift'].values)
-                self.operatorRepresentation['wv_requant_div'] = int(math.log2(int(node.attrs['wv_requant_div'].values)))
-                self.operatorRepresentation['isoftmaxA'] = int(node.attrs['isoftmaxA'].values)
-                self.operatorRepresentation['isoftmaxB'] = int(node.attrs['isoftmaxB'].values)
-                self.operatorRepresentation['isoftmaxC'] = int(node.attrs['isoftmaxC'].values)
-                self.operatorRepresentation['isoftmaxlog2'] = int(node.attrs['isoftmaxlog2'].values)
-
-            return ret
-
-        return False
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            return newCtxt, ret
+        required_attrs = ['isoftmaxA', 'isoftmaxB', 'isoftmaxC', 'isoftmaxlog2']
+        if self.required_attrs is not None:
+            self.required_attrs.extend(required_attrs)
         else:
-            return ctxt, False
+            self.required_attrs = required_attrs
+        optional_attrs = {'signed': 1}
+        if self.optional_attrs is not None:
+            self.optional_attrs.update(optional_attrs)
+        else:
+            self.optional_attrs = optional_attrs
+
+    def parseNode(self, node: gs.Node) -> bool:
+        if not super().parseNode(node):
+            return False
+
+        self.operatorRepresentation.update({
+            attr: self._int_unpack_attr(attr) for attr in [
+                'preattn_requant_shift',
+                'postattn_requant_shift',
+                'wo_requant_shift',
+                'wq_requant_shift',
+                'wk_requant_shift',
+                'wv_requant_shift',
+                'isoftmaxA',
+                'isoftmaxB',
+                'isoftmaxC',
+            ]
+        })
+
+        self.operatorRepresentation.update({
+            attr: self._log2_int_unpack_attr(attr) for attr in [
+                'preattn_requant_div',
+                'postattn_requant_div',
+                'wo_requant_div',
+                'wq_requant_div',
+                'wk_requant_div',
+                'wv_requant_div',
+                'isoftmaxlog2',
+            ]
+        })
+
+        return True
 
 
 class CMSISLinearAttentionParser(LinearAttentionParser):
 
     def __init__(self):
         super().__init__()
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-        self.operatorRepresentation['signed'] = 1
-        return wellFormed
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            return newCtxt, ret
+        optional_attrs = {'signed': 1}
+        if self.optional_attrs is not None:
+            self.optional_attrs.update(optional_attrs)
         else:
-            return ctxt, False
+            self.optional_attrs = optional_attrs
 
 
 class CMSISCLCAParser(CLCAParser):
 
-    def __init__(self):
-        super().__init__()
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-        return wellFormed
-
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        ctxt = ctxt.copy()
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-        if ret:
-            # Div to shift:
-            newCtxt.globalObjects[self.operatorRepresentation['wq_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['wq_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wk_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['wk_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wv_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['wv_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wo_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['wo_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['preattn_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['preattn_requant_div']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['postattn_requant_div']].values = np.log2(
-                newCtxt.globalObjects[self.operatorRepresentation['postattn_requant_div']].values).astype('int')
-
-            # Fold additions:
-            newCtxt.globalObjects[self.operatorRepresentation['wo_bias']].values = newCtxt.globalObjects[
-                self.operatorRepresentation['wo_bias']].values + (
-                    newCtxt.globalObjects[self.operatorRepresentation['wo_requant_add']].values /
-                    newCtxt.globalObjects[self.operatorRepresentation['wo_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wo_requant_add']]._deploy = False
-            newCtxt.globalObjects[self.operatorRepresentation['wq_bias']].values = newCtxt.globalObjects[
-                self.operatorRepresentation['wq_bias']].values + (
-                    newCtxt.globalObjects[self.operatorRepresentation['wq_requant_add']].values /
-                    newCtxt.globalObjects[self.operatorRepresentation['wq_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wq_requant_add']]._deploy = False
-            newCtxt.globalObjects[self.operatorRepresentation['wk_bias']].values = newCtxt.globalObjects[
-                self.operatorRepresentation['wk_bias']].values + (
-                    newCtxt.globalObjects[self.operatorRepresentation['wv_requant_add']].values /
-                    newCtxt.globalObjects[self.operatorRepresentation['wv_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wv_requant_add']]._deploy = False
-
-            # Rescale requant adds:
-            newCtxt.globalObjects[self.operatorRepresentation['postattn_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['postattn_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['postattn_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['preattn_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['preattn_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['preattn_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wk_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['wk_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['wk_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wo_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['wo_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['wo_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wq_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['wq_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['wq_requant_mul']].values).astype('int')
-            newCtxt.globalObjects[self.operatorRepresentation['wv_requant_add']].values = (
-                newCtxt.globalObjects[self.operatorRepresentation['wv_requant_add']].values /
-                newCtxt.globalObjects[self.operatorRepresentation['wv_requant_mul']].values).astype('int')
-
-            # Delta into mul
-            newCtxt.globalObjects[self.operatorRepresentation['kdiv_requant_mul']].values = newCtxt.globalObjects[
-                self.operatorRepresentation['kdiv_requant_mul']].values * self.operatorRepresentation['Delta']
-
-            return newCtxt, ret
-        else:
+        newCtxt, wellFormed = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not wellFormed:
             return ctxt, False
+
+        # Div to shift:
+        self.operatorRepresentation.update({
+            attr: self._log2_int_unpack_attr(attr) for attr in [
+                'wq_requant_div',
+                'wk_requant_div',
+                'wv_requant_div',
+                'wo_requant_div',
+                'kdiv_requant_div',
+                'preattn_requant_div',
+                'postattn_requant_div',
+            ]
+        })
+
+        # Fold additions:
+        def add_fold(bias, add, mul):
+            return bias + add // mul
+
+        self.operatorRepresentation['wo_bias'] = add_fold(
+            self._unpack_const(self.operatorRepresentation['wo_bias']),
+            self._unpack_const(self.operatorRepresentation['wo_requant_add']),
+            self._unpack_const(self.operatorRepresentation['wo_requant_mul']))
+
+        self.operatorRepresentation['wq_bias'] = add_fold(
+            self._unpack_const(self.operatorRepresentation['wq_bias']),
+            self._unpack_const(self.operatorRepresentation['wq_requant_add']),
+            self._unpack_const(self.operatorRepresentation['wq_requant_mul']))
+
+        self.operatorRepresentation['wk_bias'] = add_fold(
+            self._unpack_const(self.operatorRepresentation['wk_bias']),
+            self._unpack_const(self.operatorRepresentation['wv_requant_add']),
+            self._unpack_const(self.operatorRepresentation['wv_requant_mul']))
+
+        # Rescale requant adds:
+        def add_rescale(add, mul):
+            return add // mul
+
+        self.operatorRepresentation.update({
+            f'{name}_requant_add':
+                add_rescale(
+                    self._unpack_const(self.operatorRepresentation[f'{name}_requant_add']),
+                    self._unpack_const(self.operatorRepresentation[f'{name}_requant_mul']),
+                ) for name in ['postattn', 'preattn', 'kdiv', 'wk', 'wo', 'wq', 'wv']
+        })
+
+        # Delta into mul
+        kdiv_requant_mul = self._unpack_const(self.operatorRepresentation['kdiv_requant_mul'])
+        Delta = self._unpack_const(self.operatorRepresentation['Delta'])
+        self.operatorRepresentation['kdiv_requant_mul'] = kdiv_requant_mul * Delta
+
+        return newCtxt, True
