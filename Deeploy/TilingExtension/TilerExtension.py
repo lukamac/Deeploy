@@ -38,7 +38,7 @@ import numpy as np
 import onnx_graphsurgeon as gs
 import plotly.graph_objects as go
 import plotly.io as pio
-from ortools.constraint_solver.pywrapcp import IntVar, SolutionCollector
+from ortools.constraint_solver.pywrapcp import IntVar
 
 import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
 from Deeploy.AbstractDataTypes import PointerClass
@@ -327,8 +327,8 @@ class Tiler():
 
         assert self.tilerModel is not None and self.symbolicMemoryConstraints is not None, "Set up the model before trying to compute a schedule!"
 
-        collector = self.tilerModel.trySolveModel()
-        tilingSchedule = self._getTilingSolution(self.tilerModel, ctxt, collector, self.symbolicMemoryConstraints)
+        _ = self.tilerModel.trySolveModel()
+        tilingSchedule = self._getTilingSolution(self.tilerModel, ctxt, self.symbolicMemoryConstraints)
 
         if not self.memoryAllocStrategy == "MiniMalloc":
             self.innerMemoryScheduler.annotateSolution(ctxt, self.tilerModel)
@@ -445,46 +445,47 @@ class Tiler():
 
         return tileConstraintPattern
 
-    def _resolveTensorMemoryConstraint(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
+    def _resolveTensorMemoryConstraint(self, tilerModel: TilerModel, ctxt: NetworkContext,
                                        tensorConstraint: TensorMemoryConstraint) -> TensorMemoryConstraint:
-        assert self.tilerModel is not None, "Can't resolve tensor memory constraints, tilerModel is None!"
-
         tensorName = tensorConstraint.tensorName
         solvedTensorConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
 
         for memoryLevel, memoryConstraint in tensorConstraint.memoryConstraints.items():
-            size = self.tilerModel._resolveVariable(memoryConstraint.size)
+            size = tilerModel._resolveVariable(memoryConstraint.size)
+            assert size is not None
 
             newMemoryConstraint: MemoryConstraint = MemoryConstraint(memoryLevel, size)
-            multiBufferCoefficient = self.tilerModel._resolveVariable(memoryConstraint.multiBufferCoefficient)
+            multiBufferCoefficient = tilerModel._resolveVariable(memoryConstraint.multiBufferCoefficient)
+            assert multiBufferCoefficient is not None
             newMemoryConstraint.multiBufferCoefficient = multiBufferCoefficient
 
-            if not isinstance(ctxt.lookup(tensorName), TransientBuffer):
-
-                tensorShapeLen = len(ctxt.lookup(tensorName).shape)
+            buffer = ctxt.lookup(tensorName)
+            if not isinstance(buffer, TransientBuffer):
+                tensorShapeLen = len(buffer.shape)
                 newShape: List[int] = []
 
                 if isinstance(memoryConstraint.size, int):
-                    newShape = ctxt.lookup(tensorName).shape
+                    newShape = buffer.shape
                 else:
                     _, copyIdx = tilerModel.getNameCopyIdx(memoryConstraint.size.Name())
                     for i in range(tensorShapeLen):
-                        newShape.append(
-                            self.tilerModel._resolveVariable(tilerModel.getTensorDimVar(tensorName, i, copyIdx)))
+                        dimSize = tilerModel._resolveVariable(tilerModel.getTensorDimVar(tensorName, i, copyIdx))
+                        assert dimSize is not None
+                        newShape.append(dimSize)
 
+                assert newShape is not None
                 newMemoryConstraint.shape = tuple(newShape)
 
             solvedTensorConstraint.addMemoryConstraint(newMemoryConstraint)
 
         return solvedTensorConstraint
 
-    def _getTilingSolution(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
+    def _getTilingSolution(self, tilerModel: TilerModel, ctxt: NetworkContext,
                            allConstraints: List[PatternMemoryConstraints]) -> List[PatternMemoryConstraints]:
 
         retList = []
 
         def _checkResolve(ctxt, tensorName, tensorConstraint):
-
             if ctxt.is_global(tensorName) and len(tensorConstraint.memoryConstraints.values()) <= 1:
                 return False
             if len(tensorConstraint.memoryConstraints.values()) <= 1 and not isinstance(
@@ -498,9 +499,9 @@ class Tiler():
                 newStepMemoryConstraint = NodeMemoryConstraint()
                 for tensorName, tensorConstraint in stepConstraints.tensorMemoryConstraints.items():
                     if _checkResolve(ctxt, tensorName, tensorConstraint):
-                        solvedTensorConstraint = self._resolveTensorMemoryConstraint(
-                            tilerModel, ctxt, collector, tensorConstraint)
-                        ioDir = stepConstraints.getIO(tensorName)
+                        solvedTensorConstraint = self._resolveTensorMemoryConstraint(tilerModel, ctxt, tensorConstraint)
+                        ioDir = stepConstraints.getIoDirection(tensorName)
+                        assert ioDir is not None, "ioDir should not be None"
                         newStepMemoryConstraint.addTensorConstraint(solvedTensorConstraint, ioDir)
 
                 newMemoryConstraint.addConstraint(newStepMemoryConstraint)
@@ -685,7 +686,7 @@ class Tiler():
                             innerTensorName == dynamicTensorName
                             for dynamicTensorName, tensor in dynamicTensorPatternStep.tensorMemoryConstraints.items()
                     ]):
-                        ioDir = tilingPatternStep.getIO(innerTensorName)
+                        ioDir = tilingPatternStep.getIoDirection(innerTensorName)
                         dynamicTensorPatternStep.addTensorConstraint(innerTensor, ioDir)
                 dynamicTensorPattern.addConstraint(dynamicTensorPatternStep)
             dynamicTensorConstraints.append(dynamicTensorPattern)
@@ -754,7 +755,7 @@ class Tiler():
 
         for tileTensor in tileTensorConstraints:
             tiledTensor = self._generateTilePath(tilerModel, ctxt, tileTensor, pattern)
-            ioDir = mergedStep.getIO(tileTensor.tensorName)
+            ioDir = mergedStep.getIoDirection(tileTensor.tensorName)
             tileConstraintStep.addTensorConstraint(tiledTensor, ioDir)
 
         return tileConstraintStep

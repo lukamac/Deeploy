@@ -134,7 +134,7 @@ class NodeMemoryConstraint():
         if name in self.tensorMemoryConstraints.keys():
             self.tensorMemoryConstraints[name]._amendMemoryConstraints(tensorMemoryConstraint.memoryConstraints)
 
-    def getIO(self, tensorName: str) -> Optional[Literal["input", "intermediate", "output"]]:
+    def getIoDirection(self, tensorName: str) -> Optional[Literal["input", "intermediate", "output"]]:
         if tensorName in self.inputTensorMemoryConstraints.keys():
             return "input"
         elif tensorName in self.outputTensorMemoryConstraints.keys():
@@ -169,7 +169,7 @@ class NodeMemoryConstraint():
         new.outputTensorMemoryConstraints = copy.deepcopy(self.outputTensorMemoryConstraints)
 
         for key, constraint in other.tensorMemoryConstraints.items():
-            ioDir = other.getIO(key)
+            ioDir = other.getIoDirection(key)
             new.addTensorConstraint(constraint, ioDir)
 
         return new

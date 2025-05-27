@@ -71,12 +71,12 @@ class TilerModel():
 
         self.searchStrategy: Literal['min', 'max', 'random-max'] = searchStrategy
 
-    def _resolveVariable(self, var) -> int:
+    def _resolveVariable(self, var) -> Optional[int]:
         if isinstance(var, int):
             return var
 
         if self._collector is None:
-            return 0
+            return None
 
         return self._collector.Value(self._collector.SolutionCount() - 1, var)
 
