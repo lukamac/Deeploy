@@ -26,7 +26,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple, Type
+from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import numpy as np
 
@@ -287,84 +287,49 @@ def extractTilingTransfer(tilingSolution: NodeMemoryConstraint, targetMemLevel: 
     raise RuntimeError(f"{tensorName} not found in tilingSolution!")
 
 
-def computeHyperRectangleList(memTrans: MemoryTransfer) -> List[HyperRectangle]:
+def computeHyperRectangles(memTrans: MemoryTransfer) -> List[HyperRectangle]:
+    assert memTrans.source.shape is not None, "Source transfer shape cannot be undefined!"
+    assert memTrans.destination.shape is not None, "Destination transfer shape cannot be undefined!"
 
-    def nextElement(idxVec: List[int], targetVector: List[int]) -> Optional[List[int]]:
-        nextIdx = []
+    assert len(memTrans.source.shape) == len(memTrans.destination.shape), \
+    f"Source and target of memory transfer {memTrans} don't have the same number of dimensions!"
 
-        countUp = True
-        for vecIdx, maxIdx in zip(reversed(idxVec), reversed(targetVector)):
-            if countUp:
-                if vecIdx == maxIdx:
-                    nextIdx.append(1)
+    largeShape = memTrans.source.shape
+    smallShape = memTrans.destination.shape
+
+    for dimIdx, (dimSizeSmall, dimSizeLarge) in enumerate(zip(smallShape, largeShape)):
+        assert dimSizeSmall <= dimSizeLarge, f"smallShape[{dimIdx}] should not be bigger then largeShape[{dimIdx}]. ({dimSizeSmall} > {dimSizeLarge})"
+
+    def nextTileIndex(tileIndexEnd: List[int]) -> Generator[List[int]]:
+        tileCount = np.prod(tileIndexEnd)
+        tileIndex = [0] * len(tileIndexEnd)
+        for _ in range(tileCount):
+            yield tileIndex
+            for dimIdx, (idx, end) in enumerate(zip(tileIndex, tileIndexEnd)):
+                if idx + 1 < end:
+                    tileIndex[dimIdx] = idx + 1
+                    break
                 else:
-                    nextIdx.append(vecIdx + 1)
-                    countUp = False
-            else:
-                nextIdx.append(vecIdx)
+                    tileIndex[dimIdx] = 0
 
-        nextIdx.reverse()
+    tileHyperRectangles = []
 
-        if countUp:
-            return None
+    tileIndexEnd = [
+        int(np.ceil(dimSizeLarge / dimSizeSmall)) for dimSizeLarge, dimSizeSmall in zip(largeShape, smallShape)
+    ]
+    for tileIndex in nextTileIndex(tileIndexEnd):
+        tileOffset = tuple(dimIdx * dimSizeSmall for dimIdx, dimSizeSmall in zip(tileIndex, smallShape))
+        for dimIdx, (dimOffset, dimSizeLarge) in enumerate(zip(tileOffset, largeShape)):
+            assert dimOffset >= 0, f"tileOffset[{dimIdx}] shoud not be smaller then zero ({dimOffset} < 0)"
+            assert dimOffset < dimSizeLarge, f"tileOffset[{dimIdx}] should not be bigger or equal then largeShape[{dimIdx}] ({dimOffset} >= {dimSizeLarge})"
 
-        return nextIdx
+        tileSize = tuple(
+            min(dimSizeSmall, dimSizeLarge - dimOffset)
+            for dimSizeSmall, dimSizeLarge, dimOffset in zip(smallShape, largeShape, tileOffset))
+        for dimIdx, (dimSize, dimSizeSmall) in enumerate(zip(tileSize, smallShape)):
+            assert dimSize > 0, f"tileOffset[{dimIdx}] shoud not be smaller or equal then zero ({dimSize} <= 0)"
+            assert dimSize <= dimSizeSmall, f"tileSize[{dimIdx}] should not be bigger then smallShape[{dimIdx}] ({dimSize} > {dimSizeSmall})"
 
-    def calculateCost(idxVec: Iterable[int], smallShape: Tuple[int]) -> List[int]:
-        outVec = []
-        for idx, step in zip(idxVec, smallShape):
-            outVec.append((idx - 1) * step)
+        tileHyperRectangles.append(HyperRectangle(tileOffset, tileSize))
 
-        return outVec
-
-    def calculateDim(idxVec: List[int], numTiles: List[int], smallShape: Tuple[int],
-                     largeShape: Tuple[int]) -> List[int]:
-
-        dimVec = []
-
-        for idx, (vecIdx, maxIdx) in enumerate(zip(idxVec, numTiles)):
-            if vecIdx != maxIdx:
-                dimVec.append(smallShape[idx])
-                continue
-            if largeShape[idx] % smallShape[idx] == 0:
-                dimVec.append(smallShape[idx])
-                continue
-            dimVec.append(largeShape[idx] % smallShape[idx])
-
-        return dimVec
-
-    src = memTrans.source
-    dst = memTrans.destination
-
-    largeShape = src.shape
-    smallShape = dst.shape
-
-    assert largeShape is not None, "Transfer shapes cannot be undefined!"
-    assert smallShape is not None, "Transfer shapes cannot be undefined!"
-
-    assert len(smallShape) == len(
-        largeShape), f"Source and target of memory transfer {memTrans} don't have the same number of dimensions!"
-    for idx, (dim1, dim2) in enumerate(zip(smallShape, largeShape)):
-        assert dim1 <= dim2, f"Large shape is smaller in dimension {idx}"
-
-    totNumTiles = 1
-    numTiles: List[int] = []
-
-    for (dim1, dim2) in zip(smallShape, largeShape):
-        totNumTiles *= np.ceil(dim2 / dim1)
-        numTiles.append(int(np.ceil(dim2 / dim1)))
-
-    cubeList: List[HyperRectangle] = []
-    idxVec = [1] * len(smallShape)
-
-    for i in range(int(totNumTiles)):
-        offsetVec = calculateCost(idxVec, smallShape)
-        dimVec = calculateDim(idxVec, numTiles, smallShape, largeShape)
-        cubeList.append(HyperRectangle(tuple(offsetVec), tuple(dimVec)))
-
-        nextVec = nextElement(idxVec, numTiles)
-        if nextVec is None:
-            break
-        idxVec = nextVec
-
-    return cubeList
+    return tileHyperRectangles
