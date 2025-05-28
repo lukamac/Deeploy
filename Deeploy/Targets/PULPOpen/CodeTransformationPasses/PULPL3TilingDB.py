@@ -70,9 +70,14 @@ pi_cl_ram_copy_wait(&${_stateReference});
 _finalBlockTileOutTemplate = NodeTemplate("""
 
 // BLOCKING EXPORT TILE ${innerTilePtr}
+% if lenOutputLoadSchedule > 1:
+if((${numTiles}[*${tileIdxPtr}+1]) % 2 == 1){
+  pi_cl_ram_copy_wait(&${stateReference});
+} else {
+  pi_cl_ram_copy_wait(&${_stateReference});
+}
+% else:
 pi_cl_ram_copy_wait(&${stateReference});
-% if numTiles > 1:
-pi_cl_ram_copy_wait(&${_stateReference});
 % endif
 """)
 
@@ -271,14 +276,14 @@ class PULPL3TilingDB(PULPL3TilingSB):
         for transaction in ingressDMATransferCalls:
             _operatorRepresentation = transaction.operatorRepresentation.copy()
             _operatorRepresentation["tileNum"] = 0
-            _operatorRepresentation["numTiles"] = operatorRepresentation['numTiles']
             _operatorRepresentation["tileIdxPtr"] = tileIdxPtr
             setupStatements.append(CodeSnippet(transaction.template, _operatorRepresentation))
 
         for transaction in egressDMAWaitStatements:
             _operatorRepresentation = transaction.operatorRepresentation.copy()
             _operatorRepresentation['tileNum'] = ctxt.lookup(operatorRepresentation["numTiles"]).values[-1]
-            _operatorRepresentation['numTiles'] = len(tilingSchedule.outputLoadSchedule)
+            _operatorRepresentation['lenOutputLoadSchedule'] = len(tilingSchedule.outputLoadSchedule)
+            _operatorRepresentation["tileIdxPtr"] = tileIdxPtr
             teardownStatements.append(CodeSnippet(_finalBlockTileOutTemplate, _operatorRepresentation))
 
         metaInfo = TilingMetaInfo(nodeName = operatorRepresentation['nodeName'] + "_L3",
