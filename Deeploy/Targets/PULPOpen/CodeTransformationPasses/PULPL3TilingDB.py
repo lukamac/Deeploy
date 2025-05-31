@@ -116,21 +116,16 @@ class PULPL3TilingDB(PULPL3TilingSB):
 
     def _hoistDMAUpdates(self, ctxt: NetworkContext, tensorName: str, updateList: List[_DMAUpdate],
                          operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, Dict]:
-
         nodeName = operatorRepresentation['nodeName']
 
-        operatorRepresentation = operatorRepresentation.copy()
+        l2Buffer = ctxt.lookup(operatorRepresentation[tensorName])
+        operatorRepresentation['locPtr'] = l2Buffer.name
 
-        dmaName = self._DMAStructName(tensorName, nodeName)
-        # operatorRepresentation['stateReference'] = dmaName
-        # operatorRepresentation['tileNum'] = "TILING_I"
-        operatorRepresentation['locPtr'] = ctxt.lookup(operatorRepresentation[tensorName]).name
-        operatorRepresentation['baseLocPtr'] = ctxt.hoistReference(operatorRepresentation['locPtr'],
-                                                                   operatorRepresentation['locPtr'] + "_ref")
+        ref = ctxt.hoistReference(l2Buffer.name + "_ref", l2Buffer)
+        ref._memoryLevel = self.targetMemLevel
+        operatorRepresentation['baseLocPtr'] = ref.name
+
         operatorRepresentation['_stateReference'] = self._DMAStructName(tensorName, nodeName) + "_1"
-        ctxt.lookup(operatorRepresentation['baseLocPtr'])._memoryLevel = self.targetMemLevel
-
-        namePrefix = self.prefix + f"{nodeName}_{tensorName}"
 
         ctxt, operatorRepresentation = super()._hoistDMAUpdates(ctxt, tensorName, updateList, operatorRepresentation)
 
@@ -139,7 +134,7 @@ class PULPL3TilingDB(PULPL3TilingSB):
         for update in updateList:
             locOffsetList.append(int(update.locOffset) - locBaseOffset)
 
-        name = namePrefix + "_locOffset"
+        name = f"{self.prefix}{nodeName}_{tensorName}_locOffset"
         cb = ctxt.ConstantBuffer(name, [len(updateList)], locOffsetList)
         ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
                                                                        'locOffsetPtr')
@@ -230,6 +225,12 @@ class PULPL3TilingDB(PULPL3TilingSB):
         variableUpdates = []
 
         for transaction in ingressDMATransferCalls:
+            _operatorRepresentation = transaction.operatorRepresentation
+            _operatorRepresentation["tileNum"] = "TILING_I+1"
+            _operatorRepresentation["numTiles"] = operatorRepresentation['numTiles']
+            _operatorRepresentation["tileIdxPtr"] = tileIdxPtr
+
+        for transaction in ingressDMAWaitStatements:
             _operatorRepresentation = transaction.operatorRepresentation
             _operatorRepresentation["tileNum"] = "TILING_I+1"
             _operatorRepresentation["numTiles"] = operatorRepresentation['numTiles']

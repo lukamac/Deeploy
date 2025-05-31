@@ -30,7 +30,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Type
 import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
 from Deeploy.AbstractDataTypes import Immediate, PointerClass
 from Deeploy.DeeployTypes import CodeSnippet, ConstantBuffer, ExecutionBlock, NetworkContext, NodeTemplate, \
-    OperatorRepresentation
+    OperatorRepresentation, VariableBuffer, _ReferenceBuffer
 from Deeploy.Targets.PULPOpen.CodeTransformationPasses import AutoTransposeUtils
 from Deeploy.Targets.PULPOpen.DataTypes import PULPStructDataTypes
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import TilingCodeGeneration
@@ -38,7 +38,7 @@ from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import Pr
     SingleBufferingTilingMixIn, TilingMetaInfo
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import HyperRectangle, TilingSchedule, VariableReplacementScheme, \
-    calculateRectangleOffset, minimizeRectangleDims
+    calculateFlatOffsetInBytes, minimizeRectangle
 
 _openTileLoopTemplate = NodeTemplate("""
 
@@ -154,11 +154,13 @@ class PULPL3TilingSB(TilingCodeGeneration):
                 if key not in deltaOffsets.keys():
                     deltaOffsets[key] = 0
 
-                referenceBuffer = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
-                l1Buffer = ctxt.lookup(operatorRepresentation[key])
+                l2Buffer = ctxt.lookup(operatorRepresentation[key])
+                assert isinstance(l2Buffer, _ReferenceBuffer)
+                l3Buffer = ctxt.lookup(l2Buffer._referenceName)
+                assert isinstance(l3Buffer, VariableBuffer)
 
-                struct = cls._rectToDMAStruct(ctxt, rect, direction, l1Buffer.name, l1Buffer._referenceName)
-                accOffset = calculateRectangleOffset(rect, referenceBuffer)
+                struct = cls._rectToDMAStruct(ctxt, rect, direction, l2Buffer.name, l3Buffer.name)
+                accOffset = calculateFlatOffsetInBytes(rect, l3Buffer)
 
                 length_1d_copy = struct.value['size'].value
                 number_of_1d_copies = struct.value['length'].value
@@ -178,7 +180,7 @@ class PULPL3TilingSB(TilingCodeGeneration):
 
         referenceBuffer = ctxt.lookup(L2Name)
 
-        rect, referenceRect = minimizeRectangleDims(rectangle, referenceBuffer)
+        rect, referenceShape = minimizeRectangle(rectangle, referenceBuffer.shape)
         assert len(rect.dims) <= 2, "PULP: Only 2D transfers are supported!"
 
         if direction == "ToL2":
@@ -190,7 +192,7 @@ class PULPL3TilingSB(TilingCodeGeneration):
 
         if len(rect.dims) > 1:
             number_of_1d_copies = rect.dims[-2]
-            stride_1d = referenceRect.dims[-1] * (referenceBuffer._type.referencedType.typeWidth // 8)
+            stride_1d = referenceShape[-1] * (referenceBuffer._type.referencedType.typeWidth // 8)
         else:
             number_of_1d_copies = 1
             stride_1d = 0

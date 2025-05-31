@@ -24,7 +24,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar
 
 import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
 from Deeploy.AbstractDataTypes import Immediate, PointerClass
@@ -37,6 +37,36 @@ from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, Const
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import PrototypeTilingMixIn
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme, minimizeVariableReplacement
+
+KT = TypeVar('KT')
+VT = TypeVar('VT')
+
+
+def dictOfArrays(arrayOfDicts: Sequence[Mapping[KT, VT]]) -> Mapping[KT, List[VT]]:
+    ret: Mapping[KT, List[VT]] = {}
+    for i, _dict in enumerate(arrayOfDicts):
+        if i == 0:
+            ret.update({key: [value] for key, value in _dict.items()})
+        else:
+            assert set(ret.keys()) == set(_dict.keys()), "Keys should be the same"
+            for key, value in _dict.items():
+                ret[key].append(value)
+    return ret
+
+
+T = TypeVar('T')
+
+
+def transposeListOfLists(listOfLists: List[List[T]]) -> List[List[T]]:
+    transposedListOfLists = []
+    for _list in listOfLists:
+        for i, element in enumerate(_list):
+            if i >= len(transposedListOfLists):
+                assert i == len(transposedListOfLists)
+                transposedListOfLists.append([element])
+            else:
+                transposedListOfLists[i].append(element)
+    return transposedListOfLists
 
 
 class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn, PrototypeTilingMixIn):
@@ -87,35 +117,56 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
 
         return newPtrName
 
+    def _hoistValues(self, ctxt: NetworkContext, name: str, values: List[int], nodeName: str) -> ConstantBuffer:
+        cb = ctxt.ConstantBuffer(name, [len(values)], values)
+        ctxt.add(cb, 'global')
+        cb._type = PointerClass(BasicDataTypes.minimalIntegerType(values))
+        cb._instance = cb._type(cb.name, ctxt)
+        cb._memoryLevel = self.targetMemLevel
+        cb._users.append(nodeName)
+        return cb
+
     def _hoistNumTiles(self,
                        ctxt: NetworkContext,
                        nodeName: str,
                        tilingSchedules: List[TilingSchedule],
                        sourceMemoryLevel: str = "L2") -> str:
+        stepsNumTiles = [len(tilingSchedule.outputLoadSchedule) for tilingSchedule in tilingSchedules]
 
-        newPtrName = self.prefix + nodeName + "_numTiles"
+        cumulativeNumTiles = [0]
+        for numTiles in stepsNumTiles:
+            cumulativeNumTiles.append(cumulativeNumTiles[-1] + numTiles)
 
-        numTiles = [len(tilingSchedule.outputLoadSchedule) for tilingSchedule in tilingSchedules]
-        cumNumTiles = [0]
-        for idx in list(range(len(numTiles))):
-            cumNumTiles.append(cumNumTiles[-1] + numTiles[idx])
+        cb = self._hoistValues(ctxt, f"{self.prefix}{nodeName}_numTiles", cumulativeNumTiles, nodeName)
 
-        cb = ctxt.ConstantBuffer(newPtrName, [len(cumNumTiles)], values = cumNumTiles)
-        ctxt.add(cb, "global")
+        return cb.name
 
-        minType = None
-        if BasicDataTypes.uint8_t.checkValue(cumNumTiles):
-            minType = BasicDataTypes.uint8_t
-        elif BasicDataTypes.uint16_t.checkValue(cumNumTiles):
-            minType = BasicDataTypes.uint16_t
-        else:
-            minType = BasicDataTypes.uint32_t
+    def _hoistOpReprUpdates(self,
+                            ctxt: NetworkContext,
+                            opReprs: List[OperatorRepresentation],
+                            nodeName: str,
+                            prefix: str = '') -> OperatorRepresentation:
+        # Early exit if the opReprs list is empty because the following code assumes at least 1 opRepr is in the list
+        if len(opReprs) == 0:
+            return {}
 
-        cb._type = PointerClass(minType)
-        cb._instance = cb._type(newPtrName, ctxt)
-        cb._memoryLevel = sourceMemoryLevel
-
-        return newPtrName
+        newOpRepr = {}
+        for var, updates in dictOfArrays(opReprs).items():
+            if all(update == updates[0] for update in updates):
+                newOpRepr[var] = updates[0]
+            elif isinstance(updates[0], (list, tuple)):
+                newVarList = []
+                for i, values in enumerate(transposeListOfLists(updates)):
+                    if all(value == values[0] for value in values):
+                        newVarList.append(values[0])
+                    else:
+                        cb = self._hoistValues(ctxt, f"{prefix}{var}_{i}", values, nodeName)
+                        newVarList.append(cb.name)
+                newOpRepr[var] = newVarList
+            else:
+                cb = self._hoistValues(ctxt, f"{prefix}{var}", updates, nodeName)
+                newOpRepr[var] = cb.name
+        return newOpRepr
 
     def _hoistConstantAndReference(self,
                                    ctxt: NetworkContext,
@@ -138,11 +189,10 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
         constBuf._users = [nodeName]
         constBuf._memoryLevel = self.targetMemLevel
 
-        refName = name + "_ref"
-        reference = ctxt.hoistReference(name, refName)
-        ctxt.lookup(reference)._memoryLevel = self.targetMemLevel
+        ref = ctxt.hoistReference(name + "_ref", constBuf)
+        ref._memoryLevel = self.targetMemLevel
 
-        operatorRepresentation[operatorRepresentationName] = refName
+        operatorRepresentation[operatorRepresentationName] = ref.name
 
         return ctxt, operatorRepresentation
 

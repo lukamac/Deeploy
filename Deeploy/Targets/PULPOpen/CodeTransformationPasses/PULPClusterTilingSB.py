@@ -24,145 +24,157 @@
 # limitations under the License.
 
 import copy
-from collections import namedtuple
-from typing import Dict, List, Literal, Optional, Tuple, Type
+from typing import Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 
-import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
-from Deeploy.AbstractDataTypes import Immediate, PointerClass
-from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
-    _invertPermutation, _permuteList
-from Deeploy.DeeployTypes import CodeSnippet, ConstantBuffer, ExecutionBlock, NetworkContext, NodeTemplate, \
-    OperatorRepresentation
-from Deeploy.Targets.PULPOpen.CodeTransformationPasses import AutoTransposeUtils
-from Deeploy.Targets.PULPOpen.DataTypes import PULPStructDataTypes
-from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import TilingCodeGeneration
+from Deeploy.AbstractDataTypes import VoidType
+from Deeploy.DeeployTypes import CodeSnippet, ExecutionBlock, NetworkContext, NodeTemplate, OperatorRepresentation, \
+    VariableBuffer, _ReferenceBuffer
+from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import TilingCodeGeneration, dictOfArrays
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import ProfilingSingleBufferingTilingMixIn, \
     SingleBufferingTilingMixIn, TilingMetaInfo
-from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import HyperRectangle, TilingSchedule, VariableReplacementScheme, \
-    calculateRectangleOffset, minimizeRectangleDims
+    calculateFlatOffset, minimizeRectangle, stridesFromShape
 
 _openTileLoopTemplate = NodeTemplate("""
-
 // TILING LOOP
 for (int TILING_I=${numTiles}[*${tileIdxPtr}]; TILING_I<${numTiles}[(*${tileIdxPtr})+1]; TILING_I++){
 """)
 
 _closeTileLoopTemplate = NodeTemplate("""
-
 // CLOSE TILING LOOP
 }
 *${tileIdxPtr} += 1;
 
 """)
 
-_moveTileInTemplate = NodeTemplate("""
-
-// IMPORT TILE ${innerTilePtr} from ${outerTilePtr}
-dory_dma_memcpy_mindims_async(&${stateReference});
-
+_transfer1DTemplate = NodeTemplate("""
+// MOVE TILE ${innerTilePtr} from ${outerTilePtr}
+mchan_transfer_1d(\\
+% if isinstance(cmd, str):
+${cmd}[${tileIdxVar}]\\
+% else:
+${cmd}\\
+% endif
+, ${loc}, ${ext});
 """)
 
-_iteratedMoveTileInTemplate = NodeTemplate("""
+_transfer2DTemplate = NodeTemplate("""
+// MOVE TILE ${innerTilePtr} from ${outerTilePtr}
+mchan_transfer_2d_ext_strided(\\
+% if isinstance(cmd, str):
+${cmd}[${tileIdxVar}]\\
+% else:
+${cmd}\\
+% endif
+, ${loc}, ${ext}, \\
+% if isinstance(size_1d, str):
+${size_1d}[${tileIdxVar}], \\
+% else:
+${size_1d}, \\
+% endif
+% if isinstance(stride_2d, str):
+${stride_2d}[${tileIdxVar}]);
+% else:
+${stride_2d});
+% endif
+""")
 
-// IMPORT TILE ${innerTilePtr} from ${outerTilePtr}
-// ITERATED
-
-<%
-_extStrides = [stride * stateStruct.value['length_1d_copy'].value for stride in remainderStrides]
-_locStride = f"{stateReference}.length_1d_copy  * {stateReference}.number_of_1d_copies  *  {stateReference}.number_of_2d_copies"
-
-stateStruct.value['ext'] = str(stateReference) + ".ext"
-stateStruct.value['loc'] = str(stateReference) + ".loc"
-stateStruct.value['tid'] = str(stateReference) + ".tid"
-stateStruct.value['stride_2d'] = str(stateReference) + ".stride_2d"
-stateStruct.value['stride_1d'] = str(stateReference) + ".stride_1d"
-stateStruct.value['number_of_2d_copies'] = str(stateReference) + ".number_of_2d_copies"
-stateStruct.value['number_of_1d_copies'] = str(stateReference) + ".number_of_1d_copies"
-stateStruct.value['length_1d_copy'] = str(stateReference) + ".length_1d_copy"
-%>
-
-int8_t * bu_${stateReference}_loc = ${stateReference}.loc;
-int8_t * bu_${stateReference}_ext = ${stateReference}.ext;
-
-% for idx, dimLen in enumerate(dimLens):
-uint16_t ${nodeName}_${tensorName}_dimLen_${idx} = ${dimLen}[${tileNum}];
-for(int i_${idx} = 0; i_${idx} < ${nodeName}_${tensorName}_dimLen_${idx}; i_${idx}++){
-%endfor
-${stateStruct.typeName} trans_${stateReference} = (${stateStruct.typeName}) ${str(stateStruct)};
-dory_dma_memcpy_mindims_async(&trans_${stateReference});
-${stateStruct.value['loc']} = (((int8_t*) ${stateStruct.value['loc']}) + ${_locStride});
-% for idx, _ in enumerate(dimLens):
-${stateStruct.value['ext']} = (((int8_t*) ${stateStruct.value['ext']}) + (${_extStrides[idx]}));
+_transferMultiDimensionalTemplate = NodeTemplate("""
+// MOVE TILE ${innerTilePtr} from ${outerTilePtr}
+% for size in shape[:-2]:
+% if isinstance(size, str):
+for (uint32_t i_dim_${loop.index} = 0; i_dim_${loop.index} < ${size}[${tileIdxVar}]; i_dim_${loop.index}++) {
+% else:
+for (uint32_t i_dim_${loop.index} = 0; i_dim_${loop.index} < ${size}; i_dim_${loop.index}++) {
+% endif
+% endfor
+    const uint32_t ext_offset = \\
+% for stride in stridesExt[:-2]:
+% if isinstance(stride, str):
+i_dim_${loop.index} * ${stride}[${tileIdxVar}]${'+ ' if not loop.last else ''}\\
+% else:
+i_dim_${loop.index} * ${stride}${'+ ' if not loop.last else ''}\\
+% endif
+% endfor
+;
+    const uint32_t loc_offset = \\
+% for stride in stridesLoc[:-2]:
+% if isinstance(stride, str):
+i_dim_${loop.index} * ${stride}[${tileIdxVar}]${'+ ' if not loop.last else ''}\\
+% else:
+i_dim_${loop.index} * ${stride}${'+ ' if not loop.last else ''}\\
+% endif
+% endfor
+;
+    mchan_transfer_2d_ext_strided(\\
+% if isinstance(cmd, str):
+${cmd}[${tileIdxVar}], \\
+% else:
+${cmd}, \\
+% endif
+(void *)${loc} + loc_offset, (void *)${ext} + ext_offset, \\
+% if isinstance(shape[-1], str):
+${shape[-1]}[${tileIdxVar}], \\
+% else:
+${shape[-1]}, \\
+% endif
+% if isinstance(stridesExt[-2], str):
+${stridesExt[-2]}[${tileIdxVar}]);
+% else:
+${stridesExt[-2]});
+% endif
+% for _ in shape[:-2]:
 }
-${stateStruct.value['ext']} = (((int8_t*) ${stateStruct.value['ext']}) - ${nodeName}_${tensorName}_dimLen_${len(dimLens) -1 - idx} * ${_extStrides[idx]});
-%endfor
-
-${stateStruct.value['loc']} = bu_${stateReference}_loc;
-${stateStruct.value['ext']} = bu_${stateReference}_ext;
-
+% endfor
 """)
 
-_blockTileInTemplate = NodeTemplate("""
-
-// BLOCKING IMPORT TILE ${innerTilePtr}
-dory_dma_barrier(&${stateReference});
-
-""")
-
-_moveTileOutTemplate = NodeTemplate("""
-
-// EXPORT TILE ${innerTilePtr} to ${outerTilePtr}
-dory_dma_memcpy_mindims_async(&${stateReference});
-
-""")
-
-_blockTileOutTemplate = NodeTemplate("""
-
-// BLOCKING EXPORT TILE ${innerTilePtr}
-dory_dma_barrier(&${stateReference});
-
-""")
-
-_updateDMATransferStructTemplate = NodeTemplate("""
-
-// UPDATE DMA STRUCT ${stateReference}
-${stateReference}.ext = ((char*)${extPtr}) + ${extOffsetPtr}[${tileNum}];
-${stateReference}.length_1d_copy = ${length1dPtr}[${tileNum}];
-${stateReference}.number_of_1d_copies = ${number1dPtr}[${tileNum}];
-${stateReference}.number_of_2d_copies = ${number2dPtr}[${tileNum}];
-
-${stateReference}.stride_1d = ${stride1dPtr}[${tileNum}];
-${stateReference}.stride_2d = ${stride2dPtr}[${tileNum}];
-
-${stateReference}.mchan_cmd = ${mchanCmdPtr}[${tileNum}];
+_blockTransferTemplate = NodeTemplate("""
+// BLOCKING UNTIL ALL TRANSFERS FINISH
+mchan_channel_wait(${channel_id});
 """)
 
 _updateReferenceTemplate = NodeTemplate("""
-
 // UPDATE VARIABLE ${reference}
 *${reference} = ${baseReference}[${tileNum}];
 """)
 
-_initDMATemplate = NodeTemplate("""
-int32_t ${channelName} = dory_dma_allocate();
+_relativeOffsetReferenceUpdateTemplate = NodeTemplate("""
+// UPDATE VARIABLE ${reference}
+% if isinstance(relativeOffset, str):
+${reference} += ${relativeOffset}[${tileIdxVar}];
+% else:
+${reference} += ${relativeOffset};
+% endif
 """)
 
-_setDMAChannelTemplate = NodeTemplate("""
-${stateReference}.tid = ${channelName};
+_initDmaTemplate = NodeTemplate("""
+uint32_t ${channel_id} = mchan_get_channel_id();
 """)
 
-_releaseDMATemplate = NodeTemplate("""
-dory_dma_free(&${stateReference});
+_releaseDmaTemplate = NodeTemplate("""
+mchan_channel_free(${channel_id});
 """)
 
 # ADD NUM TRANSFERS VARIABLE
 
-_DMAUpdate = namedtuple(
-    "_DMAUpdate",
-    "extOffset locOffset length_1d_copy number_of_1d_copies number_of_2d_copies stride_1d stride_2d mchan_cmd")
+
+def padShape(shape: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+    assert rank >= len(
+        shape), f"Cannot pad to rank smaller then shape's. Received rank: {rank}, shape rank: {len(shape)}"
+    ret = tuple([1] * (rank - len(shape))) + shape
+    assert len(ret) == rank
+    return ret
+
+
+def padOffset(offset: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+    assert rank >= len(
+        offset), f"Cannot pad to rank smaller then offset's. Received rank: {rank}, offset rank: {len(offset)}"
+    ret = tuple([0] * (rank - len(offset))) + offset
+    assert len(ret) == rank
+    return ret
 
 
 class PULPClusterTilingSB(TilingCodeGeneration):
@@ -172,295 +184,69 @@ class PULPClusterTilingSB(TilingCodeGeneration):
     _openTileLoopTemplate = _openTileLoopTemplate
     _closeTileLoopTemplate = _closeTileLoopTemplate
 
-    _moveTileInTemplate = _moveTileInTemplate
-    _iteratedMoveTileInTemplate = _iteratedMoveTileInTemplate
-    _blockTileInTemplate = _blockTileInTemplate
+    _transfer1DTemplate = _transfer1DTemplate
+    _transfer2DTemplate = _transfer2DTemplate
+    _transferMultiDimensionalTemplate = _transferMultiDimensionalTemplate
+    _blockTransferTemplate = _blockTransferTemplate
 
-    _moveTileOutTemplate = _moveTileOutTemplate
-    _blockTileOutTemplate = _blockTileOutTemplate
-
-    _updateDMATransferStructTemplate = _updateDMATransferStructTemplate
     _updateReferenceTemplate = _updateReferenceTemplate
+    _relativeOffsetReferenceUpdateTemplate = _relativeOffsetReferenceUpdateTemplate
 
-    _initDMATemplate = _initDMATemplate
-    _setDMAChannelTemplate = _setDMAChannelTemplate
-    _releaseDMATemplate = _releaseDMATemplate
+    _initDmaTemplate = _initDmaTemplate
+    _releaseDmaTemplate = _releaseDmaTemplate
 
     @property
     def prefix(self):
         return self._prefix + self.targetMemLevel + "_"
 
-    def _DMAStructName(self, tensorName: str, nodeName: str) -> str:
-        return f"{self.prefix}_DMA_{nodeName}_{tensorName}"
-
     @classmethod
-    def _generatePointerUpdates(cls, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
-                                loadSchedule: List[Dict[str,
-                                                        HyperRectangle]], nodeMemoryConstraint: NodeMemoryConstraint,
-                                tilingSchedule: TilingSchedule) -> Dict[str, _DMAUpdate]:
-        updateDict = {}
-        deltaOffsets = {}
+    def _transferOpRepr(cls, rect: HyperRectangle, localBuffer: VariableBuffer, externalBuffer: VariableBuffer,
+                        direction: Literal["To",
+                                           "From"], commonOpRepr: OperatorRepresentation) -> OperatorRepresentation:
+        assert len(rect.dims) == len(externalBuffer.shape), "Rectangle rank should be the same as external buffer's"
 
-        for idx, loadStep in enumerate(loadSchedule):
-            for stepIdx, (key, rect) in enumerate(loadStep.items()):
+        operatorRepresentation = commonOpRepr.copy()
+        operatorRepresentation.update({
+            "loc": localBuffer.name,
+            "ext": externalBuffer.name,
+        })
 
-                if key in tilingSchedule.outputBaseOffsets.keys():
-                    baseOffsets = tilingSchedule.outputBaseOffsets[key]
-                    direction = "FromL1"
-                else:
-                    baseOffsets = tilingSchedule.inputBaseOffsets[key]
-                    direction = "ToL1"
+        mchanFlags = 0
+        mchanFlags += (1 << 0) if direction == "To" else 0  # direction
+        mchanFlags += (1 << 1)  # increment addresses
+        mchanFlags += (1 << 2) if len(rect.dims) >= 2 else 0  # 2d transfer
+        mchanFlags += (1 << 3)  # event enable
 
-                if key not in updateDict.keys():
-                    updateDict[key] = []
-                if key not in deltaOffsets.keys():
-                    deltaOffsets[key] = 0
-
-                referenceBuffer = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
-                l1Buffer = ctxt.lookup(operatorRepresentation[key])
-
-                finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(nodeMemoryConstraint, l1Buffer)
-
-                if (f"in{stepIdx}_perm" in operatorRepresentation
-                        and key in tilingSchedule.inputBaseOffsets.keys()) and (finalMemoryLevel == False):
-                    perm = operatorRepresentation[f"in{stepIdx}_perm"]
-                    struct, _, _ = AutoTransposeUtils.generateTransposedDMAStruct(ctxt, rect, direction, perm,
-                                                                                  l1Buffer.name,
-                                                                                  l1Buffer._referenceName)
-
-                    _invPerm = _invertPermutation(perm)
-                    _rect = copy.copy(rect)
-                    _referenceBuffer = copy.copy(referenceBuffer)
-                    _rect.offset = _permuteList(rect.offset, _invPerm)
-                    _rect.dims = _permuteList(rect.dims, _invPerm)
-                    _referenceBuffer.shape = _permuteList(referenceBuffer.shape, _invPerm)
-
-                    accOffset = calculateRectangleOffset(_rect, _referenceBuffer)
-
-                else:
-                    struct = cls._rectToDMAStruct(ctxt, rect, direction, l1Buffer.name, l1Buffer._referenceName,
-                                                  finalMemoryLevel)
-                    accOffset = calculateRectangleOffset(rect, referenceBuffer)
-
-                length_1d_copy = struct.value['length_1d_copy'].value
-                number_of_1d_copies = struct.value['number_of_1d_copies'].value
-                number_of_2d_copies = struct.value['number_of_2d_copies'].value
-                stride_1d = struct.value['stride_1d'].value
-                stride_2d = struct.value['stride_2d'].value
-                mchan_cmd = struct.value['mchan_cmd'].value
-
-                lIdx = idx % len(baseOffsets)
-
-                sol = _DMAUpdate(accOffset, baseOffsets[lIdx], length_1d_copy, number_of_1d_copies, number_of_2d_copies,
-                                 stride_1d, stride_2d, mchan_cmd)
-
-                deltaOffsets[key] = accOffset
-                updateDict[key].append(sol)
-
-        return updateDict
-
-    @classmethod
-    def _rectToDMAStruct(cls, ctxt: NetworkContext, rectangle: HyperRectangle, direction: Literal["ToL1", "FromL1"],
-                         L1Name: str, L2Name: str, finalMemoryLevel: bool) -> PULPStructDataTypes.DMA_copy:
-
-        referenceBuffer = ctxt.lookup(L2Name)
-
-        rect, referenceRect = minimizeRectangleDims(rectangle, referenceBuffer)
-        assert len(rect.dims) <= 3, "PULP: Only 2D transfers are supported!"
-
-        if direction == "ToL1":
-            _dir = 1
+        if len(rect.dims) == 1:
+            mchanTransferSize = rect.dims[0]
+        elif len(rect.dims) == 2:
+            mchanTransferSize = int(np.prod(rect.dims))
         else:
-            _dir = 0
+            mchanTransferSize = int(np.prod(rect.dims[-2:]))
 
-        length_1d_copy = rect.dims[-1] * (referenceBuffer._type.referencedType.typeWidth // 8)
+        assert mchanTransferSize <= 2**17, f"The Dma transfer size for mchan should be representable with 17 bits, current number of bits required is {np.ceil(np.log2(mchanTransferSize))}"
 
-        number_of_1d_copies = 1
-        stride_1d = 0
+        operatorRepresentation["cmd"] = (mchanFlags << 17) + mchanTransferSize
 
-        if len(rect.dims) > 1:
-            number_of_1d_copies = rect.dims[-2]
-            stride_1d = referenceRect.dims[-1] * (referenceBuffer._type.referencedType.typeWidth // 8)
+        localBufferStrides = stridesFromShape(rect.dims)
+        externalBufferStrides = stridesFromShape(externalBuffer.shape)
 
-            if not finalMemoryLevel:
-                stride_1d = length_1d_copy
+        if len(rect.dims) == 2:
+            operatorRepresentation["size_1d"] = rect.dims[-1]
+            operatorRepresentation["stride_2d"] = externalBufferStrides[-2]
+        elif len(rect.dims) > 2:
+            operatorRepresentation["shape"] = rect.dims
+            operatorRepresentation["stridesExt"] = externalBufferStrides
+            operatorRepresentation["stridesLoc"] = localBufferStrides
 
-        number_of_2d_copies = 1
-        stride_2d = 0
-
-        if len(rect.dims) > 2:
-            number_of_2d_copies = rect.dims[-3]
-            stride_2d = referenceRect.dims[-2] * stride_1d
-
-        length_2d_copy = number_of_1d_copies * length_1d_copy
-        mchan_flags = _dir + 0x2 + 0x8
-        if number_of_1d_copies > 1 or number_of_2d_copies > 1:
-            mchan_flags += 0x4
-        mchan_cmd = length_2d_copy + (mchan_flags << 17)
-
-        assert length_2d_copy <= 2**17, f"The DMA transfer size for mchan should be representable with 17 bits, current number of bits required is {np.ceil(np.log2(length_2d_copy))}"
-
-        struct = PULPStructDataTypes.DMA_copy(
-            {
-                "ext": referenceBuffer.name,
-                "loc": L1Name,
-                "hwc_to_chw": 0,
-                "stride_2d": stride_2d,
-                "number_of_2d_copies": number_of_2d_copies,
-                "stride_1d": stride_1d,
-                "number_of_1d_copies": number_of_1d_copies,
-                "length_1d_copy": length_1d_copy,
-                "mchan_cmd": mchan_cmd,
-                "dir": _dir,
-                "tid": 0
-            }, ctxt)
-
-        return struct
-
-    def _hoistConstantAndReference(self,
-                                   ctxt: NetworkContext,
-                                   constBuf: ConstantBuffer,
-                                   operatorRepresentation: OperatorRepresentation,
-                                   nodeName: str,
-                                   operatorRepresentationName: str,
-                                   immediateType: Optional[Type[Immediate]] = None) -> Tuple[NetworkContext, Dict]:
-
-        if immediateType is None:
-            _type = PointerClass(BasicDataTypes.int32_t)
-        else:
-            _type = PointerClass(immediateType)
-
-        name = constBuf.name
-
-        ctxt.add(constBuf, "global")
-        constBuf._type = _type
-        constBuf._instance = constBuf._type(name, ctxt)
-        constBuf._users = [nodeName]
-        constBuf._memoryLevel = self.targetMemLevel
-
-        refName = name + "_ref"
-        reference = ctxt.hoistReference(name, refName)
-        ctxt.lookup(reference)._memoryLevel = self.targetMemLevel
-
-        operatorRepresentation[operatorRepresentationName] = refName
-
-        return ctxt, operatorRepresentation
-
-    def _hoistDMAUpdates(self, ctxt: NetworkContext, tensorName: str, updateList: List[_DMAUpdate],
-                         operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, Dict]:
-
-        operatorRepresentation = operatorRepresentation.copy()
-
-        nodeName = operatorRepresentation['nodeName']
-
-        offsetList = []
-        mchanCmdList = []
-        len1dList = []
-        num1dList = []
-        num2dList = []
-        stride1dList = []
-        stride2dList = []
-        for update in updateList:
-            offsetList.append(int(update.extOffset))
-            mchanCmdList.append(int(update.mchan_cmd))
-            len1dList.append(int(update.length_1d_copy))
-            num1dList.append(int(update.number_of_1d_copies))
-            num2dList.append(int(update.number_of_2d_copies))
-            stride1dList.append(int(update.stride_1d))
-            stride2dList.append(int(update.stride_2d))
-
-        dmaName = self._DMAStructName(tensorName, nodeName)
-        operatorRepresentation['stateReference'] = dmaName
-        operatorRepresentation['tileNum'] = "TILING_I"
-        operatorRepresentation['extPtr'] = ctxt.lookup(operatorRepresentation[tensorName])._referenceName
-
-        namePrefix = self.prefix + f"{nodeName}_{tensorName}"
-
-        name = namePrefix + "_offset"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], offsetList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'extOffsetPtr')
-
-        name = namePrefix + "_mchan_cmd"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], mchanCmdList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'mchanCmdPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['mchan_cmd'])
-
-        name = namePrefix + "_length_1d_copy"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], len1dList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'length1dPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['length_1d_copy'])
-
-        name = namePrefix + "_number_of_1d_copies"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], num1dList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'number1dPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['number_of_1d_copies'])
-
-        name = namePrefix + "_number_of_2d_copies"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], num2dList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'number2dPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['number_of_2d_copies'])
-
-        name = namePrefix + "_stride_1d"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], stride1dList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'stride1dPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['stride_1d'])
-
-        name = namePrefix + "_stride_2d"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], stride2dList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(
-            ctxt, cb, operatorRepresentation, nodeName, 'stride2dPtr',
-            PULPStructDataTypes.DMA_copy.structTypeDict['stride_2d'])
-
-        return ctxt, operatorRepresentation
-
-    def _generateEgressPointerUpdates(
-            self, nodeMemoryConstraint: NodeMemoryConstraint, tilingSchedule: TilingSchedule, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, List[CodeSnippet]]:
-
-        updates = []
-        newCtxt = ctxt.copy()
-
-        updateDict = self._generatePointerUpdates(ctxt, operatorRepresentation, tilingSchedule.outputLoadSchedule,
-                                                  nodeMemoryConstraint, tilingSchedule)
-
-        for key, updateList in updateDict.items():
-
-            newCtxt, newNodeRep = self._hoistDMAUpdates(newCtxt, key, updateList, operatorRepresentation)
-            updates.append(CodeSnippet(self._updateDMATransferStructTemplate, newNodeRep))
-
-        return newCtxt, updates
-
-    def _generateIngressPointerUpdates(
-            self, nodeMemoryConstraint: NodeMemoryConstraint, tilingSchedule: TilingSchedule, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, List[CodeSnippet]]:
-
-        updates = []
-        newCtxt = ctxt.copy()
-
-        updateDict = self._generatePointerUpdates(ctxt, operatorRepresentation, tilingSchedule.inputLoadSchedule,
-                                                  nodeMemoryConstraint, tilingSchedule)
-
-        for key, updateList in updateDict.items():
-
-            newCtxt, newNodeRep = self._hoistDMAUpdates(newCtxt, key, updateList, operatorRepresentation)
-            updates.append(CodeSnippet(self._updateDMATransferStructTemplate, newNodeRep))
-
-        return newCtxt, updates
+        return operatorRepresentation
 
     def _generateVariableUpdates(self, tilingSchedule: TilingSchedule, variableReplacement: VariableReplacementScheme,
                                  ctxt: NetworkContext,
                                  operatorRepresentation: OperatorRepresentation) -> List[CodeSnippet]:
-
         updates = []
 
         for key in variableReplacement.perTileReplacements.keys():
-
             buf = ctxt.lookup(operatorRepresentation[key])
             reference = str(buf._instance)
 
@@ -473,127 +259,158 @@ class PULPClusterTilingSB(TilingCodeGeneration):
 
         return updates
 
-    def _generateDMACode(self, nodeMemoryConstraint: NodeMemoryConstraint, ctxt: NetworkContext,
-                         operatorRepresentation: OperatorRepresentation, loadSchedule: List[Dict[str, HyperRectangle]],
-                         direction: Literal["ToL1", "FromL1"]) -> Tuple[List[CodeSnippet], List[CodeSnippet]]:
+    def _legalizeTransfers(self, transfers: List[HyperRectangle], outerShape: Tuple[int, ...], typeWidth: int,
+                           isFinalMemoryLevel: bool) -> Tuple[List[HyperRectangle], Tuple[int, ...]]:
+        transfersCommonRank = max(len(rect.dims) for rect in transfers)
+        commonRank = max(transfersCommonRank, len(outerShape))
+        outerShape = padShape(outerShape, commonRank)
 
-        DMATransferCalls = []
-        DMAWaitStatements = []
+        minOuterShape = None
 
-        allNumTransfers = AutoTransposeUtils.allNumTransfers(ctxt, operatorRepresentation, loadSchedule, direction)
+        if isFinalMemoryLevel:
+            minTransfers = []
+            for rect in transfers:
+                paddedRect = HyperRectangle(padOffset(rect.offset, commonRank), padShape(rect.dims, commonRank))
+                minRect, newMinOuterShape = minimizeRectangle(paddedRect, outerShape)
+                if minOuterShape is None:
+                    minOuterShape = newMinOuterShape
+                else:
+                    if minOuterShape != newMinOuterShape:
+                        rectStr = "\n".join(str(trans) for trans in transfers[:transfers.index(rect)])
+                        raise RuntimeError(f"""Currently support a single minimal outer shape.
+Old minOuterShape: {minOuterShape} vs. new minOuterShape {newMinOuterShape}.
+New minOuterShape produced by outerDims: {outerShape} and rect: {rect}.
+Old minOuterShape produced by outerDims: {outerShape} and rects:
+{rectStr}""")
+                minTransfers.append(minRect)
+        else:
+            minTransfers = [HyperRectangle((0,), (int(np.prod(rect.dims)),)) for rect in transfers]
+            minOuterShape = (int(np.prod(outerShape)),)
 
-        transferNodeRep = {}
+        if minOuterShape is not None:
+            outerShape = minOuterShape
+        transfers = minTransfers
 
-        if allNumTransfers != []:
+        def sizeInBytes(length: int, typeWidth: int) -> int:
+            return int(np.ceil((length * typeWidth) / 8))
 
-            dimLens = []
+        outerShape = outerShape[:-1] + (sizeInBytes(outerShape[-1], typeWidth),)
 
-            for dim in range(len(allNumTransfers[0])):
-                dimVec = [transfer[dim] for transfer in allNumTransfers]
-                namePrefix = operatorRepresentation["nodeName"] + "_"
-                vecName = f"dimLen_{dim}"
+        inBytesTransfers = []
+        for rect in transfers:
+            newOffset = rect.offset[:-1] + (sizeInBytes(rect.offset[-1], typeWidth),)
+            newDims = rect.dims[:-1] + (sizeInBytes(rect.dims[-1], typeWidth),)
+            inBytesTransfers.append(HyperRectangle(newOffset, newDims))
+        transfers = inBytesTransfers
 
-                cb = ctxt.ConstantBuffer(namePrefix + vecName, [len(dimVec)], dimVec)
-                ctxt, transferNodeRep = self._hoistConstantAndReference(ctxt, cb, transferNodeRep,
-                                                                        operatorRepresentation['nodeName'], vecName)
+        return transfers, outerShape
 
-                dimLens.append(str(cb._instance))
+    def _generateDmaTransferCall(self, ctxt: NetworkContext, nodeName: str, tensorName: str,
+                                 transfers: List[HyperRectangle], tileIdxVar: str, localBuffer: VariableBuffer,
+                                 externalBuffer: VariableBuffer, direction: Literal["To", "From"]) -> CodeSnippet:
+        commonOpRepr = {
+            "innerTilePtr": localBuffer.name,
+            "outerTilePtr": externalBuffer.name,
+            "tileIdxVar": tileIdxVar,
+        }
 
-            transferNodeRep['nodeName'] = operatorRepresentation['nodeName']
-            transferNodeRep['dimLens'] = dimLens
-            transferNodeRep['tileNum'] = "TILING_I"
+        assert all(len(transfers[0].dims) == len(rect.dims) for rect in transfers), \
+            "Currently supporting only rectangles of same rank"
 
-        loadStep = loadSchedule[0]
+        assert len(transfers[0].dims) == len(externalBuffer.shape), \
+            "External buffer's rank should be equal to the internal buffer's"
 
-        for idx, (key, rectangle) in enumerate(loadStep.items()):
+        transferOpReprs = [
+            self._transferOpRepr(rect, localBuffer, externalBuffer, direction, commonOpRepr) for rect in transfers
+        ]
 
-            permName = f"in{idx}_perm"
+        transferOpRepr = self._hoistOpReprUpdates(ctxt, transferOpReprs, nodeName, f"{nodeName}_{tensorName}_")
 
-            externalPtr = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
-            internalPtr = ctxt.lookup(operatorRepresentation[key])
+        dimLen = len(transfers[0].dims)
+        assert dimLen > 0
+        if dimLen == 1:
+            template = self._transfer1DTemplate
+        elif dimLen == 2:
+            template = self._transfer2DTemplate
+        else:
+            template = self._transferMultiDimensionalTemplate
 
-            tensorName = key
-            nodeName = operatorRepresentation['nodeName']
-            dmaName = self._DMAStructName(tensorName, nodeName)
+        return CodeSnippet(template, transferOpRepr)
 
-            transferNodeRep = {
-                **transferNodeRep,
-                **{
-                    'innerTilePtr': str(internalPtr._instance),
-                    "outerTilePtr": str(externalPtr._instance),
-                    "stateReference": dmaName
-                }
-            }
+    def _generateExternalReferenceUpdate(self, ctxt: NetworkContext, nodeName: str, tensorName: str,
+                                         transfers: List[HyperRectangle], tileIdxVar: str,
+                                         externalBuffer: VariableBuffer) -> Optional[CodeSnippet]:
+        externalBufferStrides = stridesFromShape(externalBuffer.shape)
+        offsets = [calculateFlatOffset(rect.offset, externalBufferStrides) for rect in transfers]
+        relativeOffsets = [_next - _prev for _prev, _next in zip(offsets[:-1], offsets[1:])]
 
-            if permName in operatorRepresentation and direction == "ToL1":
-                perm = operatorRepresentation[permName]
-                struct, remainderStrides, numTransfers = AutoTransposeUtils.generateTransposedDMAStruct(
-                    ctxt, rectangle, direction, perm, internalPtr.name, externalPtr.name)
-                locStride = np.prod(
-                    rectangle.dims) // np.prod(numTransfers) * (externalPtr._type.referencedType.typeWidth // 8)
+        if len(relativeOffsets) == 0 or all(offset == 0 for offset in relativeOffsets):
+            return None
 
-                transferNodeRep['tensorName'] = operatorRepresentation[key]
+        updateRefOpRepr: OperatorRepresentation = {"reference": externalBuffer.name, "tileIdxVar": tileIdxVar}
 
-                transferNodeRep = {**transferNodeRep, **{"remainderStrides": remainderStrides, "locStride": locStride}}
+        if all(relativeOffsets[0] == offset for offset in relativeOffsets):
+            updateRefOpRepr["relativeOffset"] = relativeOffsets[0]
+        else:
+            relativeOffsets.append(0)  # To have the same length as the number of tiles
+            buffer = self._hoistValues(ctxt, f'{nodeName}_{tensorName}_relativeOffset', relativeOffsets, nodeName)
+            updateRefOpRepr["relativeOffset"] = buffer.name
+        return CodeSnippet(self._relativeOffsetReferenceUpdateTemplate, updateRefOpRepr)
 
-            else:
-                finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(nodeMemoryConstraint, internalPtr)
+    def _generateDmaTransferCallsAndExternalReferenceUpdates(
+            self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
+            transferSchedule: List[Dict[str, HyperRectangle]], tensorMemoryConstraintDict: Dict[str,
+                                                                                                TensorMemoryConstraint],
+            tileIdxVar: str, direction: Literal["To",
+                                                "From"]) -> Tuple[NetworkContext, List[CodeSnippet], List[CodeSnippet]]:
+        nodeName = operatorRepresentation["nodeName"]
+        transferCalls: List[CodeSnippet] = []
+        referenceUpdates: List[CodeSnippet] = []
 
-                struct = self._rectToDMAStruct(ctxt, rectangle, direction, internalPtr.name, externalPtr.name,
-                                               finalMemoryLevel)
+        for tensorName, rects in dictOfArrays(transferSchedule).items():
+            l1Buffer = ctxt.lookup(operatorRepresentation[tensorName])
+            assert isinstance(l1Buffer, _ReferenceBuffer)
+            l2Buffer = ctxt.lookup(l1Buffer._referenceName)
+            assert isinstance(l2Buffer, VariableBuffer)
+            tensorMemoryConstraint = tensorMemoryConstraintDict[l2Buffer.name]
+            l2BufferShape = tensorMemoryConstraint.memoryConstraints['L2'].shape
+            assert l2BufferShape is not None
 
-            transferNodeRep["stateStruct"] = struct
-            _ = ctxt.hoistStruct(struct, dmaName, PULPStructDataTypes.DMA_copy)
-            ctxt.lookup(dmaName)._users += [operatorRepresentation['nodeName']]
+            rects, l2BufferShape = self._legalizeTransfers(
+                rects, tuple(l2BufferShape), l1Buffer._type.referencedType.typeWidth,
+                self.isFinalMemoryLevel(tensorMemoryConstraint, l1Buffer._memoryLevel))
 
-            if permName in operatorRepresentation and direction == "ToL1":
+            l2BufferRef = ctxt.hoistReference(f"{nodeName}_{l2Buffer.name}_tiling_ref", l2Buffer, VoidType)
+            l2BufferRef._memoryLevel = self.targetMemLevel
+            l2BufferRef.shape = l2BufferShape
 
-                DMATransferCalls.append(CodeSnippet(self._iteratedMoveTileInTemplate, transferNodeRep))
-            else:
-                DMATransferCalls.append(CodeSnippet(self._moveTileInTemplate, transferNodeRep))
+            transferCalls.append(
+                self._generateDmaTransferCall(ctxt, nodeName, tensorName, rects, tileIdxVar, l1Buffer, l2BufferRef,
+                                              direction))
+            referenceUpdate = self._generateExternalReferenceUpdate(ctxt, nodeName, tensorName, rects, tileIdxVar,
+                                                                    l2BufferRef)
+            if referenceUpdate is not None:
+                referenceUpdates.append(referenceUpdate)
 
-            DMAWaitStatements.append(CodeSnippet(self._blockTileInTemplate, transferNodeRep))
-
-        return DMATransferCalls, DMAWaitStatements
-
-    def _generateIngressDMACode(
-            self, tilingSchedule: TilingSchedule, nodeMemoryConstraint: NodeMemoryConstraint, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[List[CodeSnippet], List[CodeSnippet]]:
-
-        importLoadStep = tilingSchedule.inputLoadSchedule
-        ingressDMATransferCalls, ingressDMAWaitStatements = self._generateDMACode(nodeMemoryConstraint, ctxt,
-                                                                                  operatorRepresentation,
-                                                                                  importLoadStep, "ToL1")
-        return ingressDMATransferCalls, ingressDMAWaitStatements
-
-    def _generateEgressDMACode(
-            self, tilingSchedule: TilingSchedule, nodeMemoryConstraint: NodeMemoryConstraint, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[List[CodeSnippet], List[CodeSnippet]]:
-
-        exportLoadStep = tilingSchedule.outputLoadSchedule
-        egressDMATransferCalls, egressDMAWaitStatements = self._generateDMACode(nodeMemoryConstraint, ctxt,
-                                                                                operatorRepresentation, exportLoadStep,
-                                                                                "FromL1")
-
-        return egressDMATransferCalls, egressDMAWaitStatements
+        return ctxt, transferCalls, referenceUpdates
 
     def _tilingLoop(self, ctxt: NetworkContext, executionBlock: ExecutionBlock,
                     nodeMemoryConstraint: NodeMemoryConstraint, tilingSchedule: TilingSchedule,
                     variableReplacement: VariableReplacementScheme,
                     operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, ExecutionBlock, bool]:
-
         tileIdxPtr = self._hoistTileIdxPtr(ctxt, operatorRepresentation)
 
-        ingressDMATransferCalls, ingressDMAWaitStatements = self._generateIngressDMACode(
-            tilingSchedule, nodeMemoryConstraint, ctxt, operatorRepresentation)
+        ctxt, ingressDmaTransferCalls, ingressReferenceUpdates = self._generateDmaTransferCallsAndExternalReferenceUpdates(
+            ctxt, operatorRepresentation, tilingSchedule.inputLoadSchedule,
+            nodeMemoryConstraint.inputTensorMemoryConstraints, "TILING_I", "To")
+        ctxt, egressDmaTransferCalls, egressReferenceUpdates = self._generateDmaTransferCallsAndExternalReferenceUpdates(
+            ctxt, operatorRepresentation, tilingSchedule.outputLoadSchedule,
+            nodeMemoryConstraint.outputTensorMemoryConstraints, "TILING_I", "From")
 
-        egressDMATransferCalls, egressDMAWaitStatements = self._generateEgressDMACode(
-            tilingSchedule, nodeMemoryConstraint, ctxt, operatorRepresentation)
+        dmaWaitCall = CodeSnippet(self._blockTransferTemplate, {"channel_id": "channel_id"})
 
-        ctxt, ingressDMAUpdates = self._generateIngressPointerUpdates(nodeMemoryConstraint, tilingSchedule, ctxt,
-                                                                      operatorRepresentation)
-        ctxt, egressDMAUpdates = self._generateEgressPointerUpdates(nodeMemoryConstraint, tilingSchedule, ctxt,
-                                                                    operatorRepresentation)
+        for cs in ingressReferenceUpdates + egressReferenceUpdates:
+            assert "relativeOffset" in cs.operatorRepresentation
 
         openLoopStatement = [
             CodeSnippet(self._openTileLoopTemplate, {
@@ -609,17 +426,8 @@ class PULPClusterTilingSB(TilingCodeGeneration):
             })
         ]
 
-        setupStatements = [CodeSnippet(self._initDMATemplate, {"channelName": "dma_channel"})]
-        setupStatements += [
-            CodeSnippet(self._setDMAChannelTemplate, {
-                **transaction.operatorRepresentation, "channelName": "dma_channel"
-            }) for transaction in ingressDMAUpdates + egressDMAUpdates
-        ]
-
-        teardownStatements = [
-            CodeSnippet(self._releaseDMATemplate,
-                        {"stateReference": ingressDMAUpdates[0].operatorRepresentation["stateReference"]})
-        ]
+        setupStatements = [CodeSnippet(self._initDmaTemplate, {"channel_id": "channel_id"})]
+        teardownStatements = [CodeSnippet(self._releaseDmaTemplate, {"channel_id": "channel_id"})]
 
         variableUpdates = self._generateVariableUpdates(tilingSchedule, variableReplacement, ctxt,
                                                         operatorRepresentation)
@@ -630,11 +438,10 @@ class PULPClusterTilingSB(TilingCodeGeneration):
                                   tileIdxVar = "TILING_I",
                                   kernelLevelTiling = True)
 
-        newExecutionBlock = self.generateAllTilingCode(executionBlock, metaInfo, ingressDMATransferCalls,
-                                                       ingressDMAWaitStatements, ingressDMAUpdates,
-                                                       egressDMATransferCalls, egressDMAWaitStatements,
-                                                       egressDMAUpdates, variableUpdates, openLoopStatement,
-                                                       closeLoopStatement, setupStatements, teardownStatements)
+        newExecutionBlock = self.generateAllTilingCode(
+            executionBlock, metaInfo, ingressDmaTransferCalls, [dmaWaitCall], [], egressDmaTransferCalls, [dmaWaitCall],
+            [], variableUpdates, openLoopStatement,
+            ingressReferenceUpdates + egressReferenceUpdates + closeLoopStatement, setupStatements, teardownStatements)
 
         return ctxt, newExecutionBlock, True
 

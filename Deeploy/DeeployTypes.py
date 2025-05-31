@@ -35,7 +35,7 @@ from abc import abstractmethod
 from collections import OrderedDict, deque
 from dataclasses import dataclass
 from functools import reduce
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
 
 import mako
 import numpy as np
@@ -609,6 +609,14 @@ class NetworkContext():
 
         return alias
 
+    def unravelReference(self, ref: VariableBuffer) -> VariableBuffer:
+        seenRefs = set()
+        while isinstance(ref, _ReferenceBuffer):
+            seenRefs.add(ref.name)
+            ref = self.lookup(ref._referenceName)
+            assert ref.name not in seenRefs, "Circular reference found"
+        return ref
+
     def exportNetworkContext(self, folderPath: str, fileName: str):
         """Exports the NetworkContext as a pickled dictionary
 
@@ -901,48 +909,41 @@ class NetworkContext():
             name of the registered _ReferenceBuffer
 
         """
-
-        name = constBuf.name
         constBuf._type = pointerType
-
         self.add(constBuf, "global")
+        constBuf._instance = constBuf._type(constBuf.name, self)
+        ref = self.hoistReference(constBuf.name + "_ref", constBuf)
+        return ref.name
 
-        constBuf._instance = constBuf._type(name, self)
-
-        refName = name + "_ref"
-        reference = self.hoistReference(name, refName)
-
-        return refName
-
-    def hoistReference(self, _reference: str, name: str) -> str:
+    def hoistReference(self,
+                       name: str,
+                       referencedBuffer: VariableBuffer,
+                       override_type: Optional[Type[BaseType]] = None) -> _ReferenceBuffer:
         """Helper function to register a _ReferenceBuffer to preexisting VariableBuffer
 
         Parameters
         ----------
-        _reference : str
-            Name of the VariableBuffer that should be referenced
         name : str
-            Name of the _ReferenceBuffer that should be registered
+            Name of the _ReferenceBuffer to register
+        referencedBuffer : VariableBuffer
+            Referenced VariableBuffer
+        override_type: Optional[Type[BaseType]]
+            Optional argument to override the reference type.
 
         Returns
         -------
-        str
-            Returns the name of the newly registered _ReferenceBuffer
+        _ReferencedBuffer
+            Returns the newly registered _ReferenceBuffer
 
         """
-
-        assert _reference != name, f"Reference name {_reference} cannot be the same as {name}"
-        assert not self.is_local(name), f"{name} is already in context!"
-
-        _object = self.lookup(_reference)
-
-        referenceBuffer = _ReferenceBuffer(name, reference = _object)
-        referenceBuffer._type = _object._type
-
-        self.add(referenceBuffer, 'local')
-        referenceBuffer._instance = _object._type(name, ctxt = self)
-
-        return name
+        ref = _ReferenceBuffer(name, reference = referencedBuffer)
+        if override_type is not None:
+            ref._type = PointerClass(override_type)
+        else:
+            ref._type = referencedBuffer._type
+        self.add(ref, 'local')
+        ref._instance = ref._type(name, ctxt = self)
+        return ref
 
     def hoistConstant(self, node: gs.Node, name: str = '', _type: Optional[Type[Pointer]] = None) -> str:
         """Register a ConstantBuffer extracted directly from a graphsurgeon Node
@@ -1473,9 +1474,21 @@ class ExecutionBlock():
     def _mangleNodeRep(ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation) -> OperatorRepresentation:
         parseDict = {}
 
+        def should_mangle(bufferName: str) -> bool:
+            return (ctxt.is_local(bufferName) or ctxt.is_global(bufferName)) and \
+                not isinstance(ctxt.lookup(bufferName), GlobalDefinition)
+
         for key, value in operatorRepresentation.items():
-            if type(value) == str and (ctxt.is_local(value) or
-                                       ctxt.is_global(value)) and not isinstance(ctxt.lookup(value), GlobalDefinition):
+            if isinstance(value, list):
+                valueList = value
+                newValue = []
+                for value in valueList:
+                    if isinstance(value, str) and should_mangle(value):
+                        newValue.append(ctxt._mangle(value))
+                    else:
+                        newValue.append(value)
+                parseDict[key] = newValue
+            elif isinstance(value, str) and should_mangle(value):
                 parseDict[key] = ctxt._mangle(value)
             else:
                 parseDict[key] = value

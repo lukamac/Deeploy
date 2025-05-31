@@ -24,196 +24,99 @@
 # limitations under the License.
 
 import copy
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from Deeploy.DeeployTypes import CodeSnippet, ExecutionBlock, NetworkContext, NodeTemplate, OperatorRepresentation
-from Deeploy.Targets.PULPOpen.CodeTransformationPasses.PULPClusterTilingSB import PULPClusterTilingSB, _DMAUpdate
-from Deeploy.Targets.PULPOpen.DataTypes import PULPStructDataTypes
-from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import TilingCodeGeneration
+import numpy as np
+
+from Deeploy.AbstractDataTypes import PointerClass, VoidType
+from Deeploy.DeeployTypes import CodeSnippet, ExecutionBlock, NetworkContext, NodeTemplate, OperatorRepresentation, \
+    VariableBuffer, _ReferenceBuffer
+from Deeploy.Targets.PULPOpen.CodeTransformationPasses.PULPClusterTilingSB import PULPClusterTilingSB
+from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import dictOfArrays
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import DoubleBufferingTilingMixIn, \
     ProfilingDoubleBufferingTilingMixIn, TilingMetaInfo
-from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme
 
-_moveTileInTemplate = NodeTemplate("""
-
-// IMPORT TILE ${innerTilePtr} from ${outerTilePtr}
-if (${tileNum} < ${numTiles}[*${tileIdxPtr}+1]){
-dory_dma_memcpy_mindims_async(&${stateReference});
-}
-
+_moveTileInCheckOpenStatement = NodeTemplate("""
+// DOUBLE BUFFERING CHECK TILE LOAD
+if ((${tileIdxVar}) < ${numTiles}[*${tileIdxPtr}+1]) {
 """)
 
-_moveTileOutTemplate = NodeTemplate("""
-
-// EXPORT TILE ${innerTilePtr} to ${outerTilePtr}
-if((${tileNum}) % 2 == 0){
-dory_dma_memcpy_mindims_async(&${stateReference});
-} else {
-dory_dma_memcpy_mindims_async(&${_stateReference});
+_moveTileInCheckCloseStatement = NodeTemplate("""
 }
 """)
 
-_blockTileOutTemplate = NodeTemplate("""
-
-// BLOCKING EXPORT TILE ${innerTilePtr}
-if((${tileNum}) > 1){
-if((${tileNum}) % 2 == 0){
-dory_dma_barrier(&${stateReference});
-} else {
-dory_dma_barrier(&${_stateReference});
+_chooseBufferTemplate = NodeTemplate("""
+switch ((${tileIdxVar}) % ${len(bufferReferences)}) {
+% for ref in bufferReferences:
+    case ${loop.index}: ${bufferChoiceReference} = (${bufferChoiceReferenceType})${ref}; break;
+% endfor
 }
-}
-
 """)
 
-_finalBlockTileOutTemplate = NodeTemplate("""
 
-// BLOCKING EXPORT TILE ${innerTilePtr}
-dory_dma_barrier(&${stateReference});
-dory_dma_barrier(&${_stateReference});
-""")
+class OffsettedReferenceBuffer(_ReferenceBuffer):
+    allocTemplate = NodeTemplate("${type.typeName} ${name} = (${type.typeName})${referenceName} + ${offset};")
 
-_updateDMATransferStructTemplate = NodeTemplate("""
+    def __init__(self, name: str = '', shape = [1], reference: Optional[VariableBuffer] = None, offset: int = 0):
+        super().__init__(name, shape, reference)
+        self._offset = offset
 
-// UPDATE DMA STRUCT ${stateReference}, ${_stateReference}
-${stateReference}.ext = (((char*)${extPtr}) + ${extOffsetPtr}[${tileNum}]);
-${stateReference}.mchan_cmd = ${mchanCmdPtr}[${tileNum}];
-${stateReference}.length_1d_copy = ${length1dPtr}[${tileNum}];
-${stateReference}.number_of_1d_copies = ${number1dPtr}[${tileNum}];
-${stateReference}.number_of_2d_copies = ${number2dPtr}[${tileNum}];
-${stateReference}.loc = (((char*)${baseLocPtr}) + ${locOffsetPtr}[${tileNum}]);
-${locPtr} = (((char*)${baseLocPtr}) + ${locOffsetPtr}[${tileNum}-1]);
-""")
-
-_outUpdateDMATransferStructTemplate = NodeTemplate("""
-
-if ((${tileNum}) % 2 == 0){
-// UPDATE DMA STRUCT ${stateReference}
-${stateReference}.ext = ((char*)${extPtr} + ${extOffsetPtr}[${tileNum}]);
-${stateReference}.mchan_cmd = ${mchanCmdPtr}[${tileNum}];
-${stateReference}.length_1d_copy = ${length1dPtr}[${tileNum}];
-${stateReference}.number_of_1d_copies = ${number1dPtr}[${tileNum}];
-${stateReference}.number_of_2d_copies = ${number2dPtr}[${tileNum}];
-${stateReference}.loc = (((char*)${baseLocPtr}) + ${locOffsetPtr}[${tileNum}]);
-} else {
-${_stateReference}.ext = ((char*)${extPtr} + ${extOffsetPtr}[${tileNum}]);
-${_stateReference}.mchan_cmd = ${mchanCmdPtr}[${tileNum}];
-${_stateReference}.length_1d_copy = ${length1dPtr}[${tileNum}];
-${_stateReference}.number_of_1d_copies = ${number1dPtr}[${tileNum}];
-${_stateReference}.number_of_2d_copies = ${number2dPtr}[${tileNum}];
-${_stateReference}.loc = (((char*)${baseLocPtr}) + ${locOffsetPtr}[${tileNum}]);
-}
-${locPtr} = (((char*)${baseLocPtr}) + ${locOffsetPtr}[${tileNum}]);
-
-""")
+    def _bufferRepresentation(self) -> Dict:
+        repr = super()._bufferRepresentation()
+        repr['offset'] = self._offset
+        return repr
 
 
 class PULPClusterTilingDB(PULPClusterTilingSB):
 
-    _blockTileOutTemplate = _blockTileOutTemplate
-    _updateDMATransferStructTemplate = _updateDMATransferStructTemplate
-    _moveTileOutTemplate = _moveTileOutTemplate
-    _moveTileInTemplate = _moveTileInTemplate
+    _chooseBufferTemplate = _chooseBufferTemplate
 
-    def _hoistDMAUpdates(self, ctxt: NetworkContext, tensorName: str, updateList: List[_DMAUpdate],
-                         operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, Dict]:
-        nodeName = operatorRepresentation['nodeName']
+    def _hoistMultibufferReferences(self, ctxt: NetworkContext, referenceBuffer: VariableBuffer,
+                                    tensorMemoryConstraint: TensorMemoryConstraint) -> List[_ReferenceBuffer]:
+        memoryConstraint = tensorMemoryConstraint.memoryConstraints[self.targetMemLevel]
+        assert memoryConstraint.addrSpace is not None, "Assuming address space is set"
+        totalSize = memoryConstraint.addrSpace[1] - memoryConstraint.addrSpace[0]
+        assert isinstance(memoryConstraint.multiBufferCoefficient,
+                          int), "Assuming multi buffer coefficient has been assigned"
+        assert totalSize % memoryConstraint.multiBufferCoefficient == 0, "Assuming total size is divisible by the multi buffer coefficient"
+        bufferSize = totalSize // memoryConstraint.multiBufferCoefficient
 
-        operatorRepresentation = operatorRepresentation.copy()
+        assert memoryConstraint.multiBufferCoefficient == 2, "Multi buffer coefficient has to be equal to 2 since this is for double buffering"
+        assert memoryConstraint.shape is not None
+        assert len(memoryConstraint.shape) > 0
+        assert isinstance(memoryConstraint.shape[0], int)
+        tileLength = np.prod(memoryConstraint.shape)
+        tileSize = int(np.ceil(tileLength * referenceBuffer._type.referencedType.typeWidth / 8))
 
-        dmaName = self._DMAStructName(tensorName, nodeName)
-        # operatorRepresentation['stateReference'] = dmaName
-        # operatorRepresentation['tileNum'] = "TILING_I"
-        operatorRepresentation['locPtr'] = ctxt.lookup(operatorRepresentation[tensorName]).name
-        operatorRepresentation['baseLocPtr'] = ctxt.hoistReference(operatorRepresentation['locPtr'],
-                                                                   operatorRepresentation['locPtr'] + "_ref")
-        operatorRepresentation['_stateReference'] = self._DMAStructName(tensorName, nodeName) + "_1"
-        ctxt.lookup(operatorRepresentation['baseLocPtr'])._memoryLevel = self.targetMemLevel
+        assert bufferSize >= tileSize, f"Provided buffer size is not enough to fit the tile. Buffer size: {bufferSize}, tile size: {tileSize}"
 
-        namePrefix = self.prefix + f"{nodeName}_{tensorName}"
+        multibufferReferences = []
+        for i in range(memoryConstraint.multiBufferCoefficient):
+            buffer = OffsettedReferenceBuffer(
+                name = f"{referenceBuffer.name}_buffer_{i}",
+                shape = memoryConstraint.shape,
+                reference = referenceBuffer,
+                offset = i * bufferSize,
+            )
+            buffer._type = PointerClass(VoidType)
+            buffer._memoryLevel = self.targetMemLevel
+            ctxt.add(buffer)
+            buffer._instance = buffer._type(buffer.name, ctxt = ctxt)
+            multibufferReferences.append(buffer)
 
-        ctxt, operatorRepresentation = super()._hoistDMAUpdates(ctxt, tensorName, updateList, operatorRepresentation)
+        return multibufferReferences
 
-        locOffsetList = []
-        locBaseOffset = updateList[0].locOffset
-        for update in updateList:
-            locOffsetList.append(int(update.locOffset) - locBaseOffset)
-
-        name = namePrefix + "_locOffset"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], locOffsetList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'locOffsetPtr')
-
-        return ctxt, operatorRepresentation
-
-    def _generateEgressPointerUpdates(
-            self, nodeMemoryConstraint: NodeMemoryConstraint, tilingSchedule: TilingSchedule, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, List[CodeSnippet]]:
-
-        updates = []
-        newCtxt = ctxt.copy()
-
-        updateDict = self._generatePointerUpdates(ctxt, operatorRepresentation, tilingSchedule.outputLoadSchedule,
-                                                  nodeMemoryConstraint, tilingSchedule)
-
-        for key, updateList in updateDict.items():
-
-            newCtxt, newNodeRep = self._hoistDMAUpdates(newCtxt, key, updateList, operatorRepresentation)
-            updates.append(CodeSnippet(_outUpdateDMATransferStructTemplate, newNodeRep))
-
-        return newCtxt, updates
-
-    def _generateEgressDMACode(
-            self, tilingSchedule: TilingSchedule, nodeMemoryConstraint: NodeMemoryConstraint, ctxt: NetworkContext,
-            operatorRepresentation: OperatorRepresentation) -> Tuple[List[CodeSnippet], List[CodeSnippet]]:
-
-        egressDMATransferCalls = []
-        egressDMAWaitStatements = []
-
-        exportLoadStep = tilingSchedule.outputLoadSchedule[0]
-        for key, rectangle in exportLoadStep.items():
-            externalPtr = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
-            internalPtr = ctxt.lookup(operatorRepresentation[key])
-
-            tensorName = key
-            nodeName = operatorRepresentation['nodeName']
-            dmaName = self._DMAStructName(tensorName, nodeName)
-
-            finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(nodeMemoryConstraint, internalPtr)
-            struct = self._rectToDMAStruct(ctxt, rectangle, "FromL1", internalPtr.name, externalPtr.name,
-                                           finalMemoryLevel)
-            _ = ctxt.hoistStruct(struct, dmaName, PULPStructDataTypes.DMA_copy)
-            ctxt.lookup(dmaName)._users += [operatorRepresentation['nodeName']]
-
-            tensorName = key + "_1"
-            nodeName = operatorRepresentation['nodeName']
-            _dmaName = self._DMAStructName(tensorName, nodeName)
-
-            struct = self._rectToDMAStruct(ctxt, rectangle, "FromL1", internalPtr.name, externalPtr.name,
-                                           finalMemoryLevel)
-            _ = ctxt.hoistStruct(struct, _dmaName, PULPStructDataTypes.DMA_copy)
-            ctxt.lookup(_dmaName)._users += [operatorRepresentation['nodeName']]
-
-            egressDMATransferCalls.append(
-                CodeSnippet(
-                    self._moveTileOutTemplate, {
-                        'innerTilePtr': str(internalPtr._instance),
-                        "outerTilePtr": str(externalPtr._instance),
-                        "stateReference": dmaName,
-                        "_stateReference": _dmaName
-                    }))
-
-            egressDMAWaitStatements.append(
-                CodeSnippet(
-                    self._blockTileOutTemplate, {
-                        'innerTilePtr': str(internalPtr._instance),
-                        "outerTilePtr": str(externalPtr._instance),
-                        "stateReference": dmaName,
-                        "_stateReference": _dmaName
-                    }))
-
-        return egressDMATransferCalls, egressDMAWaitStatements
+    def _generateBufferChoice(self, buffersReferences: List[_ReferenceBuffer], bufferChoiceReference: VariableBuffer,
+                              tileIdxVar: str) -> CodeSnippet:
+        return CodeSnippet(template = self._chooseBufferTemplate,
+                           operatorRepresentation = {
+                               "tileIdxVar": tileIdxVar,
+                               "bufferReferences": [buff.name for buff in buffersReferences],
+                               "bufferChoiceReference": bufferChoiceReference.name,
+                               "bufferChoiceReferenceType": bufferChoiceReference._type.typeName
+                           })
 
     def _tilingLoop(self, ctxt: NetworkContext, executionBlock: ExecutionBlock,
                     nodeMemoryConstraint: NodeMemoryConstraint, tilingSchedule: TilingSchedule,
@@ -221,95 +124,132 @@ class PULPClusterTilingDB(PULPClusterTilingSB):
                     operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, ExecutionBlock, bool]:
 
         tileIdxPtr = self._hoistTileIdxPtr(ctxt, operatorRepresentation)
+        nodeName = operatorRepresentation['nodeName']
 
-        ingressDMATransferCalls, ingressDMAWaitStatements = self._generateIngressDMACode(
-            tilingSchedule, nodeMemoryConstraint, ctxt, operatorRepresentation)
+        setupStatements: List[CodeSnippet] = [CodeSnippet(self._initDmaTemplate, {"channel_id": "channel_id"})]
 
-        egressDMATransferCalls, egressDMAWaitStatements = self._generateEgressDMACode(
-            tilingSchedule, nodeMemoryConstraint, ctxt, operatorRepresentation)
-
-        ctxt, ingressDMAUpdates = self._generateIngressPointerUpdates(nodeMemoryConstraint, tilingSchedule, ctxt,
-                                                                      operatorRepresentation)
-        ctxt, egressDMAUpdates = self._generateEgressPointerUpdates(nodeMemoryConstraint, tilingSchedule, ctxt,
-                                                                    operatorRepresentation)
-
-        variableUpdates = self._generateVariableUpdates(tilingSchedule, variableReplacement, ctxt,
-                                                        operatorRepresentation)
-
-        for transaction in ingressDMATransferCalls:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation["tileNum"] = "TILING_I+1"
-            _operatorRepresentation["numTiles"] = operatorRepresentation['numTiles']
-            _operatorRepresentation["tileIdxPtr"] = tileIdxPtr
-
-        for transaction in ingressDMAUpdates:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation["tileNum"] = "TILING_I+1"
-
-        for transaction in egressDMATransferCalls:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation["tileNum"] = "TILING_I"
-
-        for transaction in egressDMAWaitStatements:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation['tileNum'] = "TILING_I"
-
-        for transaction in egressDMAUpdates:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation["tileNum"] = "TILING_I"
-
-        for transaction in variableUpdates:
-            _operatorRepresentation = transaction.operatorRepresentation
-            _operatorRepresentation["tileNum"] = "TILING_I"
-
-        openLoopStatement = [
+        openLoopStatements: List[CodeSnippet] = [
             CodeSnippet(self._openTileLoopTemplate, {
                 "numTiles": operatorRepresentation["numTiles"],
                 "tileIdxPtr": tileIdxPtr
             })
         ]
 
-        closeLoopStatement = [
+        ingressLoopDmaTransferCalls: List[CodeSnippet] = [
+            CodeSnippet(_moveTileInCheckOpenStatement, {
+                "numTiles": operatorRepresentation["numTiles"],
+                "tileIdxVar": "TILING_I+1",
+                "tileIdxPtr": tileIdxPtr
+            })
+        ]
+
+        for tensorName, rectangles in dictOfArrays(tilingSchedule.inputLoadSchedule).items():
+            l1Buffer = ctxt.lookup(operatorRepresentation[tensorName])
+            assert isinstance(l1Buffer, _ReferenceBuffer)
+            l2Buffer = ctxt.lookup(l1Buffer._referenceName)
+            assert isinstance(l2Buffer, VariableBuffer)
+            tensorMemoryConstraint = nodeMemoryConstraint.inputTensorMemoryConstraints[l2Buffer.name]
+            l2BufferShape = tensorMemoryConstraint.memoryConstraints['L2'].shape
+            assert l2BufferShape is not None
+
+            rectangles, l2BufferShape = self._legalizeTransfers(
+                rectangles, tuple(l2BufferShape), l1Buffer._type.referencedType.typeWidth,
+                self.isFinalMemoryLevel(tensorMemoryConstraint, l1Buffer._memoryLevel))
+
+            l2BufferRef = ctxt.hoistReference(f"{nodeName}_{l2Buffer.name}_tiling_ref", l2Buffer, VoidType)
+            l2BufferRef._memoryLevel = self.targetMemLevel
+            l2BufferRef.shape = l2BufferShape
+
+            tensorMemoryConstraint = nodeMemoryConstraint.inputTensorMemoryConstraints[l2Buffer.name]
+            l1BuffersReferences = self._hoistMultibufferReferences(ctxt, l1Buffer, tensorMemoryConstraint)
+
+            nextLocalBufferReference = _ReferenceBuffer(f"{l1Buffer.name}_next", reference = l1BuffersReferences[1])
+            nextLocalBufferReference._type = l1BuffersReferences[1]._type
+            nextLocalBufferReference._memoryLevel = self.targetMemLevel
+            ctxt.add(nextLocalBufferReference, 'local')
+            nextLocalBufferReference._instance = nextLocalBufferReference._type(f"{l1Buffer.name}_next", ctxt = ctxt)
+
+            openLoopStatements.append(self._generateBufferChoice(l1BuffersReferences, l1Buffer, "TILING_I"))
+
+            dmaTransferCall = self._generateDmaTransferCall(ctxt, nodeName, tensorName, rectangles, "TILING_I+1",
+                                                            nextLocalBufferReference, l2BufferRef, 'To')
+
+            ingressLoopDmaTransferCalls.append(
+                self._generateBufferChoice(l1BuffersReferences, nextLocalBufferReference, "TILING_I+1"))
+            ingressLoopDmaTransferCalls.append(dmaTransferCall)
+
+            initialDmaTransferCall = CodeSnippet(dmaTransferCall.template,
+                                                 operatorRepresentation = {
+                                                     **dmaTransferCall.operatorRepresentation,
+                                                     "tileIdxVar": 0,
+                                                     "loc": l1Buffer.name,
+                                                     "innerTilePtr": l1Buffer.name,
+                                                 })
+            setupStatements.append(initialDmaTransferCall)
+
+            referenceUpdate = self._generateExternalReferenceUpdate(ctxt, nodeName, tensorName, rectangles,
+                                                                    "TILING_I+1", l2BufferRef)
+            if referenceUpdate is not None:
+                ingressLoopDmaTransferCalls.append(referenceUpdate)
+                initialReferenceUpdate = CodeSnippet(referenceUpdate.template,
+                                                     operatorRepresentation = {
+                                                         **referenceUpdate.operatorRepresentation,
+                                                         "tileIdxVar": 0,
+                                                     })
+                setupStatements.append(initialReferenceUpdate)
+
+        ingressLoopDmaTransferCalls.append(CodeSnippet(_moveTileInCheckCloseStatement, {}))
+
+        egressLoopDmaTransferCalls: List[CodeSnippet] = []
+
+        for tensorName, rectangles in dictOfArrays(tilingSchedule.outputLoadSchedule).items():
+            l1Buffer = ctxt.lookup(operatorRepresentation[tensorName])
+            assert isinstance(l1Buffer, _ReferenceBuffer)
+            l2Buffer = ctxt.lookup(l1Buffer._referenceName)
+            assert isinstance(l2Buffer, VariableBuffer)
+            tensorMemoryConstraint = nodeMemoryConstraint.outputTensorMemoryConstraints[l2Buffer.name]
+            l2BufferShape = tensorMemoryConstraint.memoryConstraints['L2'].shape
+            assert l2BufferShape is not None
+
+            rectangles, l2BufferShape = self._legalizeTransfers(
+                rectangles, tuple(l2BufferShape), l1Buffer._type.referencedType.typeWidth,
+                self.isFinalMemoryLevel(tensorMemoryConstraint, l1Buffer._memoryLevel))
+
+            l2BufferRef = ctxt.hoistReference(f"{nodeName}_{l2Buffer.name}_tiling_ref", l2Buffer, VoidType)
+            l2BufferRef._memoryLevel = self.targetMemLevel
+            l2BufferRef.shape = l2BufferShape
+
+            tensorMemoryConstraint = nodeMemoryConstraint.outputTensorMemoryConstraints[l2Buffer.name]
+            l1BuffersReferences = self._hoistMultibufferReferences(ctxt, l1Buffer, tensorMemoryConstraint)
+
+            openLoopStatements.append(self._generateBufferChoice(l1BuffersReferences, l1Buffer, "TILING_I"))
+
+            dmaTransferCall = self._generateDmaTransferCall(ctxt, nodeName, tensorName, rectangles, "TILING_I",
+                                                            l1Buffer, l2BufferRef, 'From')
+            egressLoopDmaTransferCalls.append(dmaTransferCall)
+
+            referenceUpdate = self._generateExternalReferenceUpdate(ctxt, nodeName, tensorName, rectangles, "TILING_I",
+                                                                    l2BufferRef)
+            if referenceUpdate is not None:
+                egressLoopDmaTransferCalls.append(referenceUpdate)
+
+        dmaWaitCall = CodeSnippet(self._blockTransferTemplate, {"channel_id": "channel_id"})
+
+        teardownStatements = [dmaWaitCall, CodeSnippet(self._releaseDmaTemplate, {"channel_id": "channel_id"})]
+
+        variableUpdates = self._generateVariableUpdates(tilingSchedule, variableReplacement, ctxt,
+                                                        operatorRepresentation)
+
+        for transaction in variableUpdates:
+            _operatorRepresentation = transaction.operatorRepresentation
+            _operatorRepresentation["tileNum"] = "TILING_I"
+
+        closeLoopStatements = [
             CodeSnippet(self._closeTileLoopTemplate, {
                 "numTiles": operatorRepresentation["numTiles"],
                 "tileIdxPtr": tileIdxPtr
             })
         ]
-
-        setupStatements = []
-        teardownStatements = []
-
-        teardownStatements += [
-            CodeSnippet(self._releaseDMATemplate,
-                        {"stateReference": ingressDMAUpdates[0].operatorRepresentation["stateReference"]})
-        ]
-
-        setupStatements += [CodeSnippet(self._initDMATemplate, {"channelName": "dma_channel"})]
-        setupStatements += [
-            CodeSnippet(self._setDMAChannelTemplate, {
-                **transaction.operatorRepresentation, "channelName": "dma_channel"
-            }) for transaction in ingressDMAUpdates
-        ]
-
-        for transaction in egressDMAUpdates:
-            _operatorRepresentation = transaction.operatorRepresentation.copy()
-            _operatorRepresentation["channelName"] = "dma_channel"
-            setupStatements.append(CodeSnippet(self._setDMAChannelTemplate, _operatorRepresentation.copy()))
-            _operatorRepresentation["channelName"] = "dma_channel"
-            _operatorRepresentation["stateReference"] = _operatorRepresentation["_stateReference"]
-            setupStatements.append(CodeSnippet(self._setDMAChannelTemplate, _operatorRepresentation.copy()))
-
-        for transaction in ingressDMATransferCalls:
-            _operatorRepresentation = transaction.operatorRepresentation.copy()
-            _operatorRepresentation["tileNum"] = 0
-            _operatorRepresentation["numTiles"] = operatorRepresentation['numTiles']
-            _operatorRepresentation["tileIdxPtr"] = tileIdxPtr
-            setupStatements.append(CodeSnippet(transaction.template, _operatorRepresentation))
-
-        for transaction in egressDMAWaitStatements:
-            _operatorRepresentation = transaction.operatorRepresentation.copy()
-            _operatorRepresentation['tileNum'] = ctxt.lookup(operatorRepresentation["numTiles"]).values[-1]
-            teardownStatements.append(CodeSnippet(_finalBlockTileOutTemplate, _operatorRepresentation))
 
         metaInfo = TilingMetaInfo(nodeName = operatorRepresentation['nodeName'] + "_L2",
                                   nodeOps = operatorRepresentation['nodeOps'],
@@ -317,13 +257,12 @@ class PULPClusterTilingDB(PULPClusterTilingSB):
                                   tileIdxVar = "TILING_I",
                                   kernelLevelTiling = True)
 
-        newExecutionBlock = self.generateAllTilingCode(executionBlock, metaInfo, ingressDMATransferCalls,
-                                                       ingressDMAWaitStatements[-1:], ingressDMAUpdates,
-                                                       egressDMATransferCalls, egressDMAWaitStatements[-1:],
-                                                       egressDMAUpdates, variableUpdates, openLoopStatement,
-                                                       closeLoopStatement, setupStatements, teardownStatements)
+        executionBlock = self.generateAllTilingCode(executionBlock, metaInfo, ingressLoopDmaTransferCalls,
+                                                    [dmaWaitCall], [], egressLoopDmaTransferCalls, [dmaWaitCall], [],
+                                                    variableUpdates, openLoopStatements, closeLoopStatements,
+                                                    setupStatements, teardownStatements)
 
-        return ctxt, newExecutionBlock, True
+        return ctxt, executionBlock, True
 
     def generateTilingLoop(
             self, ctxt: NetworkContext, executionBlock: ExecutionBlock, nodeMemoryConstraint: NodeMemoryConstraint,

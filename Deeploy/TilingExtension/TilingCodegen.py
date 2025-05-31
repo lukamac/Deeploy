@@ -266,6 +266,38 @@ def calculateRectangleOffset(hyperRectangle: HyperRectangle, referenceBuffer: Va
     return int(accOffset * (referenceBuffer._type.referencedType.typeWidth // 8))
 
 
+def minimizeRectangle(rect: HyperRectangle, referenceShape: Sequence[int]) -> Tuple[HyperRectangle, Tuple[int, ...]]:
+    minRectShape: List[int] = []
+    minRectOffset: List[int] = []
+    minReferenceShape: List[int] = []
+
+    # SCHEREMO: Collapse dimensions right to left
+    currentCollapsedDim = 1
+    for rectDim, rectOffset, referenceDim in zip(reversed(rect.dims), reversed(rect.offset), reversed(referenceShape)):
+        if rectDim == referenceDim:
+            assert rectOffset == 0, f"Rectangle offset should be zero when the dimensions are the same. Received rectangle {rect} and reference shape {referenceShape}"
+            currentCollapsedDim *= rectDim
+        else:
+            minRectShape.insert(0, currentCollapsedDim * rectDim)
+            minReferenceShape.insert(0, currentCollapsedDim * referenceDim)
+            minRectOffset.insert(0, currentCollapsedDim * rectOffset)
+            currentCollapsedDim = 1
+
+    if currentCollapsedDim > 1 or len(minRectShape) == 0:
+        minRectShape.insert(0, currentCollapsedDim)
+        minReferenceShape.insert(0, currentCollapsedDim)
+        minRectOffset.insert(0, currentCollapsedDim * rect.offset[0])
+
+    return HyperRectangle(tuple(minRectOffset), tuple(minRectShape)), tuple(minReferenceShape)
+
+
+def stridesFromShape(shape: Sequence[int]) -> List[int]:
+    strides = [1] * len(shape)
+    for idx, dim in enumerate(reversed(shape[1:])):
+        strides[idx + 1] = strides[idx] * dim
+    return list(reversed(strides))
+
+
 def calculateFlatOffset(offsets: Sequence[int], strides: Sequence[int]) -> int:
     assert len(offsets) == len(strides), \
         f"Offsets and strides have to have the same number of dimensions. Length offsets: {len(offsets)}, strides: {len(strides)}"
