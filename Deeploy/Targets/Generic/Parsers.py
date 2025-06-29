@@ -2183,31 +2183,22 @@ class GenericConv2DParser(Conv2DParser):
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
         newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-
-        if ret:
-            inputs = ['data_in', 'weight']
-
-            # Handle bias, if present
-            if len(node.inputs) > 2:
-                inputs.append("bias")
-                self.operatorRepresentation["has_bias"] = "true"
-            else:
-                self.operatorRepresentation["has_bias"] = "false"
-                self.operatorRepresentation["bias"] = "NULL"
-
-            for idx, inputNode in enumerate(node.inputs):
-                self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
-
-            return newCtxt, True
-        else:
+        if not ret:
             return ctxt, False
 
-        assert len(node.inputs
-                  ) == 2, f'Supports only parsing 2 input tensors, data_in and weight. Received: {len(node.inputs)}'
-        for node, sym_name in zip(node.inputs, ['data_in', 'weight']):
-            self.operatorRepresentation[sym_name] = ctxt.lookup(node.name).name
+        inputs = ['data_in', 'weight']
+
+        # Handle bias, if present
+        if len(node.inputs) > 2:
+            inputs.append("bias")
+            self.operatorRepresentation["has_bias"] = "true"
+        else:
+            self.operatorRepresentation["has_bias"] = "false"
+            self.operatorRepresentation["bias"] = "NULL"
+
+        for idx, inputNode in enumerate(node.inputs):
+            self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
 
         return newCtxt, True
 
