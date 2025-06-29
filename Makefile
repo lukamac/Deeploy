@@ -399,19 +399,18 @@ pulp-sdk: ${PULP_SDK_INSTALL_DIR}
 ${TOOLCHAIN_DIR}/snitch_cluster:
 	cd ${TOOLCHAIN_DIR} && \
 	git clone https://github.com/pulp-platform/snitch_cluster.git && \
-	cd ${TOOLCHAIN_DIR}/snitch_cluster && git checkout ${SNITCH_COMMIT_HASH} && \
+	cd ${TOOLCHAIN_DIR}/snitch_cluster && \
+	git checkout ${SNITCH_COMMIT_HASH} && \
 	git submodule update --init --recursive && \
-	git checkout ${SNITCH_COMMIT_HASH} && git apply ${TOOLCHAIN_DIR}/snitch_cluster.patch
+	git apply ${TOOLCHAIN_DIR}/snitch_cluster.patch
 
 ${SNITCH_INSTALL_DIR}: ${TOOLCHAIN_DIR}/snitch_cluster
-	mkdir -p ${SNITCH_INSTALL_DIR}
-	cp -r ${TOOLCHAIN_DIR}/snitch_cluster/ ${SNITCH_INSTALL_DIR}/../
+	cp -r ${TOOLCHAIN_DIR}/snitch_cluster ${SNITCH_INSTALL_DIR}
 	cd ${SNITCH_INSTALL_DIR} && \
-	mkdir tmp && \
-	TMPDIR=tmp pip install -r python-requirements.txt && rm -rf tmp && \
+	pip install -r python-requirements.txt && \
 	bender vendor init && \
 	cd ${SNITCH_INSTALL_DIR}/target/snitch_cluster && \
-	make LLVM_BINROOT=${LLVM_INSTALL_DIR}/bin sw/runtime/banshee sw/runtime/rtl sw/math
+	LLVM_BINROOT=${LLVM_INSTALL_DIR}/bin make sw/runtime/banshee sw/runtime/rtl sw/math
 
 snitch_runtime: ${SNITCH_INSTALL_DIR}
 
