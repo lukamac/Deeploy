@@ -218,9 +218,12 @@ class NodeTemplate():
                 operatorRepresentation[f'RENDER_{key}'] = template.generate(**subNodeRep, **kwargs)
             callStack += self.template.render(**operatorRepresentation, **kwargs)
         except:
-            print(operatorRepresentation)
+            print("Operator representation:\n{")
+            for key in sorted(operatorRepresentation.keys()):
+                print(f"  {key}: {operatorRepresentation[key]}")
+            print("}")
             print(mako.exceptions.text_error_template().render())
-            raise KeyError(f"Template {self} failed!")
+            raise KeyError(f"Template {self} failed! (Scroll up for the Mako exception.)")
         return callStack
 
 
