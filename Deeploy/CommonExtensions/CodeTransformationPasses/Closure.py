@@ -202,7 +202,7 @@ class MemoryAwareClosureGeneration(ClosureGeneration):
         # Add closure struct info to operatorRepresentation
         closureStructArgsType = {}
         closureStruct = {}
-        makoDynamicReferences = self.extractDynamicReferences(ctxt, executionBlock, True)
+        makoDynamicReferences = self.extractDynamicReferences(ctxt, executionBlock, unrollStructs = True)
 
         filteredMakoDynamicReferences = []
 
