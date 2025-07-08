@@ -914,6 +914,19 @@ class Tiler():
                 return False
         return True
 
+    def testTilingSolutionCorrectness(self, tilingSolution: TilingSolution) -> None:
+        # LMACAN: Assert buffer sizes are word aligned as per comment in MemoryScheduler.py:MemoryScheduler._buildCostVector()
+        byteAlignment = MemoryScheduler.byteAlignment
+        for patternMemoryConstraint in tilingSolution:
+            for nodeMemoryConstraint in patternMemoryConstraint.nodeConstraints:
+                for tensorMemoryConstraint in nodeMemoryConstraint.tensorMemoryConstraints.values():
+                    for memoryConstraint in tensorMemoryConstraint.memoryConstraints.values():
+                        if memoryConstraint.addrSpace is not None:
+                            assert isinstance(memoryConstraint.multiBufferCoefficient, int)
+                            bufferSize = (memoryConstraint.addrSpace[1] -
+                                          memoryConstraint.addrSpace[0]) // memoryConstraint.multiBufferCoefficient
+                            assert bufferSize % byteAlignment == 0, f"Buffer in {memoryConstraint} is not {byteAlignment} byte aligned"
+
     def testMemoryMapCorrectness(self, memoryMap: Dict[str, List[List[MemoryBlock]]], graph: gs.Graph,
                                  schedule: Schedule) -> None:
 
@@ -982,6 +995,8 @@ class TilerDeployerWrapper(NetworkDeployerWrapper):
             memoryMap = self.tiler.computeMemoryMap(self.ctxt, tilingSolution)
 
         assert tilingSolution is not None and memoryMap is not None
+
+        self.tiler.testTilingSolutionCorrectness(tilingSolution)
 
         self.tiler.annotateMemoryLevel(self.ctxt, tilingSolution, memoryMap)
 
