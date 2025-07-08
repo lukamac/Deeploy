@@ -26,11 +26,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple, Type
+from typing import Dict, Generator, List, Optional, Sequence, Tuple, Type
 
 import numpy as np
 
 from Deeploy.AbstractDataTypes import Pointer
+from Deeploy.DeeployTypes import OperatorRepresentation, VariableBuffer
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint
 
 
@@ -194,6 +195,8 @@ def minimizeVariableReplacement(
     return VariableReplacementScheme(newPerTileRep, newRepTypes), operatorRepresentation
 
 
+# LMACAN: DEPRECATION WARNING!
+#         TODO: Replace with `minimizeRectangle`
 def minimizeRectangleDims(hyperRectangle: HyperRectangle,
                           referenceBuffer: VariableBuffer) -> Tuple[HyperRectangle, HyperRectangle]:
 
@@ -246,6 +249,8 @@ def minimizeRectangleDims(hyperRectangle: HyperRectangle,
     return newRect, newBaseline
 
 
+# LMACAN: DEPRECATION WARNING!
+#         TODO: Replace with `calculateFlatOffsetInBytes`
 def calculateRectangleOffset(hyperRectangle: HyperRectangle, referenceBuffer: VariableBuffer) -> int:
 
     minimalRect, baselineRect = minimizeRectangleDims(hyperRectangle, referenceBuffer)
@@ -259,6 +264,18 @@ def calculateRectangleOffset(hyperRectangle: HyperRectangle, referenceBuffer: Va
         accOffset += offsetIdx * mult
 
     return int(accOffset * (referenceBuffer._type.referencedType.typeWidth // 8))
+
+
+def calculateFlatOffset(offsets: Sequence[int], strides: Sequence[int]) -> int:
+    assert len(offsets) == len(strides), \
+        f"Offsets and strides have to have the same number of dimensions. Length offsets: {len(offsets)}, strides: {len(strides)}"
+    return sum(offset * stride for offset, stride in zip(offsets, strides))
+
+
+def calculateFlatOffsetInBytes(tile: HyperRectangle, referenceBuffer: VariableBuffer) -> int:
+    return int(
+        calculateFlatOffset(tile.offset, stridesFromShape(referenceBuffer.shape)) *
+        (referenceBuffer._type.referencedType.typeWidth // 8))
 
 
 def extractTilingTransfer(tilingSolution: NodeMemoryConstraint, targetMemLevel: str,
