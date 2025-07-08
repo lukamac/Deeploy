@@ -36,7 +36,7 @@ from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
 from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, HyperRectangle, MemoryTransfer, \
-    TilingSchedule, VariableReplacementScheme, computeHyperRectangleList
+    TilingSchedule, VariableReplacementScheme, computeTileHyperRectangles
 
 
 class TileConstraint():
@@ -151,7 +151,7 @@ class TileConstraint():
             for sourceCube in sourceCubes:
                 memTransfer = getMemoryTransfer(tensorConstraint, sourceCube.rectangle, sourceMemoryLevel,
                                                 targetMemoryLevel)
-                solutionCubes = computeHyperRectangleList(memTransfer)
+                solutionCubes = computeTileHyperRectangles(memTransfer)
                 solutionAbsoluteCubes = [
                     AbsoluteHyperRectangle(rectangle = cube,
                                            absoluteOffset = _offsetAdd(sourceCube.absoluteOffset, cube.offset))
