@@ -33,8 +33,7 @@ import onnx
 import onnx_graphsurgeon as gs
 import pytest
 from ortools.constraint_solver.pywrapcp import IntVar
-from testUtils.codeGenerate import generateL3HexDump, generateTestInputsHeader, generateTestNetworkHeader, \
-    generateTestNetworkImplementation, generateTestOutputsHeader
+from testUtils.codeGenerate import generateTestNetwork
 from testUtils.graphDebug import generateDebugConfig
 from testUtils.platformMapping import mapDeployer, mapPlatform, setupMemoryPlatform
 from testUtils.testRunner import TestGeneratorArgumentParser
@@ -100,18 +99,7 @@ class SBTiler(Tiler):
 
     def multiBufferStrategy(self, tilerModel: TilerModel, ctxt: NetworkContext, pattern: SubGraph, path: List[str],
                             hop: str, tensorName: str) -> Union[int, IntVar]:
-        varBuffer = ctxt.lookup(tensorName)
-
-        generalCoeff = 1
-
-        if isinstance(varBuffer, TransientBuffer):
-            coefficient = 1
-        elif isinstance(varBuffer, ConstantBuffer):
-            coefficient = generalCoeff
-        else:
-            coefficient = generalCoeff
-
-        return coefficient
+        return 1
 
 
 # Mock of the Global Scheduler's inteface
@@ -355,37 +343,17 @@ if __name__ == '__main__':
 
         _ = deployer.generateFunction(verbosityCfg)
 
-        # Create input and output vectors
-        os.makedirs(f'{args.dumpdir}', exist_ok = True)
+        # Offset the values if signprop
+        if signProp:
+            test_inputs = [value - inputOffsets[f"input_{i}"] for i, value in enumerate(test_inputs)]
 
-        testInputStr = generateTestInputsHeader(deployer, test_inputs, inputTypes, inputOffsets)
-        f = open(f'{args.dumpdir}/testinputs.h', "w")
-        f.write(testInputStr)
-        f.close()
+            for i, values in enumerate(test_outputs):
+                buffer = deployer.ctxt.lookup(f"output_{i}")
+                isFloat = buffer._type.referencedType.typeName == "float32_t"
+                if not isFloat and not buffer._signed:
+                    values -= buffer.nLevels // 2
 
-        testOutputStr = generateTestOutputsHeader(deployer, test_outputs, signProp, args.verbose)
-        f = open(f'{args.dumpdir}/testoutputs.h', "w")
-        f.write(testOutputStr)
-        f.close()
-
-        # Generate code for Network
-        testNetworkHeaderStr = generateTestNetworkHeader(deployer, platform)
-        f = open(f'{args.dumpdir}/Network.h', "w")
-        f.write(testNetworkHeaderStr)
-        f.close()
-
-        testNetworkImplementationStr = generateTestNetworkImplementation(deployer, platform)
-        f = open(f'{args.dumpdir}/Network.c', "w")
-        f.write(testNetworkImplementationStr)
-        f.close()
-
-        generateL3HexDump(deployer, os.path.join(f'{args.dumpdir}', 'hex'), test_inputs, test_outputs)
-
-        clang_format = "{BasedOnStyle: llvm, IndentWidth: 2, ColumnLimit: 160}"
-        os.system(f'clang-format -i --style="{clang_format}" {args.dumpdir}/Network.c')
-        os.system(f'clang-format -i --style="{clang_format}" {args.dumpdir}/Network.h')
-        os.system(f'clang-format -i --style="{clang_format}" {args.dumpdir}/testoutputs.h')
-        os.system(f'clang-format -i --style="{clang_format}" {args.dumpdir}/testinputs.h')
+        generateTestNetwork(deployer, test_inputs, test_outputs, inputTypes, args.dumpdir)
 
         if args.verbose:
             print()

@@ -25,11 +25,12 @@
 
 import os
 from pprint import pprint
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Type
 
 import numpy as np
 
-from Deeploy.DeeployTypes import ConstantBuffer, DeploymentPlatform, NetworkDeployer, VariableBuffer
+from Deeploy.AbstractDataTypes import Pointer
+from Deeploy.DeeployTypes import ConstantBuffer, NetworkDeployer, VariableBuffer
 from Deeploy.Targets.MemPool.Platform import MemPoolPlatform
 
 _TEXT_ALIGN = 30
@@ -101,33 +102,23 @@ def generateTestInputsHeader(deployer: NetworkDeployer, test_inputs: List, input
 
 
 def generateTestOutputsHeader(deployer: NetworkDeployer,
-                              test_outputs: List,
-                              signProp: Optional[bool] = None,
+                              test_outputs: List[np.ndarray],
                               verbose: Optional[bool] = None) -> str:
 
     output_signed = {}
     output_n_levels = {}
     output_data_type = {}
 
-    if signProp is None:
-        signProp = False
-
     if verbose is None:
         verbose = False
 
     retStr = ""
 
-    for index, num in enumerate(test_outputs):
+    for index, values in enumerate(test_outputs):
         output_data_type[f"output_{index}"] = deployer.ctxt.lookup(f'output_{index}')._type
 
         data_type = output_data_type[f"output_{index}"]
         isdatafloat = (data_type.referencedType.typeName == "float32_t")
-
-        if signProp and not isdatafloat:
-            output_n_levels[f"output_{index}"] = deployer.ctxt.lookup(f'output_{index}').nLevels
-            output_signed[f"output_{index}"] = deployer.ctxt.lookup(f'output_{index}')._signed
-            test_outputs[index] -= int(
-                ((1 - output_signed[f"output_{index}"]) * (output_n_levels[f"output_{index}"] / 2)))
 
         data_width = data_type.referencedType.typeWidth
         retStr += f"#define OUTPUTTYPE {data_type.referencedType.typeName}\n"
@@ -138,16 +129,18 @@ def generateTestOutputsHeader(deployer: NetworkDeployer,
         retStr += f"{data_type.referencedType.typeName} testOutputVector{index}[] ="
         retStr += "{"
 
+        values = values.flatten()
+
         # WIESEP: Arrays have to be 4 byte alinged (at lest in banshee)
         if data_type.referencedType.typeName == 'float32_t':
-            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in num])
+            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
         else:
-            list_str = (", ").join([str(x) for x in num])
+            list_str = (", ").join([str(x) for x in values])
 
-        bytes = len(num) * (data_width // 8)
+        bytes = len(values) * (data_width // 8)
         if bytes % 4 != 0:
             bytes = 4 * int((bytes / 4 + 1))
-            padding = (bytes * 8) // data_width - len(num)
+            padding = (bytes * 8) // data_width - len(values)
             list_str += ", "
             list_str += (", ").join([str(0) for x in range(padding)])
 
@@ -159,18 +152,13 @@ def generateTestOutputsHeader(deployer: NetworkDeployer,
     retStr += "};\n"
 
     if verbose:
-        if signProp:
-            print('Output N Levels:')
-            pprint(output_n_levels, indent = 2, width = 120)
-            print('Output Signed:')
-            pprint(output_signed, indent = 2, width = 120)
         print('Output Data Type:')
         pprint(output_data_type, indent = 2, width = 120)
 
     return retStr
 
 
-def generateTestNetworkHeader(deployer: NetworkDeployer, platform: DeploymentPlatform) -> str:
+def generateTestNetworkHeader(deployer: NetworkDeployer) -> str:
 
     retStr = ""
 
@@ -196,9 +184,7 @@ def generateTestNetworkHeader(deployer: NetworkDeployer, platform: DeploymentPla
     return retStr
 
 
-def generateTestNetworkImplementation(deployer: NetworkDeployer,
-                                      platform: DeploymentPlatform,
-                                      verbose: Optional[bool] = None) -> str:
+def generateTestNetworkImplementation(deployer: NetworkDeployer, verbose: Optional[bool] = None) -> str:
 
     if verbose is None:
         verbose = False
@@ -220,7 +206,7 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer,
     retStr += deployer.generateGlobalDefinitionCode()
 
     # WIESEP: Mempool assigns section attributes to intermediate buffers to allow .
-    if isinstance(platform, MemPoolPlatform):
+    if isinstance(deployer.Platform, MemPoolPlatform):
         retStr += deployer.generateInferenceInitializationCode()
         retStr += """
         void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
@@ -298,3 +284,43 @@ def generateL3HexDump(deployer: NetworkDeployer, path: str, test_inputs: List, t
         if hasattr(buf, "extName"):
             pathName = os.path.join(path, f"{buf.extName}.hex")
             dumpBuffer(buf, pathName)
+
+
+def generateTestNetwork(deployer: NetworkDeployer, test_inputs: List[np.ndarray], test_outputs: List[np.ndarray],
+                        inputTypes: Dict[str, Type[Pointer]], dumpdir: str) -> None:
+    assert deployer.prepared, "A prepared deployer must be provided"
+
+    # Create input and output vectors
+    os.makedirs(dumpdir, exist_ok = True)
+
+    testInputStr = generateTestInputsHeader(deployer,
+                                            test_inputs,
+                                            inputTypes,
+                                            inputOffsets = {key: 0 for key in inputTypes.keys()})
+    f = open(f'{dumpdir}/testinputs.h', "w")
+    f.write(testInputStr)
+    f.close()
+
+    testOutputStr = generateTestOutputsHeader(deployer, test_outputs)
+    f = open(f'{dumpdir}/testoutputs.h', "w")
+    f.write(testOutputStr)
+    f.close()
+
+    # Generate code for Network
+    testNetworkHeaderStr = generateTestNetworkHeader(deployer)
+    f = open(f'{dumpdir}/Network.h', "w")
+    f.write(testNetworkHeaderStr)
+    f.close()
+
+    testNetworkImplementationStr = generateTestNetworkImplementation(deployer)
+    f = open(f'{dumpdir}/Network.c', "w")
+    f.write(testNetworkImplementationStr)
+    f.close()
+
+    generateL3HexDump(deployer, os.path.join(f'{dumpdir}', 'hex'), test_inputs, test_outputs)
+
+    clang_format = "{BasedOnStyle: llvm, IndentWidth: 2, ColumnLimit: 160}"
+    os.system(f'clang-format -i --style="{clang_format}" {dumpdir}/Network.c')
+    os.system(f'clang-format -i --style="{clang_format}" {dumpdir}/Network.h')
+    os.system(f'clang-format -i --style="{clang_format}" {dumpdir}/testoutputs.h')
+    os.system(f'clang-format -i --style="{clang_format}" {dumpdir}/testinputs.h')
