@@ -33,9 +33,9 @@ from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransfor
     IntrospectiveCodeTransformationMixIn
 from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import ArgumentStructGeneration
 from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ConstantBuffer, ExecutionBlock, \
-    NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer, _NoVerbosity
+    NetworkContext, NodeTemplate, OperatorRepresentation, _NoVerbosity
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import PrototypeTilingMixIn
-from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme, minimizeVariableReplacement
 
 
@@ -56,16 +56,12 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
     # SCHEREMO: internalPtr refers to the HIGHER memory level of a transfer,
     # e.g. in both an L2 -> L1 and L1 -> L2 transfer, the internalPtr is in L1.
     @staticmethod
-    def isFinalMemoryLevel(nodeMemoryConstraint: NodeMemoryConstraint, internalPtr: VariableBuffer) -> bool:
-        externalName = internalPtr._referenceName
-        tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[externalName]
-        if len(tensorMemoryConstraint.memoryConstraints.keys()) <= 2:
+    def isFinalMemoryLevel(tensorMemoryConstraint: TensorMemoryConstraint, memory: str) -> bool:
+        memoryOrder = list(tensorMemoryConstraint.memoryConstraints.keys())
+        assert memory in memoryOrder, f"Memory {memory} does not exist in the tensor memory constraint {tensorMemoryConstraint}"
+        if len(memoryOrder) < 2:
             return True
-
-        finalMemoryLevels = list(tensorMemoryConstraint.memoryConstraints.keys())[:2]
-        memoryLevel = internalPtr._memoryLevel
-
-        return memoryLevel in finalMemoryLevels
+        return memory in memoryOrder[:2]
 
     def _hoistTileIdxPtr(self,
                          ctxt: NetworkContext,

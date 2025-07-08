@@ -167,7 +167,9 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
                 referenceBuffer = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
                 l1Buffer = ctxt.lookup(operatorRepresentation[key])
 
-                finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(nodeMemoryConstraint, l1Buffer)
+                tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[l1Buffer._referenceName]
+                finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(tensorMemoryConstraint,
+                                                                           l1Buffer._memoryLevel)
 
                 struct = cls._rectToDMAStruct(ctxt, rect, direction, l1Buffer.name, l1Buffer._referenceName,
                                               finalMemoryLevel)
@@ -401,7 +403,8 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
                 }
             }
 
-            finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(nodeMemoryConstraint, internalPtr)
+            tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[internalPtr._referenceName]
+            finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(tensorMemoryConstraint, internalPtr._memoryLevel)
             struct = self._rectToDMAStruct(ctxt, rectangle, direction, internalPtr.name, externalPtr.name,
                                            finalMemoryLevel)
 
