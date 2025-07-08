@@ -23,13 +23,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import copy
 import types
 from typing import Dict, List
 
 import mako.codegen as codegen
 from mako.lexer import Lexer
-from mako.parsetree import Expression, TemplateNode
+from mako.parsetree import ControlLine, Expression, TemplateNode
 
 from Deeploy.AbstractDataTypes import Pointer, Struct
 from Deeploy.DeeployTypes import ExecutionBlock, NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer
@@ -135,7 +136,6 @@ class IntrospectiveCodeTransformationMixIn():
                                    template: NodeTemplate,
                                    unrollStructs = False,
                                    includeGobalReferences = False):
-
         codeHash = hash(template.template._source)
 
         if codeHash in self.parseTreeDict.keys():
@@ -146,60 +146,71 @@ class IntrospectiveCodeTransformationMixIn():
             self.parseTreeDict[codeHash] = makoParseTree
 
         # Filter parsing tree for expressions
-        makoExpressions = [node.text for node in makoParseTree.nodes if type(node) == Expression]
+        makoExpressions = [node.text for node in makoParseTree.nodes if isinstance(node, Expression)]
+
+        # Filter parsing tree for for loops
+        makoForLoops = [
+            node.text
+            for node in makoParseTree.nodes
+            if isinstance(node, ControlLine) and node.keyword == 'for' and node.text != 'endfor'
+        ]
+
+        # Extract the looped over expression
+        def extractLoopedOverExpression(text: str) -> List[str]:
+            text += "\n  pass"  # For loop has to have a body for ast.parse to succeed
+            tree = ast.parse(text)
+            assert len(tree.body) == 1
+            node = tree.body[0]
+            assert isinstance(node, ast.For)
+            forNode = node
+            return [node.id for node in ast.walk(forNode.iter) if isinstance(node, ast.Name)]
+
+        for loopText in makoForLoops:
+            makoExpressions.extend(extractLoopedOverExpression(loopText))
+
+        # Filter represented expressions
+        representedExpressions = [
+            operatorRepresentation[expr] for expr in makoExpressions if expr in operatorRepresentation
+        ]
+
+        # Flatten represented expressions
+        flattenedRepresentedExpressions = []
+        for expr in representedExpressions:
+            if isinstance(expr, list):
+                flattenedRepresentedExpressions.extend(expr)
+            else:
+                flattenedRepresentedExpressions.append(expr)
+
+        # Filter buffers from expressions
+        references = [expr for expr in flattenedRepresentedExpressions if ctxt.is_buffer(expr)]
+
+        if unrollStructs:
+
+            def _unrollStructReferences(val: Struct) -> List[str]:
+                assert isinstance(val, Struct)
+                # Recursively unroll struct references
+                structReferences = []
+                for field in val.value.values():
+                    if isinstance(field, Struct):
+                        structReferences += _unrollStructReferences(field)
+                    elif isinstance(field, Pointer) and field.referenceName != _NULL:
+                        structReferences.append(field.referenceName)
+                return structReferences
+
+            # Unroll local struct references
+            for ref in references:
+                if hasattr(ctxt.lookup(ref), "structDict"):
+                    references += _unrollStructReferences(ctxt.lookup(ref).structDict)
 
         # Filter expressions for local variables contained in operatorRepresentation
-        makoLocalReferences = [
-            node for node in makoExpressions
-            if ((node in operatorRepresentation) and type(operatorRepresentation[node]) == str and (
-                operatorRepresentation[node] in ctxt.localObjects.keys()))
-        ]
+        localReferences = [ref for ref in references if ctxt.is_local(ref)]
 
         # Filter expressions for global variables contained in operatorRepresentation
-        makoGlobalReferences = [
-            node for node in makoExpressions
-            if ((node in operatorRepresentation) and type(operatorRepresentation[node]) == str and (
-                operatorRepresentation[node] in ctxt.globalObjects.keys()))
-        ]
-
-        def _unrollStructReferences(val) -> List[str]:
-            # Unroll struct references
-            structReferences = []
-            if isinstance(val, Struct):
-                for key, _type in val.value.items():
-                    if isinstance(_type, Struct):
-                        structReferences += _unrollStructReferences(val.value[key])
-                    elif isinstance(_type, Pointer) and val.value[key].referenceName != _NULL:
-                        structReferences.append(val.value[key].referenceName)
-            return structReferences
-
-        # Unroll local struct references
-        localReferences = []
-        localStructReferences = []
-        for ref in makoLocalReferences:
-            localReferences.append(operatorRepresentation[ref])
-            if unrollStructs:
-                if ctxt.is_local(operatorRepresentation[ref]) and hasattr(ctxt.lookup(operatorRepresentation[ref]),
-                                                                          "structDict"):
-                    localStructReferences += _unrollStructReferences(
-                        ctxt.lookup(operatorRepresentation[ref]).structDict)
-
-        # Unroll global struct references
-        globalReferences = []
-        globalStructReferences = []
-        for ref in makoGlobalReferences:
-            globalReferences.append(operatorRepresentation[ref])
-            if unrollStructs:
-                if ctxt.is_global(operatorRepresentation[ref]) and hasattr(ctxt.lookup(operatorRepresentation[ref]),
-                                                                           "structDict"):
-                    globalStructReferences += _unrollStructReferences(
-                        ctxt.lookup(operatorRepresentation[ref]).structDict)
+        globalReferences = [ref for ref in references if ctxt.is_global(ref)]
 
         # Filter for dynamically allocated tensors
-        dynamicLocalReferences = [ref for ref in localReferences + localStructReferences if ctxt.lookup(ref)._deploy]
-        dynamicGlobalReferences = [
-            ref for ref in globalReferences + globalStructReferences if isinstance(ctxt.lookup(ref), VariableBuffer)
-        ]
+        dynamicLocalReferences = [ref for ref in localReferences if ctxt.lookup(ref)._deploy]
+        dynamicGlobalReferences = [ref for ref in globalReferences if isinstance(ctxt.lookup(ref), VariableBuffer)]
 
         if includeGobalReferences:
             return dynamicLocalReferences + dynamicGlobalReferences
