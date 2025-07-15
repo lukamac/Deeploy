@@ -29,6 +29,7 @@ from typing import Dict, List, Literal, Tuple
 
 from Deeploy.DeeployTypes import CodeSnippet, ExecutionBlock, NetworkContext, NodeTemplate, OperatorRepresentation
 from Deeploy.Targets.Snitch.DataTypes import Snitch_DMA_copy
+from Deeploy.TilingExtension.AsyncDma import AsyncDma
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingCodeGeneration import TilingCodeGeneration
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import SingleBufferingTilingMixIn, TilingMetaInfo
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
@@ -132,6 +133,9 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
     _updateDMATransferStructTemplate = _updateDMATransferStructTemplate
     _updateReferenceTemplate = _updateReferenceTemplate
 
+    def __init__(self, externalMemory: str, localMemory: str, dma: AsyncDma):
+        super().__init__(externalMemory, localMemory, dma, 1)
+
     def _DMAStructName(self, tensorName: str) -> str:
         return f"{self.prefix}{tensorName}_DMA"
 
@@ -159,7 +163,7 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
 
                 referenceBuffer = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
                 l1Buffer = ctxt.lookup(operatorRepresentation[key])
-                assert l1Buffer._memoryLevel == self.targetMemLevel
+                assert l1Buffer._memoryLevel == self.localMemory
 
                 tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[l1Buffer._referenceName]
                 finalMemoryLevel = self.isFinalMemoryLevel(tensorMemoryConstraint)
@@ -364,7 +368,7 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
 
             externalPtr = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
             internalPtr = ctxt.lookup(operatorRepresentation[key])
-            assert internalPtr._memoryLevel == self.targetMemLevel
+            assert internalPtr._memoryLevel == self.localMemory
 
             tensorName = key
             dmaName = self._DMAStructName(tensorName)

@@ -21,14 +21,16 @@ defaultMemLevels = ["L2", "L3"]
 for test_shape, is_db, defMemLvl in itertools.product(test_shapes_and_more, is_doublebuffers, defaultMemLevels):
     input_shape, tile_shape, node_count, data_type = test_shape
 
-    print(f"""testPulpDma: Testing pulp DMA with followig configuration:
+    cfg_str = f"""
     - input shape: {input_shape}
     - tile shape: {tile_shape}
     - node count: {node_count}
     - data type: {data_type}
     - doublebuffering: {is_db}
     - default memory level: {defMemLvl}
-""")
+    """
+
+    print("testPulpDma: Testing pulp DMA with followig configuration:" + cfg_str)
 
     cmd = ["python testRunner_pulpDma.py", "-t testPulpDma", "-DNUM_CORES=8"]
     cmd.append(f"--input-shape {' '.join(str(x) for x in input_shape)}")
@@ -43,4 +45,9 @@ for test_shape, is_db, defMemLvl in itertools.product(test_shapes_and_more, is_d
 
     print(f"Running command:\n{full_cmd}\n")
 
-    subprocess.run(full_cmd, shell = True, check = True)
+    try:
+        subprocess.run(full_cmd, shell = True, check = True)
+    except subprocess.CalledProcessError:
+        print("testPulpDma: Failed test:" + cfg_str)
+        print(f"Rerun with command:\n{full_cmd}")
+        exit(-1)

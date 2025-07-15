@@ -25,14 +25,15 @@
 
 import copy
 import itertools
-from typing import Tuple
+from typing import List, Tuple
 
 from Deeploy.AbstractDataTypes import Struct
 from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureExecutionBlock
 from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransformation import \
     IntrospectiveCodeTransformationMixIn
 from Deeploy.DeeployTypes import CodeGenVerbosity, CodeSnippet, CodeTransformationPass, ExecutionBlock, \
-    NetworkContext, NodeTemplate, OperatorRepresentation, TransientBuffer, VariableBuffer, _NoVerbosity
+    NetworkContext, NodeTemplate, OperatorRepresentation, TransientBuffer, VariableBuffer, _NoVerbosity, \
+    _ReferenceBuffer
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingHoistingMixIn import TilingHoistingMixIn
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme, minimizeVariableReplacement
@@ -186,3 +187,78 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
         self._deinitPrefix()
 
         return ctxt, executionBlock
+
+
+class TilingVariableReplacementUpdate(CodeTransformationPass, IntrospectiveCodeTransformationMixIn,
+                                      TilingHoistingMixIn):
+
+    _updateReferenceTemplate = NodeTemplate("""
+    // UPDATE VARIABLE ${reference}
+    *${reference} = ${baseReference}[${tileIdxVar}];
+    """)
+
+    def __init__(self, targetMemLevel: str, tileIdxVar: str = "TILING_I"):
+        super().__init__()
+        self.tileIdxVar = tileIdxVar
+        self.targetMemLevel = targetMemLevel
+
+    def _generateVariableUpdates(self, variableReplacement: VariableReplacementScheme, ctxt: NetworkContext,
+                                 operatorRepresentation: OperatorRepresentation) -> List[CodeSnippet]:
+        updates = []
+        for key in variableReplacement.perTileReplacements.keys():
+            ref = ctxt.lookup(operatorRepresentation[key])
+            assert isinstance(ref, _ReferenceBuffer)
+            updates.append(
+                CodeSnippet(self._updateReferenceTemplate, {
+                    "reference": ref.name,
+                    "tileIdxVar": self.tileIdxVar,
+                    "baseReference": ref._referenceName
+                }))
+        return updates
+
+    def apply(self,
+              ctxt: NetworkContext,
+              executionBlock: ExecutionBlock,
+              name: str,
+              verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
+        if isinstance(executionBlock, ClosureExecutionBlock):
+            baseExecutionBlock = executionBlock.baseBlock
+        else:
+            baseExecutionBlock = executionBlock
+
+        patternMemoryConstraint = baseExecutionBlock.patternMemoryConstraint
+
+        if patternMemoryConstraint is None:
+            return ctxt, executionBlock
+
+        assert len(patternMemoryConstraint.nodeConstraints) == 1, "Only layerwise supported for now!"
+
+        nodeMemoryConstraint = patternMemoryConstraint.nodeConstraints[0]
+
+        possibleSnippets = [
+            node for node in baseExecutionBlock.codeSnippets if hasattr(node.template, 'tileConstraint')
+        ]
+
+        assert len(possibleSnippets) == 1, "More than one template node with TCF found"
+
+        snippet = possibleSnippets[0]
+        operatorRepresentation = snippet.operatorRepresentation
+        template = snippet.template
+
+        unraveledOpRepr = {
+            key: ctxt.unravelReference(ctxt.lookup(value)).name if ctxt.is_buffer(value) else value
+            for key, value in operatorRepresentation.items()
+        }
+
+        variableReplacement, _ = template.tileConstraint.wrapTilingSolution(nodeMemoryConstraint, self.targetMemLevel,
+                                                                            ctxt, unraveledOpRepr)
+
+        minimalVariableReplacement, newOpRepr = minimizeVariableReplacement(variableReplacement, operatorRepresentation)
+        operatorRepresentation.update(newOpRepr)
+
+        updates = self._generateVariableUpdates(minimalVariableReplacement, ctxt, operatorRepresentation)
+
+        for snippet in updates:
+            executionBlock.addLeft(snippet.template, snippet.operatorRepresentation)
+
+        return super().apply(ctxt, executionBlock, name, verbose)

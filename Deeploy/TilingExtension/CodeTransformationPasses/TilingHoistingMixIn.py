@@ -152,8 +152,7 @@ class TilingHoistingMixIn:
                 memoryConstraint.shape,
                 offset = i * bufferSize,
                 override_type = VoidType,
-            )
-            for i in range(memoryConstraint.multiBufferCoefficient)
+            ) for i in range(memoryConstraint.multiBufferCoefficient)
         ]
 
         return refs

@@ -291,6 +291,30 @@ def minimizeRectangle(rect: HyperRectangle, referenceShape: Sequence[int]) -> Tu
     return HyperRectangle(tuple(minRectOffset), tuple(minRectShape)), tuple(minReferenceShape)
 
 
+def padShape(shape: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+    assert rank >= len(
+        shape), f"Cannot pad to rank smaller then shape's. Received rank: {rank}, shape rank: {len(shape)}"
+    ret = tuple([1] * (rank - len(shape))) + shape
+    assert len(ret) == rank
+    return ret
+
+
+def padOffset(offset: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+    assert rank >= len(
+        offset), f"Cannot pad to rank smaller then offset's. Received rank: {rank}, offset rank: {len(offset)}"
+    ret = tuple([0] * (rank - len(offset))) + offset
+    assert len(ret) == rank
+    return ret
+
+
+def padStride(stride: Tuple[int, ...], rank: int, paddingStride: int) -> Tuple[int, ...]:
+    assert rank >= len(
+        stride), f"Cannot pad to rank smaller then stride's. Received rank: {rank}, stride rank: {len(stride)}"
+    ret = tuple([paddingStride] * (rank - len(stride))) + stride
+    assert len(ret) == rank
+    return ret
+
+
 def stridesFromShape(shape: Sequence[int]) -> Tuple[int, ...]:
     strides = [1] * len(shape)
     for idx, dim in enumerate(reversed(shape[1:])):

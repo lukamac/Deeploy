@@ -40,6 +40,7 @@ from Deeploy.Targets.Snitch.Templates import AddTemplate, FloatGemmTemplate, RQA
 from Deeploy.Targets.Snitch.Templates.FloatSoftmaxTemplate import FloatSoftmax_Template
 from Deeploy.Targets.Snitch.Templates.GemmTemplate import SnitchGemm_Template
 from Deeploy.Targets.Snitch.Templates.RqGemmTemplate import SnitchRqGemm_Template
+from Deeploy.TilingExtension.AsyncDma import AsyncDma
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingVariableReplacement import TilingVariableReplacement
 
 TilingCallClosure = partial(ClosureGeneration, closureSuffix = "_tiling_closure")
@@ -60,7 +61,7 @@ TiledTransformer = CodeTransformation([
     TilingVariableReplacement("L1"),
     TilingCallClosure(writeback = False),
     SnitchSynchCoresPass(),
-    SnitchClusterTiling("L1"),
+    SnitchClusterTiling("L2?", "L1", AsyncDma({})),  # TODO
     ArgumentStructGeneration(),
     MemoryManagementGeneration("L1"),
     MemoryAwareFunctionCallClosure(writeback = False, generateStruct = True),

@@ -24,8 +24,9 @@
 # limitations under the License.
 
 import copy
+import math
 from abc import abstractmethod
-from typing import List, Tuple, TypeVar
+from typing import List, Optional, Tuple, TypeVar
 
 import numpy as np
 
@@ -33,13 +34,14 @@ from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureExe
 from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransformation import \
     IntrospectiveCodeTransformationMixIn
 from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import ArgumentStructGeneration
-from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ExecutionBlock, NetworkContext, \
-    NodeTemplate, OperatorRepresentation, VariableBuffer, _NoVerbosity
+from Deeploy.DeeployTypes import CodeGenVerbosity, CodeSnippet, CodeTransformationPass, ExecutionBlock, \
+    NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer, _NoVerbosity
+from Deeploy.TilingExtension.AsyncDma import AsyncDma, DmaDirection, Future, MultidimDmaSnippetGenerator
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingHoistingMixIn import TilingHoistingMixIn
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import PrototypeTilingMixIn
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import HyperRectangle, TilingSchedule, VariableReplacementScheme, \
-    minimizeRectangle, minimizeVariableReplacement
+    calculateFlatOffset, minimizeRectangle, minimizeVariableReplacement, padOffset, padShape, stridesFromShape
 
 T = TypeVar('T')
 
@@ -59,6 +61,27 @@ def transposeListOfLists(listOfLists: List[List[T]]) -> List[List[T]]:
 class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn, PrototypeTilingMixIn,
                            TilingHoistingMixIn):
 
+    _relativeOffsetReferenceUpdateTemplate = NodeTemplate("""
+    // UPDATE VARIABLE ${reference}
+    ${reference} += ${relativeOffset};
+    """)
+
+    _relativeOffsetReferenceUpdateTiledTemplate = NodeTemplate("""
+    // UPDATE VARIABLE ${reference}
+    ${reference} += ${relativeOffset}[${tileIdxVar}];
+    """)
+
+    _openTileLoopTemplate = NodeTemplate("""
+    // TILING LOOP
+    for (int TILING_I=${numTiles}[*${tileIdxPtr}]; TILING_I<${numTiles}[(*${tileIdxPtr})+1]; TILING_I++){
+    """)
+
+    _closeTileLoopTemplate = NodeTemplate("""
+    // CLOSE TILING LOOP
+    }
+    *${tileIdxPtr} += 1;
+    """)
+
     @abstractmethod
     def generateTilingLoop(
             self, ctxt: NetworkContext, executionBlock: ExecutionBlock, nodeMemoryConstraint: NodeMemoryConstraint,
@@ -67,43 +90,79 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
 
         return ctxt, executionBlock, False
 
-    def __init__(self, targetMemLevel: str):
-        self.targetMemLevel = targetMemLevel
+    def __init__(self, externalMemory: str, localMemory: str, dma: AsyncDma, bufferCount: int):
+        self.externalMemory = externalMemory
+        self.localMemory = localMemory
+        self.dma = dma
+        self.bufferCount = bufferCount
+        TilingHoistingMixIn.__init__(self, localMemory)
         self.argStructGeneration = ArgumentStructGeneration()
-        TilingHoistingMixIn.__init__(self, targetMemLevel)
 
     # SCHEREMO: internalPtr refers to the HIGHER memory level of a transfer,
     # e.g. in both an L2 -> L1 and L1 -> L2 transfer, the internalPtr is in L1.
     def isFinalMemoryLevel(self, tensorMemoryConstraint: TensorMemoryConstraint) -> bool:
         memoryOrder = list(tensorMemoryConstraint.memoryConstraints.keys())
-        assert self.targetMemLevel in memoryOrder, f"Memory {self.targetMemLevel} does not exist in the tensor memory constraint {tensorMemoryConstraint}"
+        assert self.localMemory in memoryOrder, f"Memory {self.localMemory} does not exist in the tensor memory constraint {tensorMemoryConstraint}"
         if len(memoryOrder) < 2:
             return True
-        return self.targetMemLevel in memoryOrder[:2]
+        return self.localMemory in memoryOrder[:2]
 
-    @staticmethod
-    def padShape(shape: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
-        assert rank >= len(
-            shape), f"Cannot pad to rank smaller then shape's. Received rank: {rank}, shape rank: {len(shape)}"
-        ret = tuple([1] * (rank - len(shape))) + shape
-        assert len(ret) == rank
-        return ret
+    def _generateDmaTransferCalls(self, ctxt: NetworkContext, tensorName: str, transfers: List[HyperRectangle],
+                                  tileIdxVar: str, localBuffer: VariableBuffer, externalBuffer: VariableBuffer,
+                                  direction: DmaDirection, asyncToken: Future) -> List[CodeSnippet]:
+        assert all(len(transfers[0].dims) == len(rect.dims) for rect in transfers), \
+            "Currently supporting only rectangles of same rank"
 
-    @staticmethod
-    def padOffset(offset: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
-        assert rank >= len(
-            offset), f"Cannot pad to rank smaller then offset's. Received rank: {rank}, offset rank: {len(offset)}"
-        ret = tuple([0] * (rank - len(offset))) + offset
-        assert len(ret) == rank
-        return ret
+        assert len(transfers[0].dims) > 0, "Expecting transfers of rank greater than 0"
 
-    @staticmethod
-    def padStride(stride: Tuple[int, ...], rank: int, paddingStride: int) -> Tuple[int, ...]:
-        assert rank >= len(
-            stride), f"Cannot pad to rank smaller then stride's. Received rank: {rank}, stride rank: {len(stride)}"
-        ret = tuple([paddingStride] * (rank - len(stride))) + stride
-        assert len(ret) == rank
-        return ret
+        assert len(transfers[0].dims) == len(externalBuffer.shape), \
+            "External buffer's rank should be equal to the internal buffer's"
+
+        gen = MultidimDmaSnippetGenerator(self.dma)
+
+        initSnippets = gen.transfer(ctxt, externalBuffer, localBuffer, transfers[0].dims,
+                                    stridesFromShape(externalBuffer.shape), stridesFromShape(transfers[0].dims),
+                                    direction, asyncToken, math.prod(externalBuffer.shape))
+
+        templates = [snippet.template for snippet in initSnippets]
+        opReprUpdates = [[] for _ in range(len(initSnippets))]
+
+        for rect in transfers:
+            snippets = gen.transfer(ctxt, externalBuffer,
+                                    localBuffer, rect.dims, stridesFromShape(externalBuffer.shape),
+                                    stridesFromShape(rect.dims), direction, asyncToken, math.prod(externalBuffer.shape))
+            for i, snippet in enumerate(snippets):
+                opReprUpdates[i].append(snippet.operatorRepresentation)
+
+        tiledSnippets: List[CodeSnippet] = [
+            CodeSnippet(*self._tileTemplate(ctxt, opReprUpdate, template, tileIdxVar, f"{tensorName}_"))
+            for template, opReprUpdate in zip(templates, opReprUpdates)
+        ]
+
+        return tiledSnippets
+
+    def _generateExternalReferenceUpdate(self, ctxt: NetworkContext, tensorName: str, transfers: List[HyperRectangle],
+                                         tileIdxVar: str, externalBuffer: VariableBuffer) -> Optional[CodeSnippet]:
+        externalBufferStrides = stridesFromShape(externalBuffer.shape)
+        offsets = [calculateFlatOffset(rect.offset, externalBufferStrides) for rect in transfers]
+        relativeOffsets = [_next - _prev for _prev, _next in zip(offsets[:-1], offsets[1:])]
+
+        if len(relativeOffsets) == 0 or all(offset == 0 for offset in relativeOffsets):
+            return None
+
+        operatorRepresentation: OperatorRepresentation = {"reference": externalBuffer.name, "tileIdxVar": tileIdxVar}
+
+        if all(relativeOffsets[0] == offset for offset in relativeOffsets):
+            operatorRepresentation["relativeOffset"] = relativeOffsets[0]
+            template = self._relativeOffsetReferenceUpdateTemplate
+        else:
+            relativeOffsets.append(0)  # To have the same length as the number of tiles
+            buffer = self._hoistValues(ctxt, f'{tensorName}_relativeOffset', relativeOffsets)
+            operatorRepresentation["relativeOffset"] = buffer.name
+            operatorRepresentation["tileIdxVar"] = tileIdxVar
+            template = self._relativeOffsetReferenceUpdateTiledTemplate
+
+        return CodeSnippet(template, operatorRepresentation)
 
     # TODO: Not super sure this should go here. It could be shared, but it seems a little bit too specific
     # with the `isFinalMemory` thing.
@@ -111,15 +170,14 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
                            isFinalMemoryLevel: bool) -> Tuple[List[HyperRectangle], Tuple[int, ...]]:
         transfersCommonRank = max(len(rect.dims) for rect in transfers)
         commonRank = max(transfersCommonRank, len(outerShape))
-        outerShape = self.padShape(outerShape, commonRank)
+        outerShape = padShape(outerShape, commonRank)
 
         minOuterShape = None
 
         if isFinalMemoryLevel:
             minimizedTransfers = []
             for rect in transfers:
-                paddedRect = HyperRectangle(self.padOffset(rect.offset, commonRank),
-                                            self.padShape(rect.dims, commonRank))
+                paddedRect = HyperRectangle(padOffset(rect.offset, commonRank), padShape(rect.dims, commonRank))
                 minRect, newMinOuterShape = minimizeRectangle(paddedRect, outerShape)
                 if minOuterShape is None:
                     minOuterShape = newMinOuterShape
@@ -194,6 +252,7 @@ Old minOuterShape produced by outerDims: {outerShape} and rects:
         self._initPrefix(templateNode.operatorRepresentation['nodeName'])
 
         operatorRepresentation = templateNode.operatorRepresentation
+        template = templateNode.template
 
         unraveledOpRepr = operatorRepresentation.copy()
         for key, value in unraveledOpRepr.items():
@@ -202,15 +261,12 @@ Old minOuterShape produced by outerDims: {outerShape} and rects:
                 assert isinstance(buffer, VariableBuffer)
                 unraveledOpRepr[key] = ctxt.unravelReference(buffer).name
 
-        template = templateNode.template
-
         variableReplacement, tilingSchedules = template.tileConstraint.wrapTilingSolution(
-            nodeMemoryConstraint, self.targetMemLevel, ctxt, unraveledOpRepr)
+            nodeMemoryConstraint, self.localMemory, ctxt, unraveledOpRepr)
 
-        minimalVariableReplacement, newNodeRep = minimizeVariableReplacement(variableReplacement,
-                                                                             templateNode.operatorRepresentation)
-        for key, value in newNodeRep.items():
-            templateNode.operatorRepresentation[key] = value
+        minimalVariableReplacement, newOpRepr = minimizeVariableReplacement(variableReplacement, operatorRepresentation)
+
+        operatorRepresentation.update(newOpRepr)
 
         ctxt, executionBlock, applicable = self.generateTilingLoop(ctxt, executionBlock, nodeMemoryConstraint,
                                                                    tilingSchedules, minimalVariableReplacement,

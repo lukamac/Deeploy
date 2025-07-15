@@ -26,14 +26,15 @@
 from typing import Tuple
 
 from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ExecutionBlock, NetworkContext, _NoVerbosity
+from Deeploy.TilingExtension.AsyncDma import AsyncDma
 
 from .SnitchClusterTilingSB import SnitchClusterTilingGenerationSB
 
 
 class SnitchClusterTiling(CodeTransformationPass):
 
-    def __init__(self, targetMemLevel: str):
-        self.SB = SnitchClusterTilingGenerationSB(targetMemLevel)
+    def __init__(self, externalMemory: str, localMemory: str, dma: AsyncDma):
+        self.SB = SnitchClusterTilingGenerationSB(externalMemory, localMemory, dma)
 
     def apply(self,
               ctxt: NetworkContext,
