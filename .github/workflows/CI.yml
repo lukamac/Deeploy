@@ -972,35 +972,6 @@ jobs:
         shell: bash
 
   deeploy-test-pulp-dma:
-    strategy:
-      matrix:
-        params:
-          - input-shape: "10 10"
-            tile-shape: "10 10"
-            node-count: 1
-            type: "uint8_t"
-          - input-shape: "10 10"
-            tile-shape: "10 4"
-            node-count: 1
-            type: "uint8_t"
-          - input-shape: "10 10"
-            tile-shape: "10 4"
-            node-count: 1
-            type: "uint16_t"
-          - input-shape: "10 10"
-            tile-shape: "10 4"
-            node-count: 1
-            type: "uint32_t"
-          - input-shape: "10 10"
-            tile-shape: "3 4"
-            node-count: 1
-            type: "uint32_t"
-          - input-shape: "10 10"
-            tile-shape: "3 4"
-            node-count: 2
-            type: "uint32_t"
-        buffering: ["--doublebuffer", ""]
-        defaultMemLevel: ["L2", "L3"]
     runs-on: ${{ needs.select-docker-image-and-runner.outputs.runner }}
     needs: select-docker-image-and-runner
     container:
@@ -1015,41 +986,7 @@ jobs:
       - name: Run Test
         run: |
           cd DeeployTest
-          python testPulpDma.py -t testPulpDma --input-shape ${{ matrix.params.input-shape }} --tile-shape ${{ matrix.params.tile-shape }} ${{ matrix.buffering }} --defaultMemLevel=${{ matrix.defaultMemLevel }} --node-count ${{ matrix.params.node-count }} --type ${{ matrix.params.type }} -DNUM_CORES=8
-        shell: bash
-
-  deeploy-test-pulp-dma-cluster-dma:
-    strategy:
-      matrix:
-        params:
-          - input-shape: "10 10 10"
-            tile-shape: "2 3 4"
-            node-count: 1
-            type: "uint8_t"
-          - input-shape: "10 10 10 10"
-            tile-shape: "2 3 5 4"
-            node-count: 1
-            type: "uint8_t"
-          - input-shape: "10 10 10 10 10"
-            tile-shape: "2 3 5 7 4"
-            node-count: 1
-            type: "uint8_t"
-        buffering: ["--doublebuffer", ""]
-    runs-on: ${{ needs.select-docker-image-and-runner.outputs.runner }}
-    needs: select-docker-image-and-runner
-    container:
-      image: ${{ needs.select-docker-image-and-runner.outputs.image }}
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Build Deeploy
-        run: pip install -e .
-      - name: Run Test
-        run: |
-          cd DeeployTest
-          python testPulpDma.py -t testPulpDma --input-shape ${{ matrix.params.input-shape }} --tile-shape ${{ matrix.params.tile-shape }} ${{ matrix.buffering }} --defaultMemLevel=L2 --node-count ${{ matrix.params.node-count }} --type ${{ matrix.params.type }} -DNUM_CORES=8
+          python testPulpDma.py
         shell: bash
 
   linting:
