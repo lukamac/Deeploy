@@ -23,36 +23,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from abc import abstractmethod
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar
+from typing import List, Tuple, TypeVar
 
-import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
-from Deeploy.AbstractDataTypes import Immediate, PointerClass
+import numpy as np
+
 from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureExecutionBlock
 from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransformation import \
     IntrospectiveCodeTransformationMixIn
 from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import ArgumentStructGeneration
-from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ConstantBuffer, ExecutionBlock, \
-    NetworkContext, NodeTemplate, OperatorRepresentation, _NoVerbosity
+from Deeploy.DeeployTypes import CodeGenVerbosity, CodeTransformationPass, ExecutionBlock, NetworkContext, \
+    NodeTemplate, OperatorRepresentation, VariableBuffer, _NoVerbosity
+from Deeploy.TilingExtension.CodeTransformationPasses.TilingHoistingMixIn import TilingHoistingMixIn
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingPrototypes import PrototypeTilingMixIn
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint, TensorMemoryConstraint
-from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme, minimizeVariableReplacement
-
-KT = TypeVar('KT')
-VT = TypeVar('VT')
-
-
-def dictOfArrays(arrayOfDicts: Sequence[Mapping[KT, VT]]) -> Mapping[KT, List[VT]]:
-    ret: Mapping[KT, List[VT]] = {}
-    for i, _dict in enumerate(arrayOfDicts):
-        if i == 0:
-            ret.update({key: [value] for key, value in _dict.items()})
-        else:
-            assert set(ret.keys()) == set(_dict.keys()), "Keys should be the same"
-            for key, value in _dict.items():
-                ret[key].append(value)
-    return ret
-
+from Deeploy.TilingExtension.TilingCodegen import HyperRectangle, TilingSchedule, VariableReplacementScheme, \
+    minimizeRectangle, minimizeVariableReplacement
 
 T = TypeVar('T')
 
@@ -69,150 +56,118 @@ def transposeListOfLists(listOfLists: List[List[T]]) -> List[List[T]]:
     return transposedListOfLists
 
 
-class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn, PrototypeTilingMixIn):
-
-    def __init__(self, targetMemLevel: str):
-        self.targetMemLevel = targetMemLevel
-        self.argStructGeneration = ArgumentStructGeneration()
+class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformationMixIn, PrototypeTilingMixIn,
+                           TilingHoistingMixIn):
 
     @abstractmethod
     def generateTilingLoop(
             self, ctxt: NetworkContext, executionBlock: ExecutionBlock, nodeMemoryConstraint: NodeMemoryConstraint,
-            tilingSchedule: TilingSchedule, variableReplacement: VariableReplacementScheme,
+            tilingSchedules: List[TilingSchedule], variableReplacement: VariableReplacementScheme,
             operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, ExecutionBlock, bool]:
 
         return ctxt, executionBlock, False
 
+    def __init__(self, targetMemLevel: str):
+        self.targetMemLevel = targetMemLevel
+        self.argStructGeneration = ArgumentStructGeneration()
+        TilingHoistingMixIn.__init__(self, targetMemLevel)
+
     # SCHEREMO: internalPtr refers to the HIGHER memory level of a transfer,
     # e.g. in both an L2 -> L1 and L1 -> L2 transfer, the internalPtr is in L1.
-    @staticmethod
-    def isFinalMemoryLevel(tensorMemoryConstraint: TensorMemoryConstraint, memory: str) -> bool:
+    def isFinalMemoryLevel(self, tensorMemoryConstraint: TensorMemoryConstraint) -> bool:
         memoryOrder = list(tensorMemoryConstraint.memoryConstraints.keys())
-        assert memory in memoryOrder, f"Memory {memory} does not exist in the tensor memory constraint {tensorMemoryConstraint}"
+        assert self.targetMemLevel in memoryOrder, f"Memory {self.targetMemLevel} does not exist in the tensor memory constraint {tensorMemoryConstraint}"
         if len(memoryOrder) < 2:
             return True
-        return memory in memoryOrder[:2]
+        return self.targetMemLevel in memoryOrder[:2]
 
-    def _hoistTileIdxPtr(self,
-                         ctxt: NetworkContext,
-                         operatorRepresentation: OperatorRepresentation,
-                         sourceMemoryLevel: str = "L2") -> str:
+    @staticmethod
+    def padShape(shape: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+        assert rank >= len(
+            shape), f"Cannot pad to rank smaller then shape's. Received rank: {rank}, shape rank: {len(shape)}"
+        ret = tuple([1] * (rank - len(shape))) + shape
+        assert len(ret) == rank
+        return ret
 
-        newPtrName = self.prefix + operatorRepresentation['nodeName'] + "_tileIdxPtr"
+    @staticmethod
+    def padOffset(offset: Tuple[int, ...], rank: int) -> Tuple[int, ...]:
+        assert rank >= len(
+            offset), f"Cannot pad to rank smaller then offset's. Received rank: {rank}, offset rank: {len(offset)}"
+        ret = tuple([0] * (rank - len(offset))) + offset
+        assert len(ret) == rank
+        return ret
 
-        tilePtrBuffer = ctxt.VariableBuffer(newPtrName, shape = [1])
-        ctxt.add(tilePtrBuffer, "local")
+    @staticmethod
+    def padStride(stride: Tuple[int, ...], rank: int, paddingStride: int) -> Tuple[int, ...]:
+        assert rank >= len(
+            stride), f"Cannot pad to rank smaller then stride's. Received rank: {rank}, stride rank: {len(stride)}"
+        ret = tuple([paddingStride] * (rank - len(stride))) + stride
+        assert len(ret) == rank
+        return ret
 
-        _type = ctxt.lookup(self.prefix + operatorRepresentation['nodeName'] + "_numTiles")._type
+    # TODO: Not super sure this should go here. It could be shared, but it seems a little bit too specific
+    # with the `isFinalMemory` thing.
+    def _legalizeTransfers(self, transfers: List[HyperRectangle], outerShape: Tuple[int, ...], typeWidth: int,
+                           isFinalMemoryLevel: bool) -> Tuple[List[HyperRectangle], Tuple[int, ...]]:
+        transfersCommonRank = max(len(rect.dims) for rect in transfers)
+        commonRank = max(transfersCommonRank, len(outerShape))
+        outerShape = self.padShape(outerShape, commonRank)
 
-        tilePtrBuffer._type = _type
-        tilePtrBuffer._instance = tilePtrBuffer._type(newPtrName, ctxt)
-        tilePtrBuffer._memoryLevel = sourceMemoryLevel
+        minOuterShape = None
 
-        tilePtrBuffer.allocTemplate = NodeTemplate("")
-        tilePtrBuffer.deallocTemplate = NodeTemplate("")
-        tilePtrBuffer.initTemplate = NodeTemplate("""
-        ${type.referencedType.typeName} bu_${name} = 0;
-        ${type.referencedType.typeName}* ${name} = &bu_${name};""")
-
-        return newPtrName
-
-    def _hoistValues(self, ctxt: NetworkContext, name: str, values: List[int], nodeName: str) -> ConstantBuffer:
-        cb = ctxt.ConstantBuffer(name, [len(values)], values)
-        ctxt.add(cb, 'global')
-        cb._type = PointerClass(BasicDataTypes.minimalIntegerType(values))
-        cb._instance = cb._type(cb.name, ctxt)
-        cb._memoryLevel = self.targetMemLevel
-        cb._users.append(nodeName)
-        return cb
-
-    def _hoistNumTiles(self,
-                       ctxt: NetworkContext,
-                       nodeName: str,
-                       tilingSchedules: List[TilingSchedule],
-                       sourceMemoryLevel: str = "L2") -> str:
-        stepsNumTiles = [len(tilingSchedule.outputLoadSchedule) for tilingSchedule in tilingSchedules]
-
-        cumulativeNumTiles = [0]
-        for numTiles in stepsNumTiles:
-            cumulativeNumTiles.append(cumulativeNumTiles[-1] + numTiles)
-
-        cb = self._hoistValues(ctxt, f"{self.prefix}{nodeName}_numTiles", cumulativeNumTiles, nodeName)
-
-        return cb.name
-
-    def _hoistOpReprUpdates(self,
-                            ctxt: NetworkContext,
-                            opReprs: List[OperatorRepresentation],
-                            nodeName: str,
-                            prefix: str = '') -> OperatorRepresentation:
-        # Early exit if the opReprs list is empty because the following code assumes at least 1 opRepr is in the list
-        if len(opReprs) == 0:
-            return {}
-
-        newOpRepr = {}
-        for var, updates in dictOfArrays(opReprs).items():
-            if all(update == updates[0] for update in updates):
-                newOpRepr[var] = updates[0]
-            elif isinstance(updates[0], (list, tuple)):
-                newVarList = []
-                for i, values in enumerate(transposeListOfLists(updates)):
-                    if all(value == values[0] for value in values):
-                        newVarList.append(values[0])
-                    else:
-                        cb = self._hoistValues(ctxt, f"{prefix}{var}_{i}", values, nodeName)
-                        newVarList.append(cb.name)
-                newOpRepr[var] = newVarList
-            else:
-                cb = self._hoistValues(ctxt, f"{prefix}{var}", updates, nodeName)
-                newOpRepr[var] = cb.name
-        return newOpRepr
-
-    def _hoistConstantAndReference(self,
-                                   ctxt: NetworkContext,
-                                   constBuf: ConstantBuffer,
-                                   operatorRepresentation: OperatorRepresentation,
-                                   nodeName: str,
-                                   operatorRepresentationName: str,
-                                   immediateType: Optional[Type[Immediate]] = None) -> Tuple[NetworkContext, Dict]:
-
-        if immediateType is None:
-            _type = PointerClass(BasicDataTypes.int32_t)
+        if isFinalMemoryLevel:
+            minimizedTransfers = []
+            for rect in transfers:
+                paddedRect = HyperRectangle(self.padOffset(rect.offset, commonRank),
+                                            self.padShape(rect.dims, commonRank))
+                minRect, newMinOuterShape = minimizeRectangle(paddedRect, outerShape)
+                if minOuterShape is None:
+                    minOuterShape = newMinOuterShape
+                else:
+                    if minOuterShape != newMinOuterShape:
+                        rectStr = "\n".join(str(trans) for trans in transfers[:transfers.index(rect)])
+                        raise RuntimeError(f"""Currently support a single minimal outer shape.
+Old minOuterShape: {minOuterShape} vs. new minOuterShape {newMinOuterShape}.
+New minOuterShape produced by outerDims: {outerShape} and rect: {rect}.
+Old minOuterShape produced by outerDims: {outerShape} and rects:
+{rectStr}""")
+                minimizedTransfers.append(minRect)
         else:
-            _type = PointerClass(immediateType)
+            minimizedTransfers = [HyperRectangle((0,), (int(np.prod(rect.dims)),)) for rect in transfers]
+            minOuterShape = (int(np.prod(outerShape)),)
 
-        name = constBuf.name
+        if minOuterShape is not None:
+            outerShape = minOuterShape
+        transfers = minimizedTransfers
 
-        ctxt.add(constBuf, "global")
-        constBuf._type = _type
-        constBuf._instance = constBuf._type(name, ctxt)
-        constBuf._users = [nodeName]
-        constBuf._memoryLevel = self.targetMemLevel
+        def sizeInBytes(length: int, typeWidth: int) -> int:
+            return int(np.ceil((length * typeWidth) / 8))
 
-        ref = ctxt.hoistReference(name + "_ref", constBuf)
-        ref._memoryLevel = self.targetMemLevel
+        outerShape = outerShape[:-1] + (sizeInBytes(outerShape[-1], typeWidth),)
 
-        operatorRepresentation[operatorRepresentationName] = ref.name
+        inBytesTransfers = []
+        for rect in transfers:
+            newOffset = rect.offset[:-1] + (sizeInBytes(rect.offset[-1], typeWidth),)
+            newDims = rect.dims[:-1] + (sizeInBytes(rect.dims[-1], typeWidth),)
+            inBytesTransfers.append(HyperRectangle(newOffset, newDims))
+        transfers = inBytesTransfers
 
-        return ctxt, operatorRepresentation
+        return transfers, outerShape
+
+    def _tileTemplate(self, ctxt: NetworkContext, perTileOpReprs: List[OperatorRepresentation], template: NodeTemplate,
+                      tileIdxVar: str, prefix: str) -> Tuple[NodeTemplate, OperatorRepresentation]:
+        opRepr, hoistedNames = self._hoistOpReprUpdates(ctxt, perTileOpReprs, prefix)
+        if len(hoistedNames) > 0:
+            template = copy.deepcopy(template)
+            self.indexVars(template.template, hoistedNames, "tileIdxVar")
+            opRepr["tileIdxVar"] = tileIdxVar
+        return template, opRepr
 
     def apply(self,
               ctxt: NetworkContext,
               executionBlock: ExecutionBlock,
               name: str,
               verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-
-        def unravelReference(ctxt: NetworkContext, name: str) -> str:
-
-            if name not in ctxt.localObjects.keys() and name not in ctxt.globalObjects.keys():
-                return name
-
-            refBuffer = ctxt.lookup(name)
-            if not hasattr(refBuffer, "_referenceName"):
-                return name
-
-            return unravelReference(ctxt, refBuffer._referenceName)
-
         if isinstance(executionBlock, ClosureExecutionBlock):
             baseExecutionBlock = executionBlock.baseBlock
         else:
@@ -236,20 +191,21 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
 
         templateNode = possibleTemplateNodes[0]
 
+        self._initPrefix(templateNode.operatorRepresentation['nodeName'])
+
         operatorRepresentation = templateNode.operatorRepresentation
-        unravelRep = operatorRepresentation.copy()
-        for key in unravelRep.keys():
 
-            val = unravelRep[key]
-            if not isinstance(val, str):
-                continue
-
-            unravelRep[key] = unravelReference(ctxt, val)
+        unraveledOpRepr = operatorRepresentation.copy()
+        for key, value in unraveledOpRepr.items():
+            if ctxt.is_buffer(value):
+                buffer = ctxt.lookup(value)
+                assert isinstance(buffer, VariableBuffer)
+                unraveledOpRepr[key] = ctxt.unravelReference(buffer).name
 
         template = templateNode.template
 
         variableReplacement, tilingSchedules = template.tileConstraint.wrapTilingSolution(
-            nodeMemoryConstraint, self.targetMemLevel, ctxt, unravelRep)
+            nodeMemoryConstraint, self.targetMemLevel, ctxt, unraveledOpRepr)
 
         minimalVariableReplacement, newNodeRep = minimizeVariableReplacement(variableReplacement,
                                                                              templateNode.operatorRepresentation)
@@ -261,5 +217,7 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
                                                                    operatorRepresentation)
         if applicable:
             ctxt, executionBlock = self.argStructGeneration.apply(ctxt, executionBlock, name)
+
+        self._deinitPrefix()
 
         return ctxt, executionBlock

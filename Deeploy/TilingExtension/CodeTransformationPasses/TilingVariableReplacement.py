@@ -24,32 +24,25 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, List, Tuple, Type
+import itertools
+from typing import Tuple
 
-from mako.parsetree import Expression, Node, Text
-
-from Deeploy.AbstractDataTypes import Pointer, Struct
+from Deeploy.AbstractDataTypes import Struct
 from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureExecutionBlock
 from Deeploy.CommonExtensions.CodeTransformationPasses.IntrospectiveCodeTransformation import \
     IntrospectiveCodeTransformationMixIn
 from Deeploy.DeeployTypes import CodeGenVerbosity, CodeSnippet, CodeTransformationPass, ExecutionBlock, \
-    NetworkContext, NodeTemplate, OperatorRepresentation, TransientBuffer, VariableBuffer, _NoVerbosity, \
-    _ReferenceBuffer
+    NetworkContext, NodeTemplate, OperatorRepresentation, TransientBuffer, VariableBuffer, _NoVerbosity
+from Deeploy.TilingExtension.CodeTransformationPasses.TilingHoistingMixIn import TilingHoistingMixIn
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule, VariableReplacementScheme, minimizeVariableReplacement
 
 
-class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransformationMixIn):
-
-    _prefix = "TILING_REPLACED_"
+class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransformationMixIn, TilingHoistingMixIn):
 
     def __init__(self, targetMemLevel: str):
         self.targetMemLevel = targetMemLevel
-        self._name: str
-
-    @property
-    def prefix(self):
-        return self._prefix + f"{self._name}_" + self.targetMemLevel + "_"
+        TilingHoistingMixIn.__init__(self, targetMemLevel)
 
     @property
     def arenaName(self):
@@ -62,101 +55,60 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
         buffer.deallocTemplate = NodeTemplate("")
         return buffer
 
-    def _dereferencePointer(self, nodes: List[Node], name: str) -> List[Node]:
-        instanceIdxs = [idx for idx, node in enumerate(nodes) if isinstance(node, Expression) and node.text == name]
-
-        for offset, idx in enumerate(instanceIdxs):
-            text = Text("*", source = "*", lineno = 0, pos = 0, filename = None)
-            nodes.insert(offset + idx, text)
-
-        return nodes
-
-    def _hoistAndReferenceValues(self, ctxt: NetworkContext, name: str, values: List[int],
-                                 _type: Type[Pointer]) -> _ReferenceBuffer:
-        cb = ctxt.ConstantBuffer(name, (len(values),), values)
-        cb._type = _type
-        ctxt.add(cb, 'global')
-        cb._instance = cb._type(cb.name, ctxt)
-        cb._memoryLevel = self.targetMemLevel
-
-        ref = ctxt.hoistReference(name + "_ref", cb)
-        ref._memoryLevel = self.targetMemLevel
-        return ref
-
-    def _replaceReference(self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
-                          tilingSchedule: TilingSchedule, name: str) -> Tuple[NetworkContext, Dict]:
-        if name in tilingSchedule.inputBaseOffsets:
-            offset = tilingSchedule.inputBaseOffsets[name][0]
-        elif name in tilingSchedule.outputBaseOffsets:
-            offset = tilingSchedule.outputBaseOffsets[name][0]
-        else:
-            raise RuntimeError(f"Name {name} not found in TilingSchedule {tilingSchedule}")
-
-        buffer = ctxt.lookup(operatorRepresentation[name])
-        unraveledBuffer = ctxt.unravelReference(buffer)
-
-        ref = ctxt.hoistReference(self.prefix + name + "_ref", unraveledBuffer)
-        ref._memoryLevel = self.targetMemLevel
-        ref = self._arenaAllocate(ctxt, ref, offset)
-        operatorRepresentation[name] = ref.name
-
-        return ctxt, operatorRepresentation
-
-    def _replaceTransients(self, ctxt: NetworkContext, tensorName: str,
+    def _replaceTransients(self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
                            nodeMemoryConstraint: NodeMemoryConstraint) -> NetworkContext:
-        memoryConstraints = nodeMemoryConstraint.tensorMemoryConstraints[tensorName].memoryConstraints
-        assert len(memoryConstraints) == 1, f"Tiled transient buffer {tensorName} has more than one memory level!"
-        key = list(memoryConstraints.keys())[0]
-        constraint = memoryConstraints[key]
-        assert constraint.addrSpace is not None, f"Address space of {constraint} cannot be None!"
-        offset = constraint.addrSpace[0]
+        for value in operatorRepresentation.values():
+            if not (isinstance(value, str) and ctxt.is_local(value)):
+                continue
 
-        ref = ctxt.lookup(tensorName)
+            buffer = ctxt.lookup(value)
 
-        if ref._memoryLevel != self.targetMemLevel:
-            return ctxt
+            if not (isinstance(buffer, TransientBuffer) and buffer._memoryLevel == self.targetMemLevel):
+                continue
 
-        _ = self._arenaAllocate(ctxt, ref, offset)
+            memoryConstraints = nodeMemoryConstraint.tensorMemoryConstraints[buffer.name].memoryConstraints
+            assert len(memoryConstraints) == 1, f"Tiled transient buffer {buffer.name} has more than one memory level!"
+            constraint = next(iter(memoryConstraints.values()))
+            assert constraint.addrSpace is not None, f"Address space of {constraint} cannot be None!"
+            offset = constraint.addrSpace[0]
+            self._arenaAllocate(ctxt, buffer, offset)
+
         return ctxt
 
-    def _replaceTiledExpressions(self, ctxt: NetworkContext, snippet: CodeSnippet,
-                                 variableReplacement: VariableReplacementScheme, tilingSchedule: TilingSchedule,
-                                 nodeMemoryConstraint: NodeMemoryConstraint) -> NetworkContext:
-
+    def _replaceVariableReplacements(self, ctxt: NetworkContext, snippet: CodeSnippet,
+                                     variableReplacement: VariableReplacementScheme) -> NetworkContext:
         operatorRepresentation = snippet.operatorRepresentation
         template = snippet.template
 
-        inoutSchedule = {**tilingSchedule.inputBaseOffsets, **tilingSchedule.outputBaseOffsets}
-        variableList = [key for key in inoutSchedule.keys() if type(operatorRepresentation[key]) == str]
+        replacedVars = []
 
-        transientBufferList = []
-        for key, value in operatorRepresentation.items():
-            if not isinstance(value, str):
+        for name, values in variableReplacement.perTileReplacements.items():
+            # Case where we have already replaced the variable
+            if isinstance(operatorRepresentation[name], str):
                 continue
-            if (ctxt.is_local(value) and isinstance(ctxt.lookup(value), TransientBuffer)):
-                transientBufferList.append(key)
+            _type = variableReplacement.replacementTypes[name]
+            buff = self._hoistValues(ctxt, name, values, _type.referencedType)
+            ref = self._hoistReference(ctxt, name + "_ref", buff)
+            operatorRepresentation[name] = ref.name
+            replacedVars.append(name)
 
-        parseTree = IntrospectiveCodeTransformationMixIn._generateParseTree(template)
-        newParseTree = copy.copy(parseTree)
-        nodes = parseTree.nodes
-        newNodes = copy.copy(nodes)
+        self.dereferenceVars(template.template, replacedVars)
 
-        for varName, varReplacementValues in variableReplacement.perTileReplacements.items():
-            if isinstance(operatorRepresentation[varName], str):
-                continue
-            ref = self._hoistAndReferenceValues(ctxt, self.prefix + varName, varReplacementValues,
-                                                variableReplacement.replacementTypes[varName])
-            operatorRepresentation[varName] = ref.name
-            newNodes = self._dereferencePointer(newNodes, varName)
+        return ctxt
 
-        for rep in variableList:
-            ctxt, operatorRepresentation = self._replaceReference(ctxt, operatorRepresentation, tilingSchedule, rep)
+    def _replaceTiledTensors(self, ctxt: NetworkContext, snippet: CodeSnippet,
+                             tilingSchedule: TilingSchedule) -> NetworkContext:
+        operatorRepresentation = snippet.operatorRepresentation
 
-        for rep in transientBufferList:
-            ctxt = self._replaceTransients(ctxt, operatorRepresentation[rep], nodeMemoryConstraint)
+        for name, offsets in itertools.chain(tilingSchedule.inputBaseOffsets.items(),
+                                             tilingSchedule.outputBaseOffsets.items()):
+            buffer = ctxt.lookup(operatorRepresentation[name])
+            assert isinstance(buffer, VariableBuffer)
+            unraveledBuffer = ctxt.unravelReference(buffer)
 
-        newParseTree.nodes = newNodes
-        IntrospectiveCodeTransformationMixIn._reconstructCode(template, newParseTree)
+            ref = self._hoistReference(ctxt, name + "_ref", unraveledBuffer)
+            ref = self._arenaAllocate(ctxt, ref, offsets[0])
+            operatorRepresentation[name] = ref.name
 
         return ctxt
 
@@ -165,7 +117,7 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
               executionBlock: ExecutionBlock,
               name: str,
               verbose: CodeGenVerbosity = _NoVerbosity) -> Tuple[NetworkContext, ExecutionBlock]:
-        self._name = name
+        self._initPrefix(name)
 
         if isinstance(executionBlock, ClosureExecutionBlock):
             baseExecutionBlock = executionBlock.baseBlock
@@ -182,21 +134,18 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
 
         nodeMemoryConstraint = patternMemoryConstraint.nodeConstraints[0]
 
-        possibleTemplateNodes = [
+        possibleSnippets = [
             node for node in baseExecutionBlock.codeSnippets if hasattr(node.template, 'tileConstraint')
         ]
 
-        assert len(possibleTemplateNodes) == 1, "More than one template node with TCF found"
+        assert len(possibleSnippets) == 1, "More than one template node with TCF found"
 
-        templateNode = possibleTemplateNodes[0]
-        operatorRepresentation = templateNode.operatorRepresentation
-        template = templateNode.template
-
-        def is_buffer(value: Any) -> bool:
-            return isinstance(value, str) and (ctxt.is_local(value) or ctxt.is_global(value))
+        snippet = possibleSnippets[0]
+        operatorRepresentation = snippet.operatorRepresentation
+        template = snippet.template
 
         unraveledOpRepr = {
-            key: ctxt.unravelReference(ctxt.lookup(value)).name if is_buffer(value) else value
+            key: ctxt.unravelReference(ctxt.lookup(value)).name if ctxt.is_buffer(value) else value
             for key, value in operatorRepresentation.items()
         }
 
@@ -204,15 +153,15 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
             nodeMemoryConstraint, self.targetMemLevel, ctxt, unraveledOpRepr)
 
         minimalVariableReplacement, newOpRepr = minimizeVariableReplacement(variableReplacement, operatorRepresentation)
-        for key, value in newOpRepr.items():
-            templateNode.operatorRepresentation[key] = value
+        operatorRepresentation.update(newOpRepr)
 
         flatTilingSchedule = copy.copy(tilingSchedules[0])
         for tilingSchedule in tilingSchedules[1:]:
             flatTilingSchedule += tilingSchedule
 
-        ctxt = self._replaceTiledExpressions(ctxt, templateNode, minimalVariableReplacement, flatTilingSchedule,
-                                             nodeMemoryConstraint)
+        ctxt = self._replaceVariableReplacements(ctxt, snippet, minimalVariableReplacement)
+        ctxt = self._replaceTiledTensors(ctxt, snippet, flatTilingSchedule)
+        ctxt = self._replaceTransients(ctxt, operatorRepresentation, nodeMemoryConstraint)
 
         tilingReplacedRefMap = {}
         for key in list(flatTilingSchedule.inputBaseOffsets.keys()) + list(flatTilingSchedule.outputBaseOffsets.keys()):
@@ -233,5 +182,7 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
                 for key, value in structDict.items():
                     if value.referenceName in tilingReplacedRefMap:
                         structDict[key] = type(value)(tilingReplacedRefMap[value.referenceName], ctxt)
+
+        self._deinitPrefix()
 
         return ctxt, executionBlock
