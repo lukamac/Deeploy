@@ -118,7 +118,8 @@ class NodeTemplate():
 
         """
         self.template = _Template(templateStr, strict_undefined = True)
-        self.subTemplates = {}
+        self.subTemplates: Dict[str, Tuple[NodeTemplate, Callable[[NetworkContext, OperatorRepresentation],
+                                                                  Tuple[NetworkContext, OperatorRepresentation]]]] = {}
         self.subTemplateGenerators = {}
 
     def internalSize(self) -> int:
