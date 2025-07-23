@@ -26,13 +26,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Generator, List, Optional, Sequence, Tuple, Type
+from typing import Dict, Generator, List, Sequence, Tuple, Type
 
 import numpy as np
 
 from Deeploy.AbstractDataTypes import Pointer
 from Deeploy.DeeployTypes import OperatorRepresentation, VariableBuffer
-from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint
 
 
 @dataclass
@@ -291,11 +291,11 @@ def minimizeRectangle(rect: HyperRectangle, referenceShape: Sequence[int]) -> Tu
     return HyperRectangle(tuple(minRectOffset), tuple(minRectShape)), tuple(minReferenceShape)
 
 
-def stridesFromShape(shape: Sequence[int]) -> List[int]:
+def stridesFromShape(shape: Sequence[int]) -> Tuple[int, ...]:
     strides = [1] * len(shape)
     for idx, dim in enumerate(reversed(shape[1:])):
         strides[idx + 1] = strides[idx] * dim
-    return list(reversed(strides))
+    return tuple(reversed(strides))
 
 
 def calculateFlatOffset(offsets: Sequence[int], strides: Sequence[int]) -> int:
@@ -308,32 +308,6 @@ def calculateFlatOffsetInBytes(tile: HyperRectangle, referenceBuffer: VariableBu
     return int(
         calculateFlatOffset(tile.offset, stridesFromShape(referenceBuffer.shape)) *
         (referenceBuffer._type.referencedType.typeWidth // 8))
-
-
-def extractTilingTransfer(tilingSolution: NodeMemoryConstraint, targetMemLevel: str,
-                          tensorName: str) -> Optional[MemoryTransfer]:
-
-    for name, constraint in tilingSolution.tensorMemoryConstraints.items():
-        if not name == tensorName:
-            continue
-
-        sourceIdx = 0
-
-        for idx, memConstraint in enumerate(constraint.memoryConstraints.values()):
-            if memConstraint.memoryLevel != targetMemLevel:
-                continue
-
-            sourceIdx = idx
-            targetIdx = idx - 1
-
-            if sourceIdx == 0:
-                return None
-
-            return MemoryTransfer(
-                list(constraint.memoryConstraints.values())[targetIdx],
-                list(constraint.memoryConstraints.values())[sourceIdx])
-
-    raise RuntimeError(f"{tensorName} not found in tilingSolution!")
 
 
 def computeTileHyperRectangles(memoryTransfer: MemoryTransfer) -> List[HyperRectangle]:
