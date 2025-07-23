@@ -119,8 +119,6 @@ _DMAUpdate = namedtuple("_DMAUpdate", "dst src size dst_stride src_stride repeat
 
 class SnitchClusterTilingSB(TilingCodeGeneration):
 
-    _prefix = "TILING_REPLACED_"
-
     _openTileLoopTemplate = _openTileLoopTemplate
     _closeTileLoopTemplate = _closeTileLoopTemplate
 
@@ -134,15 +132,10 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
     _updateDMATransferStructTemplate = _updateDMATransferStructTemplate
     _updateReferenceTemplate = _updateReferenceTemplate
 
-    @property
-    def prefix(self):
-        return self._prefix + self.targetMemLevel + "_"
+    def _DMAStructName(self, tensorName: str) -> str:
+        return f"{self.prefix}{tensorName}_DMA"
 
-    def _DMAStructName(self, tensorName: str, nodeName: str) -> str:
-        return f"{self.prefix}_DMA_{nodeName}_{tensorName}"
-
-    @classmethod
-    def _generatePointerUpdates(cls, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
+    def _generatePointerUpdates(self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation,
                                 loadSchedule: List[Dict[str,
                                                         HyperRectangle]], nodeMemoryConstraint: NodeMemoryConstraint,
                                 tilingSchedule: TilingSchedule) -> Dict[str, _DMAUpdate]:
@@ -166,13 +159,13 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
 
                 referenceBuffer = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
                 l1Buffer = ctxt.lookup(operatorRepresentation[key])
+                assert l1Buffer._memoryLevel == self.targetMemLevel
 
                 tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[l1Buffer._referenceName]
-                finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(tensorMemoryConstraint,
-                                                                           l1Buffer._memoryLevel)
+                finalMemoryLevel = self.isFinalMemoryLevel(tensorMemoryConstraint)
 
-                struct = cls._rectToDMAStruct(ctxt, rect, direction, l1Buffer.name, l1Buffer._referenceName,
-                                              finalMemoryLevel)
+                struct = self._rectToDMAStruct(ctxt, rect, direction, l1Buffer.name, l1Buffer._referenceName,
+                                               finalMemoryLevel)
                 accOffset = calculateRectangleOffset(rect, referenceBuffer)
 
                 lIdx = idx % len(baseOffsets)
@@ -245,23 +238,21 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
 
         operatorRepresentation = operatorRepresentation.copy()
 
-        nodeName = operatorRepresentation['nodeName']
-
         dstList = []
         srcList = []
         sizeList = []
         dstStrideList = []
-        srcStideList = []
+        srcStrideList = []
         repeatList = []
         for update in updateList:
             dstList.append(int(update.dst))
             srcList.append(int(update.src))
             sizeList.append(int(update.size))
             dstStrideList.append(int(update.dst_stride))
-            srcStideList.append(int(update.src_stride))
+            srcStrideList.append(int(update.src_stride))
             repeatList.append(int(update.repeat))
 
-        dmaName = self._DMAStructName(tensorName, nodeName)
+        dmaName = self._DMAStructName(tensorName)
 
         operatorRepresentation['stateReference'] = dmaName
         operatorRepresentation['tileNum'] = "TILING_I"
@@ -281,41 +272,25 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
             # dstOffsetList = [0] + [sum(sizeList[:i+1]) for i in range(0, len(sizeList)-1)]
             srcOffsetList = [0] * len(updateList)
 
-        namePrefix = self.prefix + f"{nodeName}_{tensorName}"
+        tensorUpdatesMap = {
+            "dst_offset": (dstOffsetList, None),
+            "dst_stride": (dstStrideList, Snitch_DMA_copy.structTypeDict['dst_stride']),
+            "src_offset": (srcOffsetList, None),
+            "src_stride": (srcStrideList, Snitch_DMA_copy.structTypeDict['src_stride']),
+            "size": (sizeList, Snitch_DMA_copy.structTypeDict['size']),
+            "repeat": (repeatList, Snitch_DMA_copy.structTypeDict['repeat']),
+        }
 
-        name = namePrefix + "_dst_offset"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], dstOffsetList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'dstOffsetPtr')
+        def reprPtrName(snake_case_name: str) -> str:
+            substrings = snake_case_name.split("_")
+            lowerCamelCaseName = "".join([substrings[0]] + [x.capitalize() for x in substrings[1:]])
+            return lowerCamelCaseName + "Ptr"
 
-        name = namePrefix + "_src_offset"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], srcOffsetList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'srcOffsetPtr')
-
-        name = namePrefix + "_size"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], sizeList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'sizePtr',
-                                                                       Snitch_DMA_copy.structTypeDict['size'])
-
-        name = namePrefix + "_dst_stride"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], dstStrideList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'dstStridePtr',
-                                                                       Snitch_DMA_copy.structTypeDict['dst_stride'])
-
-        name = namePrefix + "_src_stride"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], srcStideList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'srcStridePtr',
-                                                                       Snitch_DMA_copy.structTypeDict['src_stride'])
-
-        name = namePrefix + "_repeat"
-        cb = ctxt.ConstantBuffer(name, [len(updateList)], repeatList)
-        ctxt, operatorRepresentation = self._hoistConstantAndReference(ctxt, cb, operatorRepresentation, nodeName,
-                                                                       'repeatPtr',
-                                                                       Snitch_DMA_copy.structTypeDict['repeat'])
+        for name, (values, override_type) in tensorUpdatesMap.items():
+            hoistName = f"{tensorName}_{name}"
+            cb = self._hoistValues(ctxt, hoistName, values, override_type)
+            ref = self._hoistReference(ctxt, hoistName + "_ref", cb)
+            operatorRepresentation[reprPtrName(name)] = ref.name
 
         return ctxt, operatorRepresentation
 
@@ -389,22 +364,22 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
 
             externalPtr = ctxt.lookup(ctxt.lookup(operatorRepresentation[key])._referenceName)
             internalPtr = ctxt.lookup(operatorRepresentation[key])
+            assert internalPtr._memoryLevel == self.targetMemLevel
 
             tensorName = key
-            nodeName = operatorRepresentation['nodeName']
-            dmaName = self._DMAStructName(tensorName, nodeName)
+            dmaName = self._DMAStructName(tensorName)
 
             transferNodeRep = {
                 **transferNodeRep,
                 **{
-                    'innerTilePtr': str(internalPtr._instance),
-                    "outerTilePtr": str(externalPtr._instance),
+                    'innerTilePtr': internalPtr.name,
+                    "outerTilePtr": externalPtr.name,
                     "stateReference": dmaName
                 }
             }
 
             tensorMemoryConstraint = nodeMemoryConstraint.tensorMemoryConstraints[internalPtr._referenceName]
-            finalMemoryLevel = TilingCodeGeneration.isFinalMemoryLevel(tensorMemoryConstraint, internalPtr._memoryLevel)
+            finalMemoryLevel = self.isFinalMemoryLevel(tensorMemoryConstraint)
             struct = self._rectToDMAStruct(ctxt, rectangle, direction, internalPtr.name, externalPtr.name,
                                            finalMemoryLevel)
 
@@ -448,8 +423,6 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
                     variableReplacement: VariableReplacementScheme,
                     operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, ExecutionBlock, bool]:
 
-        tileIdxPtr = self._hoistTileIdxPtr(ctxt, operatorRepresentation)
-
         ingressDMATransferCalls, ingressDMAWaitStatements = self._generateIngressDMACode(
             tilingSchedule, nodeMemoryConstraint, ctxt, operatorRepresentation)
 
@@ -461,19 +434,9 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
         ctxt, egressDMAUpdates = self._generateEgressPointerUpdates(nodeMemoryConstraint, tilingSchedule, ctxt,
                                                                     operatorRepresentation)
 
-        openLoopStatement = [
-            CodeSnippet(self._openTileLoopTemplate, {
-                "numTiles": operatorRepresentation["numTiles"],
-                "tileIdxPtr": tileIdxPtr
-            })
-        ]
+        openLoopStatement = [CodeSnippet(self._openTileLoopTemplate, {**operatorRepresentation})]
 
-        closeLoopStatement = [
-            CodeSnippet(self._closeTileLoopTemplate, {
-                "numTiles": operatorRepresentation["numTiles"],
-                "tileIdxPtr": tileIdxPtr
-            })
-        ]
+        closeLoopStatement = [CodeSnippet(self._closeTileLoopTemplate, {**operatorRepresentation})]
 
         variableUpdates = self._generateVariableUpdates(tilingSchedule, variableReplacement, ctxt,
                                                         operatorRepresentation)
@@ -512,8 +475,9 @@ class SnitchClusterTilingSB(TilingCodeGeneration):
             if not len(offsetList) == 1:
                 return ctxt, executionBlock, False
 
-        operatorRepresentation["numTiles"] = self._hoistNumTiles(ctxt, operatorRepresentation['nodeName'],
-                                                                 tilingSchedules)
+        numTiles, tileIdxPtr = self._hoistTileNumAndIdxPtr(ctxt, tilingSchedules)
+        operatorRepresentation["numTiles"] = numTiles.name
+        operatorRepresentation["tileIdxPtr"] = tileIdxPtr.name
 
         return self._tilingLoop(ctxt, executionBlock, nodeMemoryConstraint, flatTilingSchedule, variableReplacement,
                                 operatorRepresentation)
