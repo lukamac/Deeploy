@@ -124,8 +124,8 @@ ForkTransformer = CodeTransformation([
     PULPProfileUntiled(),
     ArgumentStructGeneration(),
     L3MemoryAwareFunctionCallClosure(writeback = False),
-    MemoryManagementGeneration("L3.*"),
     MemoryManagementGeneration("L2"),
+    MemoryManagementGeneration("L3.*"),
     MemoryManagementGeneration(),
 ])
 
