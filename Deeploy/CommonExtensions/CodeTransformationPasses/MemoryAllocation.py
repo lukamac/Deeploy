@@ -154,7 +154,7 @@ class MemoryManagementGeneration(CodeTransformationPass, IntrospectiveCodeTransf
         return ctxt, executionBlock
 
 
-class MemoryPassthroughGeneration(MemoryManagementGeneration, IntrospectiveCodeTransformationMixIn):
+class MemoryPassthroughGeneration(MemoryManagementGeneration):
 
     def __init__(self, memoryHierarchyRegex: Optional[str] = None):
         super().__init__(memoryHierarchyRegex)
