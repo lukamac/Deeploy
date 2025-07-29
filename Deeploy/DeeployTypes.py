@@ -823,6 +823,22 @@ class NetworkContext():
         """
         return name in self.localObjects
 
+    def is_object(self, value: Any) -> bool:
+        """Checks whether a value is an existing object name
+
+        Parameters
+        ----------
+        value : Any
+            Value to check
+
+        Returns
+        -------
+        bool
+            Returns ture if the value is an existing buffer name
+
+        """
+        return isinstance(value, str) and (self.is_local(value) or self.is_global(value))
+
     def is_buffer(self, value: Any) -> bool:
         """Checks whether a value is an existing buffer name
 
@@ -837,9 +853,10 @@ class NetworkContext():
             Returns ture if the value is an existing buffer name
 
         """
-        if not isinstance(value, str):
+        if not self.is_object(value):
             return False
-        return self.is_local(value) or self.is_global(value)
+        obj = self.lookup(value)
+        return isinstance(obj, VariableBuffer)
 
     def hoistTransientBuffer(self, name: str, size: int) -> str:
         """Registers a new TransientBuffer in the local context
