@@ -1475,21 +1475,17 @@ class ExecutionBlock():
     def _mangleNodeRep(ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation) -> OperatorRepresentation:
         parseDict = {}
 
-        def should_mangle(bufferName: str) -> bool:
-            return (ctxt.is_local(bufferName) or ctxt.is_global(bufferName)) and \
-                not isinstance(ctxt.lookup(bufferName), GlobalDefinition)
-
         for key, value in operatorRepresentation.items():
             if isinstance(value, list):
                 valueList = value
                 newValue = []
                 for value in valueList:
-                    if isinstance(value, str) and should_mangle(value):
+                    if ctxt.is_buffer(value):
                         newValue.append(ctxt._mangle(value))
                     else:
                         newValue.append(value)
                 parseDict[key] = newValue
-            elif isinstance(value, str) and should_mangle(value):
+            elif ctxt.is_buffer(value):
                 parseDict[key] = ctxt._mangle(value)
             else:
                 parseDict[key] = value
