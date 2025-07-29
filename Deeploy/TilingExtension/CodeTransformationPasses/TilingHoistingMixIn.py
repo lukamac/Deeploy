@@ -1,9 +1,11 @@
-from typing import List, Mapping, Optional, Sequence, Tuple, Type, TypeVar
+import math
+from typing import List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
-from Deeploy.AbstractDataTypes import BaseType, PointerClass
+from Deeploy.AbstractDataTypes import BaseType, PointerClass, VoidType
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer, \
     _ReferenceBuffer
+from Deeploy.TilingExtension.MemoryConstraints import TensorMemoryConstraint
 from Deeploy.TilingExtension.TilingCodegen import TilingSchedule
 
 KT = TypeVar('KT')
@@ -59,9 +61,11 @@ class TilingHoistingMixIn:
     def _hoistReference(self,
                         ctxt: NetworkContext,
                         name: str,
-                        referencedBuffer: VariableBuffer,
+                        reference: VariableBuffer,
+                        shape: Tuple[int, ...] = (1,),
+                        offset: Union[int, str, VariableBuffer] = 0,
                         override_type: Optional[Type[BaseType]] = None) -> _ReferenceBuffer:
-        ref = ctxt.hoistReference(self.prefix + name, referencedBuffer, override_type)
+        ref = ctxt.hoistReference(self.prefix + name, reference, shape, offset, override_type)
         ref._memoryLevel = self.memory
         return ref
 

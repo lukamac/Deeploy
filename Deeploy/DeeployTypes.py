@@ -536,19 +536,33 @@ class _ReferenceBuffer(VariableBuffer):
     """Helper class to hoist references to pre-established pointers; this is used most frequently in tiling to express an offset with respect to input or output tensors
     """
 
-    allocTemplate = NodeTemplate("${type.typeName} ${name} = (${type.typeName}) ${referenceName};")
+    allocTemplate = NodeTemplate("""\\
+    % if offset is None:
+    ${type.typeName} ${name} = (${type.typeName}) ${referenceName};\\
+    % else:
+    ${type.typeName} ${name} = (${type.typeName}) ${referenceName} + ${offset};\\
+    % endif
+    """)
     deallocTemplate = NodeTemplate("")
     initTemplate = NodeTemplate("")
 
-    def __init__(self, name: str = '', shape = [1], reference: Optional[VariableBuffer] = None):
-        assert reference is not None, "Can't have a reference to None!"
+    def __init__(self,
+                 name: str,
+                 reference: VariableBuffer,
+                 shape: Tuple[int, ...] = (1,),
+                 offset: Optional[Union[int, str, VariableBuffer]] = None):
         super().__init__(name, shape)
         self._referenceName = reference.name
+        if isinstance(offset, VariableBuffer):
+            self._offset = offset.name
+        else:
+            self._offset = offset
 
     def _bufferRepresentation(self) -> Dict:
-        rep = super()._bufferRepresentation()
-        rep['referenceName'] = self._referenceName
-        return rep
+        repr = super()._bufferRepresentation()
+        repr['referenceName'] = self._referenceName
+        repr['offset'] = self._offset
+        return repr
 
 
 class NetworkContext():
@@ -918,7 +932,9 @@ class NetworkContext():
 
     def hoistReference(self,
                        name: str,
-                       referencedBuffer: VariableBuffer,
+                       reference: VariableBuffer,
+                       shape: Tuple[int, ...] = (1,),
+                       offset: Union[int, str, VariableBuffer] = 0,
                        override_type: Optional[Type[BaseType]] = None) -> _ReferenceBuffer:
         """Helper function to register a _ReferenceBuffer to preexisting VariableBuffer
 
@@ -937,11 +953,11 @@ class NetworkContext():
             Returns the newly registered _ReferenceBuffer
 
         """
-        ref = _ReferenceBuffer(name, reference = referencedBuffer)
+        ref = _ReferenceBuffer(name, reference, shape, offset)
         if override_type is not None:
             ref._type = PointerClass(override_type)
         else:
-            ref._type = referencedBuffer._type
+            ref._type = reference._type
         self.add(ref, 'local')
         ref._instance = ref._type(name, ctxt = self)
         return ref
