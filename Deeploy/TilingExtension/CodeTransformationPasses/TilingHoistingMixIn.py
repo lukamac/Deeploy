@@ -119,3 +119,37 @@ class TilingHoistingMixIn:
                 newOpRepr[var] = cb.name
                 hoistedReprNames.append(var)
         return newOpRepr, hoistedReprNames
+
+    def _hoistMultibufferReferences(self, ctxt: NetworkContext, buffer: VariableBuffer,
+                                    tensorMemoryConstraint: TensorMemoryConstraint) -> List[_ReferenceBuffer]:
+        tensorName = tensorMemoryConstraint.tensorName
+        memoryConstraint = tensorMemoryConstraint.memoryConstraints[self.memory]
+        assert memoryConstraint.addrSpace is not None, "Assuming address space is set"
+        totalSize = memoryConstraint.addrSpace[1] - memoryConstraint.addrSpace[0]
+        assert isinstance(memoryConstraint.multiBufferCoefficient,
+                          int), "Assuming multi buffer coefficient has been assigned"
+        assert totalSize % memoryConstraint.multiBufferCoefficient == 0, "Assuming total size is divisible by the multi buffer coefficient"
+        bufferSize = totalSize // memoryConstraint.multiBufferCoefficient
+
+        assert memoryConstraint.multiBufferCoefficient == 2, "Multi buffer coefficient has to be equal to 2 since this is for double buffering"
+        assert memoryConstraint.shape is not None
+        assert len(memoryConstraint.shape) > 0
+        assert isinstance(memoryConstraint.shape[0], int)
+        tileLength = math.prod(memoryConstraint.shape)
+        tileSize = int(math.ceil(tileLength * buffer._type.referencedType.typeWidth / 8))
+
+        assert bufferSize >= tileSize, f"Provided buffer size is not enough to fit the tile. Buffer size: {bufferSize}, tile size: {tileSize}"
+
+        refs = [
+            self._hoistReference(
+                ctxt,
+                f"{tensorName}_buffer_{i}",
+                buffer,
+                memoryConstraint.shape,
+                offset = i * bufferSize,
+                override_type = VoidType,
+            )
+            for i in range(memoryConstraint.multiBufferCoefficient)
+        ]
+
+        return refs
