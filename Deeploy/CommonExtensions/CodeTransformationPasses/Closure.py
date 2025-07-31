@@ -109,7 +109,7 @@ class ClosureGeneration(CodeTransformationPass, IntrospectiveCodeTransformationM
         closureStruct: Dict[str, Union[Pointer, Immediate, Struct]] = {}
         makoDynamicReferences = self.extractDynamicReferences(ctxt, executionBlock, True)
 
-        for arg in list(dict.fromkeys(makoDynamicReferences)):
+        for arg in makoDynamicReferences:
             ref = ctxt.lookup(arg)
             if isinstance(ref, TransientBuffer):
                 closureStructArgsType[ctxt._mangle(arg)] = PointerClass(VoidType)
