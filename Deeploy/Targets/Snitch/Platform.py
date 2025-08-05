@@ -6,7 +6,9 @@ from typing import List
 
 import numpy as np
 
-from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
+from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
+    RemoveEmptyConvBiasPass
+from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, ONNXLayer, \
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
 from Deeploy.Targets.Generic.Bindings import BasicGatherBindings, BasicLayerNormBindings, BasicMatMulBindings, \
     BasicPad1DBindings, BasicPad2DBindings, BasicReshapeBindings, BasicRQIntegerDivBinding
@@ -15,16 +17,19 @@ from Deeploy.Targets.Generic.Layers import AddLayer, GatherLayer, GEMMLayer, Lay
 from Deeploy.Targets.Generic.Parsers import AddParser, GatherParser, MatMulParser, Pad1DParser, Pad2DParser, \
     RQAddParser, RQIntegerDivParser, SoftmaxParser, UnsqueezeParser, iLayerNormParser, iNoNormParser, iSoftmaxParser
 from Deeploy.Targets.Generic.Platform import TransposeMapper
+from Deeploy.Targets.Generic.Platform import AvgPoolMapper, ReshapeMapper, TransposeMapper
 from Deeploy.Targets.Generic.Templates import AllocateTemplate as BasicAllocateTemplate
 from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import AddRequantMergePass, GEMMRequantMergePass, \
     IntegerDivRequantMergePass, MergeConstAddAndRequantPass, MergeTrueIntegerDivRequantShiftPass, RQSSplitPass, \
-    SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
+    SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass, ExtractPaddingFromPoolPass, ExtractPaddingFromConvPass, MatMulAddMergePass, MergeGemmAddPass
 from Deeploy.Targets.PULPOpen.Platform import RQAddMapper
+from Deeploy.Targets.Snitch.Bindings import SnitchFloatAddBinding
 from Deeploy.Targets.Snitch.Parsers import SnitchGEMMParser, SnitchRQGEMMParser
 from Deeploy.Targets.Snitch.Templates import AllocateTemplate, FreeTemplate
 from Deeploy.Targets.Snitch.Tiler import SnitchAddTileReadyBindings, SnitchGemmTilingReadyBindings, \
     SnitchiNoNormTilingReadyBindings, SnitchiSoftmaxTilingReadyBindings, SnitchRQAddTilingReadyBindings, \
     SnitchRqGemmTilingReadyBindings
+from Deeploy.Targets.Generic.Platform import FloatFusedConv2DReluMapper, FloatFusedAddReluMapper
 
 GatherMapper = NodeMapper(GatherParser(), BasicGatherBindings)
 Pad1DMapper = NodeMapper(Pad1DParser(), BasicPad1DBindings)
@@ -41,7 +46,7 @@ SoftmaxMapper = NodeMapper(SoftmaxParser(), SnitchiSoftmaxTilingReadyBindings)
 iNoNormMapper = NodeMapper(iNoNormParser(), SnitchiNoNormTilingReadyBindings)
 iLayerNormMapper = NodeMapper(iLayerNormParser(), BasicLayerNormBindings)
 RQAddMapper = NodeMapper(RQAddParser(), SnitchRQAddTilingReadyBindings)
-AddMapper = NodeMapper(AddParser(), SnitchAddTileReadyBindings)
+AddMapper = NodeMapper(AddParser(), SnitchAddTileReadyBindings + [SnitchFloatAddBinding])
 
 SnitchMapping = {
     'RQIntegerDiv': RQIntegerDivLayer([RQIntegerDivMapper]),
@@ -58,6 +63,10 @@ SnitchMapping = {
     'RequantizedAdd': AddLayer([RQAddMapper]),
     'Add': AddLayer([AddMapper]),
     'Transpose': TransposeLayer([TransposeMapper]),
+    'FusedConvRelu': ConvLayer([FloatFusedConv2DReluMapper]),
+    'FusedAddRelu': AddLayer([FloatFusedAddReluMapper]),
+    'AveragePool': ONNXLayer([AvgPoolMapper]),
+    'Reshape': ReshapeLayer([ReshapeMapper]),
 }
 
 
@@ -140,6 +149,12 @@ SnitchOptimizer = TopologyOptimizer([
     MergeConstAddAndRequantPass(),
     AddRequantMergePass(),
     GEMMRequantMergePass(),
+    MatMulAddMergePass(),
+    MergeGemmAddPass(),
+    MergeConstAddAndRequantPass(),
+    ExtractPaddingFromConvPass(),
+    ExtractPaddingFromPoolPass(),
+    RemoveEmptyConvBiasPass(),
 ])
 
 _includeList = [

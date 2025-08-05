@@ -222,7 +222,7 @@ def mapDeployer(platform: DeploymentPlatform,
             loweringOptimizer = SnitchOptimizer
 
         if default_channels_first is None:
-            default_channels_first = False
+            default_channels_first = True
 
         deployer = SnitchDeployer(graph,
                                   platform,

@@ -20,6 +20,7 @@ from Deeploy.Targets.Snitch.Templates import AddTemplate, FloatGemmTemplate, RQA
 from Deeploy.Targets.Snitch.Templates.FloatSoftmaxTemplate import FloatSoftmax_Template
 from Deeploy.Targets.Snitch.Templates.GemmTemplate import SnitchGemm_Template
 from Deeploy.Targets.Snitch.Templates.RqGemmTemplate import SnitchRqGemm_Template
+from Deeploy.Targets.Snitch.Templates.FloatAddTemplate import referenceTemplate as FloatAdd_Template
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingVariableReplacement import TilingVariableReplacement, \
     TilingVariableReplacementUpdate
 

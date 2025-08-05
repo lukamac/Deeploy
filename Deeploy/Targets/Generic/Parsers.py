@@ -1314,7 +1314,6 @@ class Conv2DParser(ConvParser):
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
         newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
 
         if ret:
