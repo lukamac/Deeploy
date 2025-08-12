@@ -12,7 +12,7 @@ from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPla
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
 from Deeploy.Targets.Generic.Bindings import BasicGatherBindings, BasicLayerNormBindings, BasicMatMulBindings, \
     BasicPad1DBindings, BasicPad2DBindings, BasicReshapeBindings, BasicRQIntegerDivBinding
-from Deeploy.Targets.Generic.Layers import AddLayer, GatherLayer, GEMMLayer, LayerNormLayer, MatMulLayer, PadLayer, \
+from Deeploy.Targets.Generic.Layers import AddLayer, ConvLayer, GatherLayer, GEMMLayer, LayerNormLayer, MatMulLayer, PadLayer, \
     ReshapeLayer, RQGEMMLayer, RQIntegerDivLayer, SoftmaxLayer, TransposeLayer, iNoNormLayer
 from Deeploy.Targets.Generic.Parsers import AddParser, GatherParser, MatMulParser, Pad1DParser, Pad2DParser, \
     RQAddParser, RQIntegerDivParser, SoftmaxParser, UnsqueezeParser, iLayerNormParser, iNoNormParser, iSoftmaxParser

@@ -72,6 +72,7 @@ SnitchAddBindings = [
     NodeBinding(AddChecker([PointerClass(_type), PointerClass(_type)], [PointerClass(int32_t)]),
                 AddTemplate.referenceTemplate, TiledTransformer) for _type in [int8_t]
 ]
+SnitchFloatAddBinding = NodeBinding(AddChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatAdd_Template, TiledTransformer)
 SnitchGemmBindings = [
     NodeBinding(
         GEMMChecker([PointerClass(int8_t), PointerClass(int8_t),
