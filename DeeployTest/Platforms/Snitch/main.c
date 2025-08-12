@@ -11,7 +11,7 @@
 #include "testoutputs.h"
 
 // #define NOPRINT
-#define NOTEST
+// #define NOTEST
 // #define CI
 
 int main(void) {
