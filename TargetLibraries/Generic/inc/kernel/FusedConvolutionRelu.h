@@ -51,6 +51,7 @@
  * kernel size = generic
  * unrolling   = no
  * simd        = no
+ * potentially parallelizable = yes
  */
 void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, uint32_t C,
                                          uint32_t H_padded, uint32_t W_padded,
@@ -58,7 +59,7 @@ void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, ui
                                          uint32_t pad_top, uint32_t pad_right,
                                          const float32_t *__restrict__ weights,
                                          const float32_t *__restrict__ bias,
-                                         uint32_t F, uint32_t P, uint32_t Q, uint32_t SP,
-                                         uint32_t SQ, float32_t *__restrict__ output);
+                                         uint32_t F_begin, uint32_t F_end, uint32_t P, uint32_t Q,
+                                         uint32_t SP, uint32_t SQ, float32_t *__restrict__ output);
 
 #endif //__DEEPLOY_BASIC_MATH_FUSED_CONVOLUTION_RELU_KERNEL_HEADER_

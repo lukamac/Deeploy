@@ -35,12 +35,12 @@ void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, ui
                                          uint32_t pad_top, uint32_t pad_right,
                                          const float32_t *__restrict__ weights,
                                          const float32_t *__restrict__ bias,
-                                         uint32_t F, uint32_t P, uint32_t Q, uint32_t SP,
-                                         uint32_t SQ, float32_t *__restrict__ output) {
+                                         uint32_t F_begin, uint32_t F_end, uint32_t P, uint32_t Q,
+                                         uint32_t SP, uint32_t SQ, float32_t *__restrict__ output) {
   const uint32_t H_out = (H_in - P + pad_top + pad_bottom) / SP + 1;
   const uint32_t W_out = (W_in - Q + pad_left + pad_right) / SQ + 1;
 
-  for (uint32_t f = 0; f < F; ++f) {
+  for (uint32_t f = F_begin; f < F_end; ++f) {
     for (uint32_t h = 0; h < H_out; ++h) {
       for (uint32_t w = 0; w < W_out; ++w) {
         float32_t sum = bias[f];

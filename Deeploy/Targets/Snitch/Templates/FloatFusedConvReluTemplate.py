@@ -27,25 +27,34 @@ from Deeploy.DeeployTypes import NodeTemplate
 
 referenceTemplate = NodeTemplate("""
 <%
+quotient = f"{nodeName}_F_quotient"
+remainder = f"{nodeName}_F_remainder"
+begin = f"{nodeName}_F_begin"
+end = f"{nodeName}_F_end"
+
 batchOffsetIn = ch_im_in * dim_im_in_x * dim_im_in_y
 batchOffsetOut = ch_im_out * dim_im_out_x * dim_im_out_y
 %>
 
 // 2D FP FusedConvRelu (Name: ${nodeName}, Op: ${nodeOp})
-BEGIN_SINGLE_CORE
-    ${data_in_type.typeName} ref_${nodeName}_${data_in} = ${data_in};
-    ${data_out_type.typeName} ref_${nodeName}_${data_out} = ${data_out};
+const uint32_t ${quotient} = ${ch_im_out} / numThreads;
+const uint32_t ${remainder} = ${ch_im_out} % numThreads;
 
-    for (uint32_t n=0; n<${batch}; ++n) {
-        FusedConv2dRelu_fp32_fp32_fp32_NCHW(
-            ref_${nodeName}_${data_in}, ${ch_im_in}, ${dim_im_in_x}, ${dim_im_in_y},
-            ${pads[0]}, ${pads[1]}, ${pads[2]}, ${pads[3]},
-            ${weight}, ${bias}, 0, ${ch_im_out}, ${dim_kernel_x}, ${dim_kernel_y},
-            ${stride_x}, ${stride_y},
-            ref_${nodeName}_${data_out}
-        );
-        ref_${nodeName}_${data_in} += ${batchOffsetIn};
-        ref_${nodeName}_${data_out} += ${batchOffsetOut};
-    }
-END_SINGLE_CORE
+const uint32_t ${begin} = ${quotient} * core_id + (core_id < ${remainder} ? core_id : ${remainder});
+const uint32_t ${end} = ${begin} + ${quotient} + (core_id < ${remainder} ? 1 : 0);
+
+${data_in_type.typeName} ref_${nodeName}_${data_in} = ${data_in};
+${data_out_type.typeName} ref_${nodeName}_${data_out} = ${data_out};
+
+for (uint32_t n=0; n<${batch}; ++n) {
+    FusedConv2dRelu_fp32_fp32_fp32_NCHW(
+        ref_${nodeName}_${data_in}, ${ch_im_in}, ${dim_im_in_x}, ${dim_im_in_y},
+        ${pads[0]}, ${pads[1]}, ${pads[2]}, ${pads[3]},
+        ${weight}, ${bias}, ${begin}, ${end}, ${dim_kernel_x}, ${dim_kernel_y},
+        ${stride_x}, ${stride_y},
+        ref_${nodeName}_${data_out}
+    );
+    ref_${nodeName}_${data_in} += ${batchOffsetIn};
+    ref_${nodeName}_${data_out} += ${batchOffsetOut};
+}
 """)

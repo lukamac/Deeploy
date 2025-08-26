@@ -425,6 +425,7 @@ ${GVSOC_INSTALL_DIR}: ${TOOLCHAIN_DIR}/gvsoc
 	cd ${TOOLCHAIN_DIR}/gvsoc && \
 	 XTENSOR_INSTALL_DIR=${XTENSOR_INSTALL_DIR}/include XTL_INSTALL_DIR=${XTL_INSTALL_DIR}/include XSIMD_INSTALL_DIR=${XSIMD_INSTALL_DIR}/include make all TARGETS="pulp.snitch.snitch_cluster_single siracusa chimera" build INSTALLDIR=${GVSOC_INSTALL_DIR}
 
+gvsoc-toolchain: ${TOOLCHAIN_DIR}/gvsoc
 gvsoc: ${GVSOC_INSTALL_DIR}
 
 ${TOOLCHAIN_DIR}/softhier:

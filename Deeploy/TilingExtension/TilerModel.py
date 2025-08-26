@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import math
 from dataclasses import dataclass
 from pprint import pformat
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -9,7 +10,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import numpy as np
 from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, SolutionCollector, Solver
 
-from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
+from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryLevel
 
 _COPYIDXSUFFIX = "_copyIdx_"
@@ -114,7 +115,6 @@ class TilerModel():
                 self._memoryConstraints.append((memoryLevel, constraintExpression))
 
     def addVariable(self, name: str, lowerBound: int, upperBound: int, copyIdx: Optional[int] = None) -> IntVar:
-
         varName = name + self._getSuffix(copyIdx)
         return self._addVariable(varName, lowerBound, upperBound)
 
@@ -123,15 +123,11 @@ class TilerModel():
         return self._variables[varName]
 
     def getTensorDimVar(self, tensorName: str, dimIdx: int, copyIdx: Optional[int] = None):
-
         varName = f"{tensorName}_dim_{dimIdx}" + self._getSuffix(copyIdx)
-
         return self._variables[varName]
 
     def getTensorNumberOfEltVar(self, tensorName: str, copyIdx: Optional[int] = None):
-
         varName = f"{tensorName}_num_elements" + self._getSuffix(copyIdx)
-
         return self._variables[varName]
 
     def addTensorDimToModel(self, ctxt: NetworkContext, tensorName: str, copyIdx: Optional[int] = None):
@@ -162,16 +158,14 @@ class TilerModel():
 
         tensor = ctxt.lookup(tensorName)
 
-        tensorDimProductExpr = 1
+        assert isinstance(tensor, VariableBuffer)
+        assert isinstance(tensor.shape, (list, tuple)), f"Tensor {tensor.name} shape attribute is not a list or tuple. Shape: {tensor.shape}"
 
-        for idx, _ in enumerate(tensor.shape):
-
-            varNameIdx = f"{tensor.name}_dim_{idx}" + self._getSuffix(copyIdx)
-            tensorDimProductExpr *= self._variables[varNameIdx]
+        tensorDimProductExpr = math.prod(self.getTensorDimVar(tensor.name, i, copyIdx) for i in range(len(tensor.shape)))
 
         tensorDimProductVar = self._addVariable(name = varNameNumElt,
                                                 lowerBound = 1,
-                                                upperBound = np.prod(tensor.shape))
+                                                upperBound = math.prod(tensor.shape))
 
         self._model.Add(tensorDimProductVar == tensorDimProductExpr)
 

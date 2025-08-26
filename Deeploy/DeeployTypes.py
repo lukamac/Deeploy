@@ -1741,7 +1741,7 @@ class NodeMapper():
         """
         self.discardedBindings = set()
 
-    def typeCheck(self, ctxt: NetworkContext, node: gs.Graph) -> Tuple[NetworkContext, bool]:
+    def typeCheck(self, ctxt: NetworkContext, node: gs.Node) -> Tuple[NetworkContext, bool]:
         """Tries to elect a binder object whose typeChecker allows the node configuration
 
         Parameters
@@ -1840,11 +1840,10 @@ class ONNXLayer():
         )  #: Set[NodeMapper]: Set of all NodeMappers which cannot be used to represent this layer
         self.node: gs.Node = None  #: gs.Node: The represented operator
 
-    def computeOps(self):
+    def computeOps(self) -> int:
         """Returns the number of operations (1 MAC = 2 Ops) of this operator
         """
         assert self.mapper is not None, "To compute Ops, network must first be parsed!"
-
         return 0
 
     # Override this for broadcasting support
@@ -2458,25 +2457,20 @@ class NetworkContainer():
 
     # Don't override this
     def _createIOBindings(self, ctxt: NetworkContext, graph: gs.Graph):
+        for tensor in graph.inputs:
+            assert isinstance(tensor, gs.Variable)
+            buffer = ctxt.VariableBuffer(tensor.name, tensor.shape)
+            ctxt.add(buffer, 'global')
+            buffer.is_input = True
+            buffer._type = self.inputTypes[tensor.name]
+            buffer._instance = buffer._type(tensor.name, ctxt = ctxt)
 
-        for node in graph.inputs:
-            data_name = node.name
-            data_size = node.shape
-            data_type = self.inputTypes[node.name]
-            nb = ctxt.VariableBuffer(data_name, data_size)
-            nb.is_input = True
-
-            ctxt.add(nb, 'global')
-            ctxt.annotateType(data_name, data_type)
-
-        for node in graph.outputs:
-            data_name = node.name
-            data_size = node.shape
+        for tensor in graph.outputs:
+            assert isinstance(tensor, gs.Variable)
+            buffer = ctxt.VariableBuffer(tensor.name, tensor.shape)
+            ctxt.add(buffer, 'global')
+            buffer.is_output = True
             # WIESEP: The shape and type will be parsed from the graph
-            nb = ctxt.VariableBuffer(data_name, data_size)
-            nb.is_output = True
-            ctxt.add(nb, 'global')
-
         return ctxt
 
     def inputs(self) -> List[VariableBuffer]:
@@ -2614,12 +2608,12 @@ class NetworkContainer():
 
         ctxt = self.ctxt.copy()
 
-        ctxtStack = deque()
         scheduledLayerList = list(self.layerBinding.values())
+        assert len(scheduledLayerList) > 0, f"No scheduled layers"
+
+        ctxtStack = deque()
         idx: int = 0
-
         deepestIdx = 0
-
         while (idx < len(scheduledLayerList)):
             currentLayer = scheduledLayerList[idx]
 

@@ -5,11 +5,11 @@
 from Deeploy.Targets.Generic.TileConstraints.AddTileConstraint import AddTileConstraint
 from Deeploy.Targets.Generic.Bindings import BasicFusedAddReluBinding, BasicFloatFusedConv2dReluBinding
 from Deeploy.Targets.Snitch.Bindings import SnitchAddBindings, SnitchGemmBindings, SnitchiNoNormBindings, \
-    SnitchiSoftmaxBindings, SnitchRQAddBindings, SnitchRqGemmBindings
+    SnitchiSoftmaxBindings, SnitchRQAddBindings, SnitchRqGemmBindings, SnitchFloatAddBinding
 from Deeploy.Targets.Snitch.TileConstraints import iNoNormTileConstraint, iSoftmaxTileConstraint
 from Deeploy.Targets.Snitch.TileConstraints.GemmTileConstraint import GemmTileConstraint
 from Deeploy.Targets.Snitch.TileConstraints.RqGemmTileConstraint import RqGemmTileConstraint
-from Deeploy.Targets.Snitch.TileConstraints.ConvTileConstraint import ConvTileConstraint
+from Deeploy.Targets.Snitch.TileConstraints.ConvTileConstraint import Conv2DTileConstraint
 from Deeploy.TilingExtension.TilerExtension import TilingReadyNodeBindings
 
 SnitchiSoftmaxTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = SnitchiSoftmaxBindings,
@@ -24,5 +24,8 @@ SnitchRqGemmTilingReadyBindings = TilingReadyNodeBindings(nodeBindings = SnitchR
                                                           tileConstraint = RqGemmTileConstraint())
 SnitchAddTileReadyBindings = TilingReadyNodeBindings(nodeBindings = SnitchAddBindings,
                                                      tileConstraint = AddTileConstraint())
-SnitchFloatFusedAddReluTileReadyBindings = TilingReadyNodeBindings(nodeBindings=[BasicFusedAddReluBinding], tileConstraint=AddTileConstraint())
-SnitchFloatFusedConv2dReluTileReadyBindings = TilingReadyNodeBindings(nodeBindings=[BasicFloatFusedConv2dReluBinding], tileConstraint=ConvTileConstraint())
+SnitchFloatAddReluTileReadyBindings = TilingReadyNodeBindings(nodeBindings=[SnitchFloatAddBinding],
+                                                              tileConstraint=AddTileConstraint())
+SnitchFloatFusedAddReluTileReadyBindings = TilingReadyNodeBindings(nodeBindings=[BasicFusedAddReluBinding],
+                                                                   tileConstraint=AddTileConstraint())
+SnitchFloatFusedConv2dReluTileReadyBindings = TilingReadyNodeBindings(nodeBindings=[BasicFloatFusedConv2dReluBinding], tileConstraint=Conv2DTileConstraint())

@@ -8,7 +8,7 @@ from typing import Tuple
 import numpy as np
 import onnx_graphsurgeon as gs
 
-from Deeploy.DeeployTypes import NetworkContext, NodeParser, VariableBuffer
+from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, NodeParser, VariableBuffer
 
 
 class ConcatParser(NodeParser):
@@ -70,7 +70,7 @@ class iRMSNormParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
         self.operatorRepresentation['lastDimLength'] = ctxt.lookup(node.inputs[0].name).shape[-1]
 
         return ctxt, True
@@ -179,8 +179,8 @@ class TransposeParser(NodeParser):
         self.operatorRepresentation['data_out_shape'] = data_out.shape
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['data_in_size'] = np.prod(data_in.shape)
-        self.operatorRepresentation['data_out_size'] = np.prod(data_out.shape)
+        self.operatorRepresentation['data_in_size'] = math.prod(data_in.shape)
+        self.operatorRepresentation['data_out_size'] = math.prod(data_out.shape)
 
         return ctxt, True
 
@@ -215,8 +215,8 @@ class MaxPoolParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['data_in_size'] = np.prod(data_in.shape)
-        self.operatorRepresentation['data_out_size'] = np.prod(data_out.shape)
+        self.operatorRepresentation['data_in_size'] = math.prod(data_in.shape)
+        self.operatorRepresentation['data_out_size'] = math.prod(data_out.shape)
 
         return ctxt, True
 
@@ -311,8 +311,8 @@ class AvgPoolParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['data_in_size'] = np.prod(data_in.shape)
-        self.operatorRepresentation['data_out_size'] = np.prod(data_out.shape)
+        self.operatorRepresentation['data_in_size'] = math.prod(data_in.shape)
+        self.operatorRepresentation['data_out_size'] = math.prod(data_out.shape)
 
         return ctxt, True
 
@@ -412,8 +412,8 @@ class PadParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['data_in_size'] = np.prod(data_in.shape)
-        self.operatorRepresentation['data_out_size'] = np.prod(data_out.shape)
+        self.operatorRepresentation['data_in_size'] = math.prod(data_in.shape)
+        self.operatorRepresentation['data_out_size'] = math.prod(data_out.shape)
 
         return ctxt, True
 
@@ -520,24 +520,17 @@ class AddParser(NodeParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
-
         ret = all([len(node.inputs) == 2, len(node.outputs) == 1])
-
         return ret
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        data_in_1 = ctxt.lookup(node.inputs[0].name)
-        data_in_2 = ctxt.lookup(node.inputs[1].name)
-        data_out = ctxt.lookup(node.outputs[0].name)
-        self.operatorRepresentation['data_in_1'] = data_in_1.name
-        self.operatorRepresentation['data_in_2'] = data_in_2.name
-        self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in_1.shape)
-
+        self.operatorRepresentation['data_in_1'] = node.inputs[0].name
+        self.operatorRepresentation['data_in_2'] = node.inputs[1].name
+        self.operatorRepresentation['data_out'] = node.outputs[0].name
+        self.operatorRepresentation['size'] = math.prod(node.outputs[0].shape)
         return ctxt, True
 
 
@@ -570,7 +563,7 @@ class ReduceParser(NodeParser):
         self.operatorRepresentation['data_out'] = data_out.name
         self.operatorRepresentation['data_in_shape'] = data_in.shape
         self.operatorRepresentation['data_out_shape'] = data_out.shape
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
         self.operatorRepresentation['axisLength'] = data_in.shape[self.operatorRepresentation['axes'][0]]
 
         return ctxt, True
@@ -609,7 +602,7 @@ class ReduceMeanParser(ReduceParser):
             self.operatorRepresentation['data_out'] = data_out.name
             self.operatorRepresentation['data_in_shape'] = data_in.shape
             self.operatorRepresentation['data_out_shape'] = data_out.shape
-            self.operatorRepresentation['size'] = np.prod(data_in.shape)
+            self.operatorRepresentation['size'] = math.prod(data_in.shape)
             self.operatorRepresentation['axisLength'] = data_in.shape[axes.values[0]]
             self.operatorRepresentation['axes'] = axes.values
 
@@ -662,7 +655,7 @@ class SoftmaxParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
         if 'axis' in node.attrs:
             self.operatorRepresentation['axis'] = int(node.attrs['axis'])
             axis = self.operatorRepresentation['axis']
@@ -695,7 +688,7 @@ class SoftmaxGradParser(NodeParser):
         self.operatorRepresentation['upstream_grad'] = upstream_grad.name
         self.operatorRepresentation['softmax_output'] = softmax_output.name
         self.operatorRepresentation['softmax_grad'] = softmax_grad.name
-        self.operatorRepresentation['size'] = np.prod(upstream_grad.shape)
+        self.operatorRepresentation['size'] = math.prod(upstream_grad.shape)
         if 'axis' in node.attrs:
             self.operatorRepresentation['axis'] = int(node.attrs['axis'])
             axis = self.operatorRepresentation['axis']
@@ -818,7 +811,7 @@ class GELUParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -885,7 +878,7 @@ class iHardswishParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -920,7 +913,7 @@ class iNoNormParser(NodeParser):
         self.operatorRepresentation['weights'] = weights.name
         self.operatorRepresentation['bias'] = bias.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -975,7 +968,7 @@ class GatherParser(NodeParser):
             return False
 
         indices_shape = node.inputs[1].shape
-        assert np.prod(indices_shape) == 1, f"Only indices of size 1 supported. Got indices of shape {indices_shape}"
+        assert math.prod(indices_shape) == 1, f"Only indices of size 1 supported. Got indices of shape {indices_shape}"
 
         self.operatorRepresentation['axis'] = node.attrs['axis'] if 'axis' in node.attrs else 0
         return True
@@ -995,9 +988,9 @@ class GatherParser(NodeParser):
 
         axis = self.operatorRepresentation['axis']
         shape = ctxt.lookup(node.inputs[0].name).shape
-        self.operatorRepresentation['batch'] = np.prod(shape[:axis])
-        self.operatorRepresentation['batch_length'] = np.prod(shape[axis:])
-        self.operatorRepresentation['axis_length'] = np.prod(shape[axis + 1:])
+        self.operatorRepresentation['batch'] = math.prod(shape[:axis])
+        self.operatorRepresentation['batch_length'] = math.prod(shape[axis:])
+        self.operatorRepresentation['axis_length'] = math.prod(shape[axis + 1:])
         self.operatorRepresentation['index'] = int(node.inputs[1].values.item())
 
         return ctxt, True
@@ -1083,7 +1076,7 @@ class ReluParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -1126,7 +1119,7 @@ class ReshapeParser(NodeParser):
         output_node.add_aliases(aliases_to_add = new_output_node_aliases)
 
         # Compute data size
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
 
         return ctxt, True
 
@@ -1164,8 +1157,8 @@ class RequantShiftParser(NodeParser, RQSParserInterface):
         # Assumes shape [ Batch, Channels, ...]
         self.operatorRepresentation['batch'] = shape[0]
         self.operatorRepresentation['channels'] = shape[1]
-        self.operatorRepresentation['channel_width'] = np.prod(shape[2:]) if len(shape) > 2 else 1
-        self.operatorRepresentation['size'] = np.prod(shape)
+        self.operatorRepresentation['channel_width'] = math.prod(shape[2:]) if len(shape) > 2 else 1
+        self.operatorRepresentation['size'] = math.prod(shape)
 
         return ctxt, True
 
@@ -1179,8 +1172,8 @@ class UniformRequantShiftParser(RequantShiftParser):
         ret1 = super().parseNode(node)
 
         ret2 = all([
-            np.prod(node.inputs[1].values.shape) == 1,
-            np.prod(node.inputs[2].values.shape) == 1,
+            math.prod(node.inputs[1].values.shape) == 1,
+            math.prod(node.inputs[2].values.shape) == 1,
         ])
 
         return (ret1 and ret2)
@@ -1213,8 +1206,8 @@ class MulParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
-        self.operatorRepresentation['sizeB'] = np.prod(ctxt.lookup(node.inputs[1].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['sizeB'] = math.prod(ctxt.lookup(node.inputs[1].name).shape)
 
         return ctxt, True
 
@@ -1267,7 +1260,7 @@ class ConvParser(NodeParser):
                 node.inputs.append(zeroTensor)
                 self.operatorRepresentation['bias'] = f'{node.name}_Bias_Tensor'
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
 
         return ctxt, True
 
@@ -1501,8 +1494,8 @@ class MHSAParser(NodeParser):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
             self.operatorRepresentation[outputs[idx] + '_shape'] = ctxt.lookup(outputNode.name).shape
 
-        self.operatorRepresentation['size'] = np.sum([np.prod(ctxt.lookup(x.name).shape) for x in node.inputs])
-        # self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = np.sum([math.prod(ctxt.lookup(x.name).shape) for x in node.inputs])
+        # self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
 
         return ctxt, True
 
@@ -1577,7 +1570,7 @@ class LinearAttentionParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
         self.operatorRepresentation['q_shape'] = ctxt.lookup(node.inputs[0].name).shape
 
         return ctxt, True
@@ -1630,8 +1623,8 @@ class CLCAParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['input_size_Q'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
-        self.operatorRepresentation['input_size_KV'] = np.prod(ctxt.lookup(node.inputs[1].name).shape)
+        self.operatorRepresentation['input_size_Q'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['input_size_KV'] = math.prod(ctxt.lookup(node.inputs[1].name).shape)
         self.operatorRepresentation['q_shape'] = ctxt.lookup(node.inputs[0].name).shape
         self.operatorRepresentation['kv_shape'] = ctxt.lookup(node.inputs[1].name).shape
 
@@ -1666,7 +1659,7 @@ class iLayerNormParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
         self.operatorRepresentation['lastDimLength'] = ctxt.lookup(node.inputs[0].name).shape[-1]
 
         return ctxt, True
@@ -1696,7 +1689,7 @@ class LayerNormParser(iLayerNormParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
         self.operatorRepresentation['lastDimLength'] = ctxt.lookup(node.inputs[0].name).shape[-1]
 
         return ctxt, True
@@ -1746,7 +1739,7 @@ class MatMulParser(NodeParser):
             self.operatorRepresentation['C'] = f'{node.name}_C_Tensor'
 
         # Store the input and output shapes in the operator representation
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(node.inputs[0].name).shape)
         self.operatorRepresentation['A_shape'] = ctxt.lookup(node.inputs[0].name).shape
         self.operatorRepresentation['B_shape'] = ctxt.lookup(node.inputs[1].name).shape
         self.operatorRepresentation['data_out_shape'] = ctxt.lookup(node.outputs[0].name).shape
@@ -1764,8 +1757,8 @@ class MatMulParser(NodeParser):
             node.inputs[1].name).shape[-2 + self.operatorRepresentation['transB']])
 
         # Check if the batch dimensions are compatible
-        self.operatorRepresentation['batch_A'] = np.prod(ctxt.lookup(node.inputs[0].name).shape[:-2])
-        self.operatorRepresentation['batch_B'] = np.prod(ctxt.lookup(node.inputs[1].name).shape[:-2])
+        self.operatorRepresentation['batch_A'] = math.prod(ctxt.lookup(node.inputs[0].name).shape[:-2])
+        self.operatorRepresentation['batch_B'] = math.prod(ctxt.lookup(node.inputs[1].name).shape[:-2])
 
         self.operatorRepresentation['batch'] = max(self.operatorRepresentation['batch_A'],
                                                    self.operatorRepresentation['batch_B'])
@@ -1777,10 +1770,10 @@ class MatMulParser(NodeParser):
         ), "Incompatible dimensions for input matrices. Broadcasting not yet supported for dimensions larger than 1 on one of the inputs, or equal dimensions between the 2."
 
         # Create flags for same dimension between each input matrix and the final batch dimension
-        self.operatorRepresentation['A_batched'] = (self.operatorRepresentation['batch'] == np.prod(
+        self.operatorRepresentation['A_batched'] = (self.operatorRepresentation['batch'] == math.prod(
             ctxt.lookup(node.inputs[0].name).shape[:-2]))
         self.operatorRepresentation['W_batched'] = self.operatorRepresentation['B_batched'] = (
-            self.operatorRepresentation['batch'] == np.prod(ctxt.lookup(node.inputs[1].name).shape[:-2]))
+            self.operatorRepresentation['batch'] == math.prod(ctxt.lookup(node.inputs[1].name).shape[:-2]))
 
         return ctxt, ret
 
@@ -1831,82 +1824,64 @@ class GEMMParser(MatMulParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
-
-        ret = all([
+        if not all([
             len(node.inputs) >= 2,
             len(node.outputs) == 1,
-        ])
-
-        # This is a GEMM node:
-        if ret:
-
-            if 'alpha' in node.attrs:
-                self.operatorRepresentation['alpha'] = node.attrs['alpha']
-            else:
-                self.operatorRepresentation['alpha'] = 1.0
-
-            if 'beta' in node.attrs:
-                self.operatorRepresentation['beta'] = node.attrs['beta']
-            else:
-                self.operatorRepresentation['beta'] = 1.0
-
-            if 'transA' in node.attrs:
-                self.operatorRepresentation['transA'] = node.attrs['transA']
-            else:
-                self.operatorRepresentation['transA'] = 0
-
-            if 'transB' in node.attrs:
-                self.operatorRepresentation['transB'] = node.attrs['transB']
-            else:
-                self.operatorRepresentation['transB'] = 0
-
-            return True
-        # This might be a matmul node -> Cast up
-        else:
+        ]):
             return False
+
+        optional_attr_defaults = {
+            "alpha": 1.0,
+            "beta": 1.0,
+            "transA": 0,
+            "transB": 0,
+        }
+
+        for attr, default in optional_attr_defaults.items():
+            self.operatorRepresentation[attr] = node.attrs.get(attr, default)
+
+        return True
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
         newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+        if not ret:
+            return ctxt, False
 
-        # We are a true GEMM
-        if ret:
-            inputs = ['A', 'B']
-            outputs = ['data_out']
+        inputs = ['A', 'B']
+        outputs = ['data_out']
 
-            for idx, inputNode in enumerate(node.inputs):
-                if idx < len(inputs):
-                    self.operatorRepresentation[inputs[idx]] = newCtxt.lookup(inputNode.name).name
-            for idx, outputNode in enumerate(node.outputs):
-                self.operatorRepresentation[outputs[idx]] = newCtxt.lookup(outputNode.name).name
+        for idx, inputNode in enumerate(node.inputs):
+            if idx < len(inputs):
+                self.operatorRepresentation[inputs[idx]] = newCtxt.lookup(inputNode.name).name
+        for idx, outputNode in enumerate(node.outputs):
+            self.operatorRepresentation[outputs[idx]] = newCtxt.lookup(outputNode.name).name
 
-            if len(node.inputs) == 3:
-                # Compute bias name and shape if present in the inputs
-                self.operatorRepresentation['C'] = newCtxt.lookup(node.inputs[2].name).name
-                self.operatorRepresentation['C_shape'] = newCtxt.lookup(node.inputs[2].name).shape
+        if len(node.inputs) == 3:
+            # Compute bias name and shape if present in the inputs
+            self.operatorRepresentation['C'] = newCtxt.lookup(node.inputs[2].name).name
+            self.operatorRepresentation['C_shape'] = newCtxt.lookup(node.inputs[2].name).shape
 
-                # Create flag for same dimension between bias matrix and the final batch dimension
-                self.operatorRepresentation['C_batched'] = (self.operatorRepresentation['batch'] == np.prod(
-                    newCtxt.lookup(node.inputs[2].name).shape[:-2]))
-            elif not self.noBiasHoisting:
-                # Create mock bias matrix if not present in the inputs
-                values = np.zeros((1))
-                zeroTensor = gs.Constant(f'{node.name}_C_Tensor', values = values)
-                newCtxt.hoistConstant(zeroTensor)
+            # Create flag for same dimension between bias matrix and the final batch dimension
+            self.operatorRepresentation['C_batched'] = (self.operatorRepresentation['batch'] == math.prod(
+                newCtxt.lookup(node.inputs[2].name).shape[:-2]))
+        elif not self.noBiasHoisting:
+            # Create mock bias matrix if not present in the inputs
+            values = np.zeros((1))
+            zeroTensor = gs.Constant(f'{node.name}_C_Tensor', values = values)
+            newCtxt.hoistConstant(zeroTensor)
 
-                # Store it in the operator representation
-                self.operatorRepresentation['C'] = f'{node.name}_C_Tensor'
-                self.operatorRepresentation['C_shape'] = (0,)
+            # Store it in the operator representation
+            self.operatorRepresentation['C'] = f'{node.name}_C_Tensor'
+            self.operatorRepresentation['C_shape'] = (0,)
 
-                # Create flag for same dimension between bias matrix and the final batch dimension
-                self.operatorRepresentation['C_batched'] = False
+            # Create flag for same dimension between bias matrix and the final batch dimension
+            self.operatorRepresentation['C_batched'] = False
 
-            self.operatorRepresentation['size'] = np.prod(newCtxt.lookup(node.inputs[0].name).shape)
-
-        return newCtxt, ret
+        self.operatorRepresentation['size'] = math.prod(newCtxt.lookup(node.inputs[0].name).shape)
+        return newCtxt, True
 
 
 class RQGEMMParser(GEMMParser, RQSParserInterface):
@@ -1979,7 +1954,7 @@ class DummyParser(NodeParser):
 
         self.operatorRepresentation['data_in'] = inputs[0].name
         self.operatorRepresentation['data_out'] = outputs[0].name
-        self.operatorRepresentation['size'] = np.prod(inputs[0].shape)
+        self.operatorRepresentation['size'] = math.prod(inputs[0].shape)
 
         return ctxt, True
 
@@ -2019,17 +1994,17 @@ class IntegerDivParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['sizeA'] = np.prod(ctxt.lookup(self.operatorRepresentation['A']).shape)
-        self.operatorRepresentation['sizeB'] = np.prod(ctxt.lookup(self.operatorRepresentation['B']).shape)
+        self.operatorRepresentation['sizeA'] = math.prod(ctxt.lookup(self.operatorRepresentation['A']).shape)
+        self.operatorRepresentation['sizeB'] = math.prod(ctxt.lookup(self.operatorRepresentation['B']).shape)
 
         for idx, (a, b) in enumerate(
                 zip(
                     ctxt.lookup(self.operatorRepresentation['A']).shape,
                     ctxt.lookup(self.operatorRepresentation['B']).shape)):
             if a != b:
-                self.operatorRepresentation['nomStep'] = np.prod(
+                self.operatorRepresentation['nomStep'] = math.prod(
                     ctxt.lookup(self.operatorRepresentation['A']).shape[idx:])
-                self.operatorRepresentation['denomStep'] = np.prod(
+                self.operatorRepresentation['denomStep'] = math.prod(
                     ctxt.lookup(self.operatorRepresentation['B']).shape[idx:])
                 break
 
@@ -2060,7 +2035,7 @@ class DivParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
-        self.operatorRepresentation['size'] = np.prod(ctxt.lookup(self.operatorRepresentation['input1']).shape)
+        self.operatorRepresentation['size'] = math.prod(ctxt.lookup(self.operatorRepresentation['input1']).shape)
 
         return ctxt, True
 
@@ -2121,7 +2096,7 @@ class DebugParser(NodeParser):
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         wellFormed = False
         if len(data_in.shape) == 4:
@@ -2292,9 +2267,9 @@ class GenericConv2DParser(Conv2DParser):
         # Handle bias, if present
         if len(node.inputs) > 2:
             inputs.append("bias")
-            self.operatorRepresentation["has_bias"] = "true"
+            self.operatorRepresentation["has_bias"] = 1
         else:
-            self.operatorRepresentation["has_bias"] = "false"
+            self.operatorRepresentation["has_bias"] = 0
             self.operatorRepresentation["bias"] = "NULL"
 
         for idx, inputNode in enumerate(node.inputs):
@@ -2348,9 +2323,9 @@ class GenericDWConv2DParser(Conv2DParser):
             # Handle bias, if present
             if len(node.inputs) > 2:
                 inputs.append("bias")
-                self.operatorRepresentation["has_bias"] = "true"
+                self.operatorRepresentation["has_bias"] = 1
             else:
-                self.operatorRepresentation["has_bias"] = "false"
+                self.operatorRepresentation["has_bias"] = 0
                 self.operatorRepresentation["bias"] = "NULL"
 
             for idx, inputNode in enumerate(node.inputs):
@@ -2364,49 +2339,37 @@ class GenericDWConv2DParser(Conv2DParser):
 
 class GenericGEMMParser(GEMMParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
-
-    def parseNode(self, node: gs.Node) -> (bool):
-
-        wellFormed = super().parseNode(node)
-        return wellFormed
-
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
         newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-        if ret:
-            # Try to scale A offline if possible, else fail
-            if not self.operatorRepresentation['alpha'].is_integer():
-                nameA = self.operatorRepresentation['A']
-                if newCtxt.is_global(nameA) and isinstance(newCtxt.lookup(nameA), ConstantBuffer):
-                    A = newCtxt.lookup(nameA)
-                    npA = np.asarray(A.values).reshape(A.shape)
-                    newA = npA * self.operatorRepresentation['beta']
-                    newCtxt.globalObjects[nameA].values = newA
-                    self.operatorRepresentation['alpha'] = 1.0
-                else:
-                    return newCtxt, False
-            # Try to scale B offline if possible, else fail
-            if not self.operatorRepresentation['beta'].is_integer():
-                nameB = self.operatorRepresentation['B']
-                if newCtxt.is_global(nameB) and isinstance(newCtxt.lookup(nameB), ConstantBuffer):
-                    B = newCtxt.lookup(nameB)
-                    npB = np.asarray(B.values).reshape(B.shape)
-                    newB = npB * self.operatorRepresentation['beta']
-                    newCtxt.globalObjects[nameB].values = newB
-                    self.operatorRepresentation['beta'] = 1.0
-                else:
-                    return newCtxt, False
+        if not ret:
+            return ctxt, False
 
-            self.operatorRepresentation['alpha'] = int(self.operatorRepresentation['alpha'])
-            self.operatorRepresentation['beta'] = int(self.operatorRepresentation['beta'])
-            return newCtxt, True
+        # Try to scale A offline if possible, else fail
+        buffA = newCtxt.lookup(self.operatorRepresentation['A'])
+        alpha = self.operatorRepresentation['alpha']
+        if not alpha == 1.0:
+            if isinstance(buffA, ConstantBuffer):
+                buffA.values = buffA.values * alpha
+                self.operatorRepresentation['alpha'] = 1.0
+            else:
+                return ctxt, False
+        self.operatorRepresentation['alpha'] = 1
 
-        return ctxt, False
+        # Try to scale B offline if possible, else fail
+        buffB = newCtxt.lookup(self.operatorRepresentation['B'])
+        beta = self.operatorRepresentation['beta']
+        if not beta == 1.0:
+            if isinstance(buffB, ConstantBuffer):
+                buffB.values = buffB.values * beta
+                self.operatorRepresentation['beta'] = 1.0
+            else:
+                return ctxt, False
+        self.operatorRepresentation['beta'] = 1
+
+        return newCtxt, True
 
 
 class RQAddParser(AddParser):
@@ -2510,7 +2473,7 @@ class QuantParser(NodeParser):
 
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -2546,7 +2509,7 @@ class DequantParser(NodeParser):
 
         self.operatorRepresentation['data_in'] = data_in.name
         self.operatorRepresentation['data_out'] = data_out.name
-        self.operatorRepresentation['size'] = np.prod(data_in.shape)
+        self.operatorRepresentation['size'] = math.prod(data_in.shape)
 
         return ctxt, True
 
@@ -2632,7 +2595,7 @@ class SGDParser(NodeParser):
         self.operatorRepresentation['weight'] = weight.name
         self.operatorRepresentation['grad'] = grad.name
         self.operatorRepresentation['weight_updated'] = weight_updated.name
-        self.operatorRepresentation['size'] = np.prod(weight.shape)
+        self.operatorRepresentation['size'] = math.prod(weight.shape)
         self.operatorRepresentation['lr'] = node.attrs['lr']
 
         return ctxt, True

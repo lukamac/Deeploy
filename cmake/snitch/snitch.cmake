@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if(NOT DEFINED ENV{SNITCH_HOME})
-    message(FATAL_ERROR "Environment variable SNITCH_HOME not set.")
+	message(FATAL_ERROR "Environment variable SNITCH_HOME not set.")
 endif()
 
 set(SNITCH_HOME $ENV{SNITCH_HOME})
 set(SNITCH_RUNTIME_HOME ${SNITCH_HOME}/sw/snRuntime)
 
 add_compile_definitions(
-  DEEPLOY_SNITCH_PLATFORM
+		DEEPLOY_SNITCH_PLATFORM
 )
 
 set(DEEPLOY_ARCH SNITCH)
@@ -18,7 +18,7 @@ set(DEEPLOY_ARCH SNITCH)
 set(num_threads  ${NUM_CORES})
 
 macro(add_snitch_cluster_vsim_simulation name)
-    add_custom_target(vsim_${name}
+	add_custom_target(vsim_${name}
 	WORKING_DIRECTORY ${SNITCH_HOME}/target/snitch_cluster
 	DEPENDS ${name}
 	COMMAND ${QUESTA} bin/snitch_cluster.vsim
@@ -27,11 +27,11 @@ macro(add_snitch_cluster_vsim_simulation name)
 	POST_BUILD
 	USES_TERMINAL
 	VERBATIM
-    )
+				)
 endmacro()
 
 macro(add_snitch_cluster_vsim_gui_simulation name)
-    add_custom_target(vsim.gui_${name}
+	add_custom_target(vsim.gui_${name}
 	WORKING_DIRECTORY ${SNITCH_HOME}/target/snitch_cluster
 	DEPENDS ${name}
 	COMMAND ${QUESTA} bin/snitch_cluster.vsim.gui
@@ -40,14 +40,14 @@ macro(add_snitch_cluster_vsim_gui_simulation name)
 	POST_BUILD
 	USES_TERMINAL
 	VERBATIM
-    )
+				)
 endmacro()
 
-add_compile_options(
-    -ffast-math
-)
+#add_compile_options(
+#    -ffast-math
+#)
 
 add_link_options(
-    -ffast-math
-    -Wl,--gc-sections
+				#-ffast-math
+				-Wl,--gc-sections
 )

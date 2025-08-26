@@ -9,7 +9,7 @@ from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureGen
 from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import ArgumentStructGeneration, \
     MemoryManagementGeneration
 from Deeploy.CommonExtensions.DataTypes import float32_t, int8_t, int32_t, uint8_t
-from Deeploy.DeeployTypes import CodeTransformation, NodeBinding
+from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTypeChecker
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
 from Deeploy.Targets.Generic.Templates import iNoNormTemplate
 from Deeploy.Targets.Generic.TypeCheckers import AddChecker, GEMMChecker, RQAddChecker, SoftmaxChecker, iNoNormChecker
@@ -20,7 +20,10 @@ from Deeploy.Targets.Snitch.Templates import AddTemplate, FloatGemmTemplate, RQA
 from Deeploy.Targets.Snitch.Templates.FloatSoftmaxTemplate import FloatSoftmax_Template
 from Deeploy.Targets.Snitch.Templates.GemmTemplate import SnitchGemm_Template
 from Deeploy.Targets.Snitch.Templates.RqGemmTemplate import SnitchRqGemm_Template
-from Deeploy.Targets.Snitch.Templates.FloatAddTemplate import referenceTemplate as FloatAdd_Template
+from Deeploy.Targets.Snitch.Templates.FloatAddTemplate import referenceTemplate as FloatAdd_Template, singleCoreFloatAddTemplate, multiCoreFloatAddTemplate
+from Deeploy.Targets.Snitch.Templates.FloatConvTemplate import parallelTemplate as FloatConv_Template_Parallel
+from Deeploy.Targets.Snitch.Templates.FloatFusedAddReluTemplate import referenceTemplate as FloatFusedAddRelu_Template
+from Deeploy.Targets.Snitch.Templates.FloatFusedConvReluTemplate import referenceTemplate as FloatFusedConvRelu_Template
 from Deeploy.TilingExtension.CodeTransformationPasses.TilingVariableReplacement import TilingVariableReplacement, \
     TilingVariableReplacementUpdate
 
@@ -30,11 +33,19 @@ MemoryAwareFunctionCallClosure = partial(MemoryAwareClosureGeneration,
                                          startRegion = "L2",
                                          endRegion = "L1")
 
-BasicTransformer = CodeTransformation(
-    [SnitchSynchCoresPass(),
-     ArgumentStructGeneration(),
-     MemoryManagementGeneration(),
-     FutureGeneration()])
+BasicTransformer = CodeTransformation([
+    SnitchSynchCoresPass(),
+    ArgumentStructGeneration(),
+    MemoryManagementGeneration(),
+    FutureGeneration(),
+])
+
+BasicComputeTransformer = CodeTransformation([
+    SnitchCoreFilterPass("compute"),
+    SnitchSynchCoresPass(),
+    ArgumentStructGeneration(),
+    MemoryManagementGeneration(),
+])
 
 TiledTransformer = CodeTransformation([
     SnitchCoreFilterPass("compute"),
@@ -72,7 +83,9 @@ SnitchAddBindings = [
     NodeBinding(AddChecker([PointerClass(_type), PointerClass(_type)], [PointerClass(int32_t)]),
                 AddTemplate.referenceTemplate, TiledTransformer) for _type in [int8_t]
 ]
-SnitchFloatAddBinding = NodeBinding(AddChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatAdd_Template, TiledTransformer)
+SnitchFloatAddBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatAdd_Template, TiledTransformer)
+SnitchSingleCoreFloatAddBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), singleCoreFloatAddTemplate, BasicTransformer)
+SnitchMultiCoreFloatAddBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), multiCoreFloatAddTemplate, BasicComputeTransformer)
 SnitchGemmBindings = [
     NodeBinding(
         GEMMChecker([PointerClass(int8_t), PointerClass(int8_t),
@@ -93,3 +106,6 @@ SnitchRqGemmBindings = [
             PointerClass(int32_t)
         ], [PointerClass(int8_t)]), SnitchRqGemm_Template, TiledTransformer)
 ]
+SnitchFloatConvBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatConv_Template_Parallel, BasicComputeTransformer)
+SnitchFloatFusedAddReluBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedAddRelu_Template, BasicComputeTransformer)
+SnitchFloatFusedConvReluBinding = NodeBinding(NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedConvRelu_Template, BasicComputeTransformer)

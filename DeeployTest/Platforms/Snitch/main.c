@@ -67,6 +67,30 @@ int main(void) {
 #ifndef CI
     printf("Input copied\r\n");
 #endif
+
+//#ifndef CI
+//    printf("Checking input\r\n");
+//#endif
+//
+//    uint32_t err = 0;
+//    for (uint32_t buf = 0; buf < DeeployNetwork_num_inputs; buf++) {
+//      uint8_t *copied_input = (uint8_t *)DeeployNetwork_inputs[buf];
+//      uint8_t *test_input = (uint8_t *)testInputVector[buf];
+//      for (uint32_t i = 0; i < DeeployNetwork_inputs_bytes[buf]; i++) {
+//        if (copied_input[i] != test_input[i]) {
+//          err++;
+//          printf("Diff @%05d: copied (%02x) != test (%02x)\r\n", i, copied_input[i], test_input[i]);
+//        }
+//      }
+//    }
+//
+//    if (err > 0) {
+//      printf("Error copying input. Found %d wrong bytes", err);
+//    }
+//
+//#ifndef CI
+//    printf("Input copied correctly\r\n");
+//#endif
   }
 
 #ifndef NOPRINT

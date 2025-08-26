@@ -36,9 +36,20 @@ void Conv2d_s8_s8_s32_NCHW(int8_t const *__restrict__ pSrcA, uint32_t C,
                            int32_t *__restrict__ pDstC, int32_t input_offset,
                            int32_t output_offset);
 
+/*
+ * 2D Convolution  ----------------------------------
+ * kernel      = Conv2d_fp32_fp32_fp32_NCHW
+ * layout      = NCHW
+ * data type   = 32-bit float
+ * kernel size = generic
+ * unrolling   = no
+ * simd        = no
+ * potentially parallelizable = yes
+ */
 void Conv2d_fp32_fp32_fp32_NCHW(const float *__restrict__ pSrcA, uint32_t C,
                                 uint32_t H_padded, uint32_t W_padded,
-                                const float *__restrict__ pSrcB, uint32_t F,
+                                const float *__restrict__ pSrcB, uint32_t F_begin,
+                                uint32_t F_end,
                                 uint32_t P, uint32_t Q, uint32_t SP,
                                 uint32_t SQ, const float *__restrict__ pSrcBias,
                                 const bool has_bias, float *__restrict__ pDstC);

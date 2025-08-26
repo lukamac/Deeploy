@@ -39,11 +39,12 @@ def generateDebugConfig(test_inputs_files, test_outputs_files, activations_files
     test_inputs_files, test_outputs_files, activations_files, graph = removeBatching(test_inputs_files, test_outputs_files, activations_files, graph)
 
     # Choose nodes
-    graph.nodes = graph.nodes[:16]
-
-    # Fixup io
-    graph.inputs = list(tensor for tensor in graph.nodes[0].inputs if not isinstance(tensor, gs.Constant))
+    graph.nodes = graph.nodes[:2]
     graph.outputs = list(graph.nodes[-1].outputs)
+    graph.cleanup(remove_unused_graph_inputs=True, remove_unused_node_outputs=True)
+
+    # Fixup inputs
+    #graph.inputs = list(tensor for tensor in graph.nodes[0].inputs if not isinstance(tensor, gs.Constant))
 
     test_input_values = []
     for tensor in graph.inputs:
@@ -62,6 +63,9 @@ def generateDebugConfig(test_inputs_files, test_outputs_files, activations_files
             test_output_values.append(activations_files[tensor.name])
         else:
             test_output_values.append(np.random.rand(*tensor.shape))
+
+    graph.cleanup(remove_unused_graph_inputs=True, remove_unused_node_outputs=True)
+    graph.toposort()
 
     test_inputs = [x.reshape(-1).astype(np.float64) for x in test_input_values]
     test_outputs = [x.reshape(-1).astype(np.float64) for x in test_output_values]
