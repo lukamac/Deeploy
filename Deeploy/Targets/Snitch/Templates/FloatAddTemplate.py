@@ -23,25 +23,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 from typing import List, Tuple
-from Deeploy.AbstractDataTypes import PointerClass
-from Deeploy.CommonExtensions.DataTypes import minimalIntegerType
-from Deeploy.DeeployTypes import NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer
 
+from Deeploy.DeeployTypes import NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer
 
 referenceTemplate = NodeTemplate("""
 // Snitch Float Add (Name: ${nodeName}, Op: ${nodeOp})
 SnitchFloatAdd(${data_in_1}, ${data_in_2}, ${data_out}, ${size});
 """)
 
+
 class FloatAddTemplate(NodeTemplate):
 
-    def alignToContext(self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, OperatorRepresentation, List[str]]:
+    def alignToContext(
+            self, ctxt: NetworkContext,
+            operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, OperatorRepresentation, List[str]]:
         buff = ctxt.lookup(operatorRepresentation["data_out"])
         assert isinstance(buff, VariableBuffer)
         operatorRepresentation["out_type"] = buff._type.referencedType.typeName
         return ctxt, operatorRepresentation, []
+
 
 singleCoreFloatAddTemplate = FloatAddTemplate("""
 // Snitch Float Add (Name: ${nodeName}, Op: ${nodeOp})
@@ -51,7 +52,6 @@ for (uint32_t i = 0; i < ${size}; i++) {
 }
 END_SINGLE_CORE
 """)
-
 
 multiCoreFloatAddTemplate = FloatAddTemplate("""
 // Snitch Float Add (Name: ${nodeName}, Op: ${nodeOp})

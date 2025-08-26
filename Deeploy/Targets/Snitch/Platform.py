@@ -8,27 +8,31 @@ import numpy as np
 
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
     RemoveEmptyConvBiasPass
-from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, ONNXLayer, \
-    StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
-from Deeploy.Targets.Generic.Bindings import BasicGatherBindings, BasicLayerNormBindings, BasicMatMulBindings, \
-    BasicPad1DBindings, BasicPad2DBindings, BasicReshapeBindings, BasicRQIntegerDivBinding, BasicConv2DBindings, BasicGEMMBindings
+from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
+    ONNXLayer, StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
+from Deeploy.Targets.Generic.Bindings import BasicConv2DBindings, BasicGatherBindings, BasicGEMMBindings, \
+    BasicLayerNormBindings, BasicMatMulBindings, BasicPad1DBindings, BasicPad2DBindings, BasicReshapeBindings, \
+    BasicRQIntegerDivBinding
 from Deeploy.Targets.Generic.Layers import AddLayer, GatherLayer, GEMMLayer, LayerNormLayer, MatMulLayer, PadLayer, \
     ReshapeLayer, RQGEMMLayer, RQIntegerDivLayer, SoftmaxLayer, TransposeLayer, iNoNormLayer
-from Deeploy.Targets.Generic.Parsers import AddParser, Conv2DParser, GatherParser, GenericConv2DParser, GenericFusedConv2DReluParser, MatMulParser, Pad1DParser, Pad2DParser, \
-    RQAddParser, RQIntegerDivParser, SoftmaxParser, UnsqueezeParser, iLayerNormParser, iNoNormParser, iSoftmaxParser
+from Deeploy.Targets.Generic.Parsers import AddParser, GatherParser, GenericConv2DParser, \
+    GenericFusedConv2DReluParser, MatMulParser, Pad1DParser, Pad2DParser, RQAddParser, RQIntegerDivParser, \
+    SoftmaxParser, UnsqueezeParser, iLayerNormParser, iNoNormParser, iSoftmaxParser
 from Deeploy.Targets.Generic.Platform import AvgPoolMapper, ReshapeMapper, TransposeMapper
 from Deeploy.Targets.Generic.Templates import AllocateTemplate as BasicAllocateTemplate
-from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import AddRequantMergePass, GEMMRequantMergePass, \
-    IntegerDivRequantMergePass, MergeConstAddAndRequantPass, MergeTrueIntegerDivRequantShiftPass, RQSSplitPass, \
-    SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass, ExtractPaddingFromPoolPass, ExtractPaddingFromConvPass, MatMulAddMergePass, MergeGemmAddPass
+from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import AddRequantMergePass, ExtractPaddingFromConvPass, \
+    ExtractPaddingFromPoolPass, GEMMRequantMergePass, IntegerDivRequantMergePass, MatMulAddMergePass, \
+    MergeConstAddAndRequantPass, MergeGemmAddPass, MergeTrueIntegerDivRequantShiftPass, RQSSplitPass, \
+    SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
 from Deeploy.Targets.PULPOpen.Platform import RQAddMapper
-from Deeploy.Targets.Snitch.Bindings import SnitchFloatAddBinding, SnitchFloatFusedAddReluBinding, SnitchSingleCoreFloatAddBinding, SnitchMultiCoreFloatAddBinding, SnitchFloatConvBinding, SnitchFloatFusedConvReluBinding
+from Deeploy.Targets.Snitch.Bindings import SnitchFloatAddBinding, SnitchFloatConvBinding, \
+    SnitchFloatFusedAddReluBinding, SnitchFloatFusedConvReluBinding, SnitchMultiCoreFloatAddBinding
 from Deeploy.Targets.Snitch.Layers import ConvLayer
 from Deeploy.Targets.Snitch.Parsers import SnitchGEMMParser, SnitchRQGEMMParser
 from Deeploy.Targets.Snitch.Templates import AllocateTemplate, FreeTemplate
-from Deeploy.Targets.Snitch.Tiler import SnitchAddTileReadyBindings, SnitchFloatFusedAddReluTileReadyBindings, SnitchFloatFusedConv2dReluTileReadyBindings, \
-    SnitchGemmTilingReadyBindings, SnitchiNoNormTilingReadyBindings, SnitchiSoftmaxTilingReadyBindings, SnitchRQAddTilingReadyBindings, \
-    SnitchRqGemmTilingReadyBindings
+from Deeploy.Targets.Snitch.Tiler import SnitchAddTileReadyBindings, SnitchFloatFusedAddReluTileReadyBindings, \
+    SnitchFloatFusedConv2dReluTileReadyBindings, SnitchGemmTilingReadyBindings, SnitchiNoNormTilingReadyBindings, \
+    SnitchiSoftmaxTilingReadyBindings, SnitchRQAddTilingReadyBindings, SnitchRqGemmTilingReadyBindings
 
 GatherMapper = NodeMapper(GatherParser(), BasicGatherBindings)
 Pad1DMapper = NodeMapper(Pad1DParser(), BasicPad1DBindings)
@@ -48,12 +52,14 @@ RQAddMapper = NodeMapper(RQAddParser(), SnitchRQAddTilingReadyBindings)
 
 testAdderBindings = [
     SnitchMultiCoreFloatAddBinding,
-    #SnitchSingleCoreFloatAddBinding, 
+    #SnitchSingleCoreFloatAddBinding,
 ]
 
 AddMapper = NodeMapper(AddParser(), testAdderBindings + SnitchAddTileReadyBindings + [SnitchFloatAddBinding])
-FloatFusedAddReluMapper = NodeMapper(AddParser(), [SnitchFloatFusedAddReluBinding] + SnitchFloatFusedAddReluTileReadyBindings)
-FloatFusedConv2DReluMapper = NodeMapper(GenericFusedConv2DReluParser(), [SnitchFloatFusedConvReluBinding] + SnitchFloatFusedConv2dReluTileReadyBindings)
+FloatFusedAddReluMapper = NodeMapper(AddParser(),
+                                     [SnitchFloatFusedAddReluBinding] + SnitchFloatFusedAddReluTileReadyBindings)
+FloatFusedConv2DReluMapper = NodeMapper(GenericFusedConv2DReluParser(),
+                                        [SnitchFloatFusedConvReluBinding] + SnitchFloatFusedConv2dReluTileReadyBindings)
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings + [SnitchFloatConvBinding])
 
 SnitchMapping = {

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pprint import pformat
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
-import numpy as np
 from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, SolutionCollector, Solver
 
 from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation, VariableBuffer
@@ -159,9 +158,12 @@ class TilerModel():
         tensor = ctxt.lookup(tensorName)
 
         assert isinstance(tensor, VariableBuffer)
-        assert isinstance(tensor.shape, (list, tuple)), f"Tensor {tensor.name} shape attribute is not a list or tuple. Shape: {tensor.shape}"
+        assert isinstance(
+            tensor.shape,
+            (list, tuple)), f"Tensor {tensor.name} shape attribute is not a list or tuple. Shape: {tensor.shape}"
 
-        tensorDimProductExpr = math.prod(self.getTensorDimVar(tensor.name, i, copyIdx) for i in range(len(tensor.shape)))
+        tensorDimProductExpr = math.prod(
+            self.getTensorDimVar(tensor.name, i, copyIdx) for i in range(len(tensor.shape)))
 
         tensorDimProductVar = self._addVariable(name = varNameNumElt,
                                                 lowerBound = 1,

@@ -3,15 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import List, Tuple
+
 from Deeploy.DeeployTypes import NetworkContext, NodeTemplate, OperatorRepresentation
+
 
 class FloatConv2dTemplate(NodeTemplate):
 
-    def alignToContext(self, ctxt: NetworkContext, operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, OperatorRepresentation, List[str]]:
+    def alignToContext(
+            self, ctxt: NetworkContext,
+            operatorRepresentation: OperatorRepresentation) -> Tuple[NetworkContext, OperatorRepresentation, List[str]]:
         if "bias" in operatorRepresentation and "has_bias" in operatorRepresentation:
             bias = operatorRepresentation["bias"]
             has_bias = operatorRepresentation["has_bias"]
-            assert (has_bias == 1 and bias != "NULL") or (has_bias == 0 and bias == "NULL"), f"Unsupported combination bias: {bias} with has_bias: {has_bias}"
+            assert (has_bias == 1 and bias != "NULL") or (
+                has_bias == 0 and bias == "NULL"), f"Unsupported combination bias: {bias} with has_bias: {has_bias}"
         elif "bias" in operatorRepresentation and "has_bias" not in operatorRepresentation:
             bias = operatorRepresentation["bias"]
             operatorRepresentation["has_bias"] = 0 if bias == "NULL" else 1
@@ -38,6 +43,7 @@ class FloatConv2dTemplate(NodeTemplate):
         operatorRepresentation["data_out_ref"] = f"{ref_prefix}_{data_out}_ref"
 
         return ctxt, operatorRepresentation, []
+
 
 reference2DTemplate = FloatConv2dTemplate("""
 <%

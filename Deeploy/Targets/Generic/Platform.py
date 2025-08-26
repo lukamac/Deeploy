@@ -4,32 +4,12 @@
 
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
     RemoveEmptyConvBiasPass
-from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, ONNXLayer, \
-    StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer, ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
+from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
     ONNXLayer, StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
-from Deeploy.Targets.Generic.Bindings import BasicFloatFusedConv2dReluBinding, BasicAddBindings, BasicConcatBindings, BasicConv1DBinding, \
-    BasicConv2DBindings, BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, \
-    BasicDWConv2DBindings, BasicGatherBindings, BasicGELUBindings, BasicGEMMBindings, BasicITAPartialSoftmaxBinding, \
-    BasicITASoftmaxBinding, BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, \
-    BasicPad1DBindings, BasicPad2DBindings, BasicQuantBindings, BasicReduceMeanBindings, BasicReduceSumBindings, \
-    BasicReluBinding, BasicReshapeBindings, BasicRQIntegerDivBinding, BasicRQSBindings, BasicRQSGELUBinding, \
-    BasicSliceBindings, BasicSoftmaxBindings, BasicTransposeBindings, DummyBinding, BasicAddBindings, BasicConv1DBinding, BasicConv2DBindings, \
-    BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, BasicDWConv2DBindings, \
+from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicAvgPool2DBinding, BasicConcatBindings, \
+    BasicConv1DBinding, BasicConv2DBindings, BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, \
+    BasicDWConv1DBinding, BasicDWConv2DBindings, BasicFloatFusedConv2dReluBinding, BasicFusedAddReluBinding, \
     BasicGatherBindings, BasicGELUBindings, BasicGEMMBindings, BasicITAPartialSoftmaxBinding, BasicITASoftmaxBinding, \
-    BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, BasicPad1DBindings, \
-    BasicPad2DBindings, BasicQuantBindings, BasicReduceMeanBindings, BasicReduceSumBindings, BasicReluBinding, \
-    BasicReshapeBindings, BasicRQIntegerDivBinding, BasicRQSBindings, BasicRQSGELUBinding, BasicSliceBindings, \
-    BasicSoftmaxBindings, BasicTransposeBindings, DummyBinding, BasicAvgPool2DBinding, BasicFusedAddReluBinding, BasicAddBindings, BasicConv1DBinding, BasicConv2DBindings, \
-    BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, \
-    BasicFloatFusedConv2dReluBinding, BasicGatherBindings, BasicGELUBindings, BasicGEMMBindings, \
-    BasicITAPartialSoftmaxBinding, BasicITASoftmaxBinding, BasicLayerNormBindings, BasicMatMulBindings, \
-    BasicMaxPool2DBindings, BasicMulBindings, BasicPad1DBindings, BasicPad2DBindings, BasicQuantBindings, \
-    BasicReduceMeanBindings, BasicReduceSumBindings, BasicReluBinding, BasicReshapeBindings, BasicRQIntegerDivBinding, \
-    BasicRQSBindings, BasicRQSGELUBinding, BasicSliceBindings, BasicSoftmaxBindings, BasicTransposeBindings, \
-    DummyBinding, BasicAddBindings, BasicAvgPool2DBinding, BasicConv1DBinding, \
-    BasicConv2DBindings, BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, \
-    BasicDWConv2DBindings, BasicFloatFusedConv2dReluBinding, BasicFusedAddReluBinding, BasicGatherBindings, \
-    BasicGELUBindings, BasicGEMMBindings, BasicITAPartialSoftmaxBinding, BasicITASoftmaxBinding, \
     BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, BasicPad1DBindings, \
     BasicPad2DBindings, BasicQuantBindings, BasicReduceMeanBindings, BasicReduceSumBindings, BasicReluBinding, \
     BasicReshapeBindings, BasicRQIntegerDivBinding, BasicRQSBindings, BasicRQSGELUBinding, BasicSliceBindings, \
@@ -37,28 +17,12 @@ from Deeploy.Targets.Generic.Bindings import BasicFloatFusedConv2dReluBinding, B
 from Deeploy.Targets.Generic.Layers import AddLayer, ConcatLayer, ConvLayer, DebugPrintLayer, DequantLayer, DivLayer, \
     GatherLayer, GELULayer, GEMMLayer, ITAMaxLayer, LayerNormLayer, MatMulLayer, MaxPoolLayer, MulLayer, PadLayer, \
     QuantLayer, ReduceMeanLayer, ReduceSumLayer, ReluLayer, RequantShiftLayer, ReshapeLayer, RQIntegerDivLayer, \
-    RQSiGELULayer, SliceLayer, SoftmaxLayer, TransposeLayer, AddLayer, ConvLayer, DebugPrintLayer, DequantLayer, DivLayer, GatherLayer, \
-    GELULayer, GEMMLayer, ITAMaxLayer, LayerNormLayer, MatMulLayer, MaxPoolLayer, MulLayer, PadLayer, QuantLayer, \
-    ReduceMeanLayer, ReduceSumLayer, ReluLayer, RequantShiftLayer, ReshapeLayer, RQIntegerDivLayer, RQSiGELULayer, \
-    SliceLayer, SoftmaxLayer, TransposeLayer, AddLayer, ConvLayer, DebugPrintLayer, DequantLayer, DivLayer, GatherLayer, \
-    GELULayer, GEMMLayer, ITAMaxLayer, LayerNormLayer, MatMulLayer, MaxPoolLayer, MulLayer, PadLayer, QuantLayer, \
-    ReduceMeanLayer, ReduceSumLayer, ReluLayer, RequantShiftLayer, ReshapeLayer, RQIntegerDivLayer, RQSiGELULayer, \
-    SliceLayer, SoftmaxLayer, TransposeLayer
+    RQSiGELULayer, SliceLayer, SoftmaxLayer, TransposeLayer
 from Deeploy.Targets.Generic.Parsers import AddParser, ConcatParser, DebugParser, DequantParser, DivParser, \
-    DummyParser, FlattenParser, GatherParser, GELUParser, GenericConv1DParser, GenericConv2DParser, \
-    GenericDWConv1DParser, GenericDWConv2DParser, GenericGEMMParser, GenericMaxPool2DParser, IntegerDivParser, \
-    ITAMaxParser, ITAPartialMaxParser, LayerNormParser, MatMulParser, MulParser, Pad1DParser, Pad2DParser, \
-    QuantParser, ReduceMeanParser, ReduceSumParser, ReluParser, RequantShiftParser, ReshapeParser, RQIntegerDivParser, \
-    AddParser, DebugParser, DequantParser, DivParser, DummyParser, \
-    FlattenParser, GatherParser, GELUParser, GenericAvgPool2DParser, GenericConv1DParser, GenericConv2DParser, GenericDWConv1DParser, \
-    GenericDWConv2DParser, GenericFusedConv2DReluParser, GenericGEMMParser, GenericMaxPool2DParser, IntegerDivParser, ITAMaxParser, \
-    ITAPartialMaxParser, LayerNormParser, MatMulParser, MulParser, Pad1DParser, Pad2DParser, QuantParser, \
-    ReduceMeanParser, ReduceSumParser, ReluParser, RequantShiftParser, ReshapeParser, RQIntegerDivParser, \
-    RQSiGELUParser, SliceParser, SoftmaxParser, TransposeParser, UnsqueezeParser, iLayerNormParser, iSoftmaxParser, AddParser, DebugParser, DequantParser, DivParser, DummyParser, \
-    FlattenParser, GatherParser, GELUParser, GenericAvgPool2DParser, GenericConv1DParser, GenericConv2DParser, \
-    GenericDWConv1DParser, GenericDWConv2DParser, GenericFusedConv2DReluParser, GenericGEMMParser, \
-    GenericMaxPool2DParser, IntegerDivParser, ITAMaxParser, ITAPartialMaxParser, LayerNormParser, MatMulParser, \
-    MulParser, Pad1DParser, Pad2DParser, QuantParser, ReduceMeanParser, ReduceSumParser, ReluParser, \
+    DummyParser, FlattenParser, GatherParser, GELUParser, GenericAvgPool2DParser, GenericConv1DParser, \
+    GenericConv2DParser, GenericDWConv1DParser, GenericDWConv2DParser, GenericFusedConv2DReluParser, \
+    GenericGEMMParser, GenericMaxPool2DParser, IntegerDivParser, ITAMaxParser, ITAPartialMaxParser, LayerNormParser, \
+    MatMulParser, MulParser, Pad1DParser, Pad2DParser, QuantParser, ReduceMeanParser, ReduceSumParser, ReluParser, \
     RequantShiftParser, ReshapeParser, RQIntegerDivParser, RQSiGELUParser, SliceParser, SoftmaxParser, \
     TransposeParser, UnsqueezeParser, iLayerNormParser, iSoftmaxParser
 from Deeploy.Targets.Generic.Templates import AllocateTemplate, FreeTemplate

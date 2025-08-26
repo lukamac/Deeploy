@@ -1825,8 +1825,8 @@ class GEMMParser(MatMulParser):
 
     def parseNode(self, node: gs.Node) -> (bool):
         if not all([
-            len(node.inputs) >= 2,
-            len(node.outputs) == 1,
+                len(node.inputs) >= 2,
+                len(node.outputs) == 1,
         ]):
             return False
 
