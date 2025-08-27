@@ -1016,16 +1016,18 @@ class NodeParser():
 
         if self.required_attrs is not None:
             self.operatorRepresentation.update({attr: node.attrs[attr] for attr in self.required_attrs})
-        # Merge optional attributes with the operatorRepresentation. Optional attributes get overwritten
-        # with anything already existing in the operatorRepresentation
+
         if self.optional_attrs is not None:
-            self.operatorRepresentation = self.optional_attrs | self.operatorRepresentation
+            self.operatorRepresentation.update({
+                attr: getattr(node.attrs, attr, default) for attr, default in self.optional_attrs.items()
+            })
 
         return True
 
     def _parseTensors(self, ctxt: NetworkContext, sym_names: List[str], tensors: Sequence[gs.Tensor]) -> None:
         for sym_name, tensor in zip(sym_names, tensors):
             buffer = ctxt.lookup(tensor.name)
+            assert isinstance(buffer, VariableBuffer)
             self.operatorRepresentation[sym_name] = buffer.name
             # LMACAN: Shape and size are commonly parsed information
             self.operatorRepresentation[f"{sym_name}_shape"] = buffer.shape
