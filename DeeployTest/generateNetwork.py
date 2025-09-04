@@ -39,9 +39,7 @@ from testUtils.typeMapping import inferTypeAndOffset, parseDataType
 
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import IntegerDataTypes
-from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.DebugPasses import EmulateCMSISRequantPass
 from Deeploy.DeeployTypes import _NoVerbosity
-from Deeploy.Targets.CortexM.Platform import CMSISPlatform
 from Deeploy.Targets.PULPOpen.Platform import PULPPlatform
 
 _TEXT_ALIGN = 30
@@ -142,11 +140,6 @@ def generateNetwork(args):
     _DEEPLOYSTATEDIR = os.path.join(args.dumpdir, "deeployStates")
 
     deployer = mapDeployer(platform, graph, inputTypes, deeployStateDir = _DEEPLOYSTATEDIR, inputOffsets = inputOffsets)
-
-    if not isinstance(
-            platform, CMSISPlatform
-    ) and not "simpleCNN" in args.dir and not "testRQMatMul" in args.dir and not "testRQGEMM" in args.dir:
-        deployer.loweringOptimizer.passes.insert(0, EmulateCMSISRequantPass())
 
     verbosityCfg = _NoVerbosity
     if isinstance(platform, PULPPlatform):
