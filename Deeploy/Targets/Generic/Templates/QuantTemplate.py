@@ -39,8 +39,8 @@ BEGIN_SINGLE_CORE
     for (uint32_t i=0; i<${size}; i++) {
         // quantization formula
         float32_t input_val = ${data_in}[i];
-        float32_t scaled_val = input_val * ${scale};  // Multiply instead of divide
-        float32_t shifted_val = scaled_val + ${zero_point};
+        float32_t scaled_val = input_val * ${scale}f;  // Multiply instead of divide
+        float32_t shifted_val = scaled_val + ${zero_point}f;
         
         // Round to nearest integer
         int32_t quantized = (int32_t)(shifted_val + 0.5f * (shifted_val >= 0 ? 1 : -1));

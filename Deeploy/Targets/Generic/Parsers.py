@@ -917,11 +917,14 @@ class GatherParser(NodeParser):
         for idx, outputNode in enumerate(node.outputs):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
+        indicesBuffer = ctxt.lookup(self.operatorRepresentation['indices'])
+        indicesBuffer._deploy = False
+
         axis = self.operatorRepresentation['axis']
         shape = ctxt.lookup(node.inputs[0].name).shape
-        self.operatorRepresentation['batch'] = np.prod(shape[:axis])
-        self.operatorRepresentation['batch_length'] = np.prod(shape[axis:])
-        self.operatorRepresentation['axis_length'] = np.prod(shape[axis + 1:])
+        self.operatorRepresentation['batch'] = math.prod(shape[:axis])
+        self.operatorRepresentation['batch_length'] = math.prod(shape[axis:])
+        self.operatorRepresentation['axis_length'] = math.prod(shape[axis + 1:])
         self.operatorRepresentation['index'] = int(node.inputs[1].values.item())
 
         return ctxt, True
