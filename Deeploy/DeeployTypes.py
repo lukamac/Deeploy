@@ -1200,6 +1200,9 @@ class NodeParser():
         The attributes can either be a numpy scalar value or a Constant tensor.
         This expects the numpy value to be of size 1.
         """
+        if isinstance(attr, (int, float)):
+            return attr
+
         if isinstance(attr, gs.Constant):
             value = attr.values
         elif isinstance(attr, np.ndarray):
