@@ -45,6 +45,8 @@ from mako.template import Template
 from onnx.external_data_helper import convert_model_to_external_data
 from ortools.constraint_solver.pywrapcp import IntVar
 
+from Deeploy.CommonExtensions.DataTypes import IntegerDataTypes, float32_t, float64_t
+
 from .AbstractDataTypes import BaseType, FloatImmediate, IntegerImmediate, Pointer, PointerClass, Struct, VoidType
 
 Shape = TypeVar("Shape", bound = Any)
@@ -464,15 +466,15 @@ class ConstantBuffer(VariableBuffer):
         return ret
 
     def _valueString(self) -> str:
-        values = list(self.values.reshape(-1))
-        if self._type.typeName == 'float32_t*':
-            strValues = [f'{value}f' for value in values]
-        elif self._type.typeName == 'int8_t*':
-            strValues = [f'{int(value)}' for value in values]
+        if self._type.referencedType == float32_t:
+            formatter = lambda x: f'{x}f'
+        elif self._type.referencedType == float64_t:
+            formatter = lambda x: f'{x}'
+        elif self._type.referencedType in IntegerDataTypes:
+            formatter = lambda x: f'{int(x)}'
         else:
-            strValues = [str(value) for value in values]
-        valueString = ', '.join(strValues)
-        return valueString
+            raise RuntimeError(f"Unimplemented formatter for type {self._type.referencedType}")
+        return ', '.join(formatter(x) for x in self.values.flatten())
 
     def __str__(self) -> str:
         return f'ConstantBuffer: name: {self.name}, type: {self._type}'
