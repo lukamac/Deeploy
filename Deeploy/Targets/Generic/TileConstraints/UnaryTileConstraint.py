@@ -23,9 +23,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Dict, List, Tuple
-
-import numpy as np
 
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import uint16_t
@@ -40,20 +39,18 @@ class UnaryTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+        inputName = parseDict['data_in']
+        outputName = parseDict['data_out']
 
-        inputBuffer1Name = parseDict['data_in']
-        outputBufferName = parseDict['data_out']
+        for name in [inputName, outputName]:
+            tilerModel.addTensorDimToModel(ctxt, name)
 
-        for bufferName in [inputBuffer1Name, outputBufferName]:
-            tilerModel.addTensorDimToModel(ctxt, bufferName)
+        inputShape = ctxt.lookup(inputName).shape
 
-        input1Shape = ctxt.lookup(inputBuffer1Name).shape
-
-        for dim in range(len(input1Shape)):
-            inputDim1Var = tilerModel.getTensorDimVar(tensorName = inputBuffer1Name, dimIdx = dim)
-            outputDimVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = dim)
-
-            tilerModel.addConstraint(inputDim1Var == outputDimVar)
+        for dim in range(len(inputShape)):
+            inputDimVar = tilerModel.getTensorDimVar(tensorName = inputName, dimIdx = dim)
+            outputDimVar = tilerModel.getTensorDimVar(tensorName = outputName, dimIdx = dim)
+            tilerModel.addConstraint(inputDimVar == outputDimVar)
 
         return tilerModel
 
@@ -68,21 +65,11 @@ class UnaryTileConstraint(TileConstraint):
         inputBaseOffsets, outputBaseOffsets = cls.extractBaseAddr(tilingSolution, targetMemLevel,
                                                                   operatorRepresentation, addrNames)
 
-        replacements = {"size": []}
+        replacements = {"size": [math.prod(cube.dims) for cube in outputCubes]}
         replacementTypes = {"size": PointerClass(uint16_t)}
 
-        for cube in outputCubes:
-            newSize = np.prod(cube.dims)
-            replacements["size"].append(newSize)
-
-        inputLoadSchedule = []
-        outputLoadSchedule = []
-
-        for cube in outputCubes:
-            inputLoadSchedule.append({"data_in": cube})
-
-        for out in outputCubes:
-            outputLoadSchedule.append({"data_out": out})
+        inputLoadSchedule = [{"data_in": cube} for cube in outputCubes]
+        outputLoadSchedule = [{"data_out": cube} for cube in outputCubes]
 
         tilingSchedule = TilingSchedule(inputBaseOffsets, outputBaseOffsets, inputLoadSchedule, outputLoadSchedule)
         variableReplacementSchedule = VariableReplacementScheme(replacements, replacementTypes)

@@ -35,14 +35,9 @@ class _DequantTemplate(NodeTemplate):
 referenceTemplate = _DequantTemplate("""
 // Dequantization (Name: ${nodeName}, Op: ${nodeOp})
 BEGIN_SINGLE_CORE
-
-    for (uint32_t i=0; i<${size}; i++) {
-        int32_t quantized = (int32_t)${data_in}[i];
-        float32_t shifted_val = quantized - ${zero_point};
-        float32_t dequantized = shifted_val * ${scale};
-
-        ${data_out}[i] = (${data_out_type.referencedType.typeName})dequantized;
-    }
-
+for (uint32_t i=0; i<${size}; i++) {
+    float32_t dequantized = (${data_in}[i] - ${zero_point}f) * ${scale}f;
+    ${data_out}[i] = (${data_out_type.referencedType.typeName})dequantized;
+}
 END_SINGLE_CORE
 """)
