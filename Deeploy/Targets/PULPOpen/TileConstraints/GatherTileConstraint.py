@@ -38,44 +38,27 @@ class GatherTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+        buffers = [ctxt.lookup(v) for v in parseDict.values() if ctxt.is_buffer(v)]
+        buffers = [buff for buff in buffers if not isinstance(buff, TransientBuffer)]
 
-        pointer: List[str] = []
+        for buff in buffers:
+            tilerModel.addTensorDimToModel(ctxt, buff.name)
 
-        for key, value in parseDict.items():
-            if not isinstance(value, str):
-                continue
-
-            if ctxt.is_global(value) or ctxt.is_local(value):
-                pointer.append(value)
-
-        for tensorName in pointer:
-
-            _buffer = ctxt.lookup(tensorName)
-            if isinstance(_buffer, TransientBuffer):
-                continue
-
-            tilerModel.addTensorDimToModel(ctxt, tensorName)
-
-            for idx, shapeDim in enumerate(_buffer.shape):
-                tilerModel.addConstraint(tilerModel.getTensorDimVar(tensorName = tensorName, dimIdx = idx) == shapeDim)
+            for idx, shapeDim in enumerate(buff.shape):
+                tilerModel.addConstraint(tilerModel.getTensorDimVar(tensorName = buff.name, dimIdx = idx) == shapeDim)
 
         return tilerModel
 
     @staticmethod
     def constructSymbolicNodeRep(tilerModel: TilerModel, parseDict: Dict,
                                  ctxt: NetworkContext) -> Dict[str, Union[int, IntVar]]:
-
-        symbolicParseDict = parseDict.copy()
-
-        return symbolicParseDict
+        return parseDict.copy()
 
     @classmethod
     def serializeTilingSolution(
             cls, tilingSolution: NodeMemoryConstraint, absoluteOutputCubes: List[AbsoluteHyperRectangle],
             targetMemLevel: str, ctxt: NetworkContext,
             operatorRepresentation: OperatorRepresentation) -> Tuple[VariableReplacementScheme, TilingSchedule]:
-
         schedule = TilingSchedule({}, {}, [], [])
         repScheme = VariableReplacementScheme({}, {})
-
         return repScheme, schedule
