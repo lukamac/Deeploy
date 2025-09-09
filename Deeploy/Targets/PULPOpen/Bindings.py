@@ -32,8 +32,8 @@ from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.CodeTransformationPasses.Closure import ClosureGeneration, MemoryAwareClosureGeneration
 from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import ArgumentStructGeneration, \
     MemoryManagementGeneration
-from Deeploy.CommonExtensions.DataTypes import IntegerDataTypes, SignedIntegerDataTypes, float32_t, int8_t, int32_t, \
-    uint8_t
+from Deeploy.CommonExtensions.DataTypes import FloatDataTypes, IntegerDataTypes, SignedIntegerDataTypes, float32_t, \
+    int8_t, int32_t, uint8_t
 from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTemplate
 from Deeploy.FutureExtension.Bindings.AutoFutureBinding import AutoFutureBinding
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
@@ -404,8 +404,10 @@ PULPFloatGELUBinding = NodeBinding(
     FloatGELUTemplate.referenceTemplate, ForkTransformer)
 
 PULPGatherBindings = [
-    NodeBinding(GatherChecker([PointerClass(float32_t), PointerClass(type)], [PointerClass(float32_t)]),
-                GatherTemplate.referenceTemplate, ForkTransformer) for type in IntegerDataTypes
+    NodeBinding(GatherChecker([PointerClass(in_type), PointerClass(indices_type)], [PointerClass(in_type)]),
+                GatherTemplate.referenceTemplate, ForkTransformer)
+    for indices_type in IntegerDataTypes
+    for in_type in IntegerDataTypes + FloatDataTypes
 ]
 
 BasicQuantBindings = [
