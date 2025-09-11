@@ -27,38 +27,47 @@ from typing import Dict, List, Tuple, Union
 
 from ortools.constraint_solver.pywrapcp import IntVar
 
-from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation, TransientBuffer
+from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, OperatorRepresentation
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
-from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, TilingSchedule, VariableReplacementScheme
+from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, HyperRectangle, TilingSchedule, \
+    VariableReplacementScheme
 
 
 class GatherTileConstraint(TileConstraint):
 
     @staticmethod
     def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+        inputBuffer = ctxt.lookup(parseDict["data_in"])
+        indicesBuffer = ctxt.lookup(parseDict["indices"])
+        outputBuffer = ctxt.lookup(parseDict["data_out"])
 
-        pointer: List[str] = []
+        for buff in [inputBuffer, outputBuffer]:
+            tilerModel.addTensorDimToModel(ctxt, buff.name)
 
-        for key, value in parseDict.items():
-            if not isinstance(value, str):
-                continue
+        assert isinstance(indicesBuffer, ConstantBuffer)
+        index = indicesBuffer.values.item()
+        axis = parseDict["axis"]
 
-            if ctxt.is_global(value) or ctxt.is_local(value):
-                pointer.append(value)
+        for i in range(axis):
+            inVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = i)
+            outVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = i)
+            tilerModel.addConstraint(inVar == outVar)
 
-        for tensorName in pointer:
+        for i in range(axis + 1, len(inputBuffer.shape)):
+            inVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = i)
+            outVar = tilerModel.getTensorDimVar(tensorName = outputBuffer.name, dimIdx = i - 1)
+            tilerModel.addConstraint(inVar == outVar)
 
-            _buffer = ctxt.lookup(tensorName)
-            if isinstance(_buffer, TransientBuffer):
-                continue
+        return tilerModel
 
-            tilerModel.addTensorDimToModel(ctxt, tensorName)
-
-            for idx, shapeDim in enumerate(_buffer.shape):
-                tilerModel.addConstraint(tilerModel.getTensorDimVar(tensorName = tensorName, dimIdx = idx) == shapeDim)
-
+    @staticmethod
+    def addPolicyConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+        inputBuffer = ctxt.lookup(parseDict["data_in"])
+        for i, dim in enumerate(inputBuffer.shape):
+            var = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = i)
+            tilerModel.addConstraint(var == dim)
         return tilerModel
 
     @staticmethod
@@ -74,8 +83,30 @@ class GatherTileConstraint(TileConstraint):
             cls, tilingSolution: NodeMemoryConstraint, absoluteOutputCubes: List[AbsoluteHyperRectangle],
             targetMemLevel: str, ctxt: NetworkContext,
             operatorRepresentation: OperatorRepresentation) -> Tuple[VariableReplacementScheme, TilingSchedule]:
+        outputCubes = [absCube.rectangle for absCube in absoluteOutputCubes]
 
-        schedule = TilingSchedule({}, {}, [], [])
+        indicesBuffer = ctxt.lookup(operatorRepresentation["indices"])
+        assert isinstance(indicesBuffer, ConstantBuffer)
+        index = indicesBuffer.values.item()
+        axis = operatorRepresentation["axis"]
+
+        inputBuffer = ctxt.lookup(operatorRepresentation["data_in"])
+
+        inputCubes = []
+        for cube in outputCubes:
+            inputCubes.append(
+                HyperRectangle(
+                    offset = cube.offset[:axis] + (0,) + cube.offset[axis:],
+                    dims = cube.dims[:axis] + (inputBuffer.shape[axis],) + cube.dims[axis:],
+                ))
+
+        inputLoadSchedule = [{"data_in": cube} for cube in inputCubes]
+        outputLoadSchedule = [{"data_out": cube} for cube in outputCubes]
+
+        inputBaseOffsets, outputBaseOffsets = cls.extractBaseAddr(tilingSolution, targetMemLevel,
+                                                                  operatorRepresentation, ["data_in", "data_out"])
+
+        schedule = TilingSchedule(inputBaseOffsets, outputBaseOffsets, inputLoadSchedule, outputLoadSchedule)
         repScheme = VariableReplacementScheme({}, {})
 
         return repScheme, schedule
