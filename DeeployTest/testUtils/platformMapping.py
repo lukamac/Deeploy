@@ -206,7 +206,7 @@ def mapDeployer(platform: DeploymentPlatform,
             loweringOptimizer = PULPOptimizer
 
         if default_channels_first is None:
-            default_channels_first = False
+            default_channels_first = True
 
         deployer = PULPDeployer(graph,
                                 platform,

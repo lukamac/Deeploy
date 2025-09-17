@@ -22,10 +22,11 @@ from Deeploy.Targets.Generic.Parsers import AddParser, ConcatParser, DequantPars
     RQIntegerDivParser, RQSiGELUParser, RQSiHardswishParser, SGDParser, SliceParser, \
     SoftmaxCrossEntropyLossGradParser, SoftmaxCrossEntropyLossParser, SoftmaxGradParser, SoftmaxParser, \
     TransposeParser, UniformRequantShiftParser, UnsqueezeParser, iHardswishParser, iRMSNormParser, iSoftmaxParser
+from Deeploy.Targets.Generic.Platform import Conv2DMapper as GenericConv2DMapper
 from Deeploy.Targets.Generic.Templates import AllocateTemplate as BasicAllocateTemplate
-from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import DequantPatternPass, IntegerDivRequantMergePass, \
-    MergeConstAddAndRequantPass, MergeTrueIntegerDivRequantShiftPass, QuantPatternPass, RQSSplitPass, \
-    SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
+from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import DequantPatternPass, ExtractPaddingFromConvPass, \
+    IntegerDivRequantMergePass, MergeConstAddAndRequantPass, MergeTrueIntegerDivRequantShiftPass, QuantPatternPass, \
+    RQSSplitPass, SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
 from Deeploy.Targets.PULPOpen.Bindings import BasicDequantBindings, BasicQuantBindings, PULPConv1DBinding, \
     PULPDMASliceBindings, PULPDWConv1DBinding, PULPReduceMeanBindings
 from Deeploy.Targets.PULPOpen.Layers import PULPRQSConvLayer, PULPRQSGEMMLayer
@@ -99,7 +100,7 @@ QuantMapper = NodeMapper(QuantParser(), BasicQuantBindings)
 DequantMapper = NodeMapper(DequantParser(), BasicDequantBindings)
 GEMMDequantMapper = NodeMapper(PULPGEMMParser(), BasicGEMMBindings)
 PULPMapping = {
-    'Conv': ConvLayer([FPConv2DMapper]),
+    'Conv': ConvLayer([GenericConv2DMapper]),
     'RequantizedConv': PULPRQSConvLayer([Conv2DMapper, DWConv2DMapper, Conv1DMapper, DWConv1DMapper]),
     'RequantizedGemm': PULPRQSGEMMLayer([MatrixVecMapper, TallGEMMMapper, GEMMMapper]),
     'Gemm': GEMMLayer([FloatGEMMMapper, GEMMDequantMapper]),
@@ -225,7 +226,8 @@ PULPOptimizer = TopologyOptimizer([
     MergeConstAddAndRequantPass(),
     PULPGEMMRequantMergePass(),
     PULPMatMulRequantMergePass(),
-    PULPAddRequantMergePass()
+    PULPAddRequantMergePass(),
+    ExtractPaddingFromConvPass(),
 ])
 
 # SCHEREMO: stdint is included before pulp_nn_kernels.h because it is supposed to be included in there, but isn't...
