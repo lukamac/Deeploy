@@ -28,7 +28,7 @@ void Conv2d_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ pSrcA, uint32_t C,
     for (f = F_begin; f < F_end; ++f) {
       for (h = 0; h < H_out; ++h) {
         for (w = 0; w < W_out; ++w) {
-          float32_t sum = pSrcBias[f];
+          float32_t sum = 0.0f;
 
           for (c = 0; c < C; ++c) {
             for (p = 0; p < P; ++p) {
@@ -40,6 +40,7 @@ void Conv2d_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ pSrcA, uint32_t C,
             }
           }
 
+          sum += pSrcBias[f];
           pDstC[f * H_out * W_out + h * W_out + w] = sum;
         }
       }

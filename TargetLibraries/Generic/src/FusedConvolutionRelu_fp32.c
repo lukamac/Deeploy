@@ -43,7 +43,7 @@ void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, ui
   for (uint32_t f = F_begin; f < F_end; ++f) {
     for (uint32_t h = 0; h < H_out; ++h) {
       for (uint32_t w = 0; w < W_out; ++w) {
-        float32_t sum = bias[f];
+        float32_t sum = 0.0f;
         for (uint32_t c = 0; c < C; ++c) {
           for (uint32_t p = 0; p < P; ++p) {
             for (uint32_t q = 0; q < Q; ++q) {
@@ -57,7 +57,8 @@ void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, ui
             }
           }
         }
-        output[f * H_out * W_out + h * W_out + w] = sum > 0 ? sum : 0;
+        sum += bias[f];
+        output[f * H_out * W_out + h * W_out + w] = sum > 0.0f ? sum : 0.0f;
       }
     }
   }
