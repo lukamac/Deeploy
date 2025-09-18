@@ -540,23 +540,48 @@ class ReduceParser(NodeParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
+        if not all([
+            len(node.inputs) in [1, 2],
+            len(node.outputs) == 1,
+        ]):
+            return False
 
-        ret = all(['axes' in node.attrs, 'keepdims' in node.attrs, len(node.inputs) == 1, len(node.outputs) == 1])
+        assert not (len(node.inputs) == 2 and 'axes' in node.attrs), \
+        "Cannot have axes in inputs and attributes"
 
-        if ret:
-            if isinstance(node.attrs['axes'], int):
-                self.operatorRepresentation['axes'] = [node.attrs['axes']]
-            else:
-                self.operatorRepresentation['axes'] = node.attrs['axes']
-            self.operatorRepresentation['keepdims'] = int(node.attrs['keepdims'])
+        if len(node.inputs) == 2:
+            axes_tensor = node.inputs[1]
+            assert isinstance(axes_tensor, gs.Constant)
+            axes = axes_tensor.values
+        elif 'axes' in node.attrs:
+            axes = node.attrs['axes']
+        else:
+            axes = None
 
-        return ret
+        if axes:
+            if isinstance(axes, (int, float, np.number)):
+                axes = [int(axes)]
+
+        keepdims = int(node.attrs.get('keepdims', 1))
+
+        if keepdims:
+            for i, (dim_in, dim_out) in enumerate(zip(node.inputs[0].shape, node.outputs[0].shape, strict=True)):
+                if axes:
+                    if i in axes:
+                        assert dim_out == 1
+                    else:
+                        assert dim_out == dim_in
+                else:
+                    assert dim_out == 1
+
+        self.operatorRepresentation['axes'] = axes
+        self.operatorRepresentation['keepdims'] = keepdims
+        return True
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
         data_in = ctxt.lookup(node.inputs[0].name)
         data_out = ctxt.lookup(node.outputs[0].name)
         self.operatorRepresentation['data_in'] = data_in.name
@@ -564,7 +589,11 @@ class ReduceParser(NodeParser):
         self.operatorRepresentation['data_in_shape'] = data_in.shape
         self.operatorRepresentation['data_out_shape'] = data_out.shape
         self.operatorRepresentation['size'] = math.prod(data_in.shape)
-        self.operatorRepresentation['axisLength'] = data_in.shape[self.operatorRepresentation['axes'][0]]
+
+        if len(node.inputs) == 2:
+            axes = ctxt.lookup(node.inputs[1].name)
+            axes._live = False
+            axes._deploy = False
 
         return ctxt, True
 
@@ -603,7 +632,6 @@ class ReduceMeanParser(ReduceParser):
             self.operatorRepresentation['data_in_shape'] = data_in.shape
             self.operatorRepresentation['data_out_shape'] = data_out.shape
             self.operatorRepresentation['size'] = math.prod(data_in.shape)
-            self.operatorRepresentation['axisLength'] = data_in.shape[axes.values[0]]
             self.operatorRepresentation['axes'] = axes.values
 
             # Mark the axes variable to be excluded from the context, since only used in the template, as part of the operator representation
@@ -618,22 +646,7 @@ class ReduceMeanParser(ReduceParser):
 
 class ReduceSumParser(ReduceParser):
 
-    def __init__(self):
-        super().__init__()
-
-    def parseNode(self, node: gs.Node) -> bool:
-
-        wellFormed = super().parseNode(node)
-
-        return wellFormed
-
-    def parseNodeCtxt(self,
-                      ctxt: NetworkContext,
-                      node: gs.Node,
-                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
-        return newCtxt, ret
+    pass
 
 
 class SoftmaxParser(NodeParser):

@@ -398,20 +398,7 @@ class ReduceMeanLayer(ONNXLayer):
 
 
 class ReduceSumLayer(ONNXLayer):
-
-    def __init__(self, maps: List[NodeMapper]):
-        super().__init__(maps)
-
-    def computeShapes(self, inputShapes: Shape, outputShapes: Shape, operatorRepresentation,
-                      channels_first) -> Tuple[Shape, Shape]:
-        outputShapes = copy.deepcopy(inputShapes)
-        axis = operatorRepresentation['axes'][0]
-
-        if operatorRepresentation['keepdims']:
-            outputShapes[0][axis] = 1
-        else:
-            outputShapes[0] = outputShapes[0][:axis] + outputShapes[0][axis + 1:]
-        return (inputShapes, outputShapes)
+    pass
 
 
 class ReluLayer(ONNXLayer):
