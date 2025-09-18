@@ -13,12 +13,12 @@ from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPla
 from Deeploy.Targets.Generic.Bindings import BasicConv2DBindings, BasicGatherBindings, BasicGEMMBindings, \
     BasicLayerNormBindings, BasicMatMulBindings, BasicPad1DBindings, BasicPad2DBindings, BasicReshapeBindings, \
     BasicRQIntegerDivBinding
-from Deeploy.Targets.Generic.Layers import AddLayer, GatherLayer, GEMMLayer, LayerNormLayer, MatMulLayer, PadLayer, \
+from Deeploy.Targets.Generic.Layers import AddLayer, GatherLayer, GEMMLayer, LayerNormLayer, MatMulLayer, MulLayer, PadLayer, ReduceSumLayer, \
     ReshapeLayer, RQGEMMLayer, RQIntegerDivLayer, SoftmaxLayer, TransposeLayer, iNoNormLayer
 from Deeploy.Targets.Generic.Parsers import AddParser, GatherParser, GenericConv2DParser, \
-    GenericFusedConv2DReluParser, MatMulParser, Pad1DParser, Pad2DParser, RQAddParser, RQIntegerDivParser, \
+    GenericFusedConv2DReluParser, MatMulParser, Pad1DParser, Pad2DParser, RQAddParser, RQIntegerDivParser, ReduceSumParser, \
     SoftmaxParser, UnsqueezeParser, iLayerNormParser, iNoNormParser, iSoftmaxParser
-from Deeploy.Targets.Generic.Platform import AvgPoolMapper, ReshapeMapper, TransposeMapper
+from Deeploy.Targets.Generic.Platform import AvgPoolMapper, MulMapper, ReshapeMapper, TransposeMapper
 from Deeploy.Targets.Generic.Templates import AllocateTemplate as BasicAllocateTemplate
 from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import AddRequantMergePass, ExtractPaddingFromConvPass, \
     ExtractPaddingFromPoolPass, GEMMRequantMergePass, IntegerDivRequantMergePass, MatMulAddMergePass, \
@@ -26,7 +26,7 @@ from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import AddRequant
     SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
 from Deeploy.Targets.PULPOpen.Platform import RQAddMapper
 from Deeploy.Targets.Snitch.Bindings import SnitchFloatAddBinding, SnitchFloatConvBinding, \
-    SnitchFloatFusedAddReluBinding, SnitchFloatFusedConvReluBinding, SnitchMultiCoreFloatAddBinding
+    SnitchFloatFusedAddReluBinding, SnitchFloatFusedConvReluBinding, SnitchFloatReduceSumBindings, SnitchMultiCoreFloatAddBinding
 from Deeploy.Targets.Snitch.Layers import ConvLayer
 from Deeploy.Targets.Snitch.Parsers import SnitchGEMMParser, SnitchRQGEMMParser
 from Deeploy.Targets.Snitch.Templates import AllocateTemplate, FreeTemplate
@@ -61,6 +61,7 @@ FloatFusedAddReluMapper = NodeMapper(AddParser(),
 FloatFusedConv2DReluMapper = NodeMapper(GenericFusedConv2DReluParser(),
                                         [SnitchFloatFusedConvReluBinding] + SnitchFloatFusedConv2dReluTileReadyBindings)
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings + [SnitchFloatConvBinding])
+ReduceSumMapper = NodeMapper(ReduceSumParser(), SnitchFloatReduceSumBindings)
 
 SnitchMapping = {
     'Conv': ConvLayer([Conv2DMapper]),
@@ -82,6 +83,8 @@ SnitchMapping = {
     'FusedAddRelu': AddLayer([FloatFusedAddReluMapper]),
     'AveragePool': ONNXLayer([AvgPoolMapper]),
     'Reshape': ReshapeLayer([ReshapeMapper]),
+    'Mul': MulLayer([MulMapper]),
+    'ReduceSum': ReduceSumLayer([ReduceSumMapper]),
 }
 
 

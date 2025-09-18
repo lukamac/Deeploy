@@ -1212,6 +1212,12 @@ class MulParser(NodeParser):
         return ctxt, True
 
 
+class MulScalarBParser(MulParser):
+
+    def parseNode(self, node: gs.Node) -> (bool):
+        return super().parseNode(node) and (math.prod(node.inputs[1].shape) == 1)
+
+
 class ConvParser(NodeParser):
 
     def __init__(self, noBiasHoisting):

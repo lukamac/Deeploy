@@ -177,6 +177,11 @@ BasicMulBindings = [
                 FloatMulTemplate.referenceTemplate, BasicTransformer)
 ]
 
+BasicMulScalarBBindings = [
+    NodeBinding(MulChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]),
+                FloatMulTemplate.optScalarBTemplate, BasicTransformer)
+]
+
 BasicPad1DBindings = [
     NodeBinding(PadChecker([PointerClass(type)], [PointerClass(type)]), PadTemplate.reference1DTemplate,
                 BasicTransformer) for type in SignedIntegerDataTypes
