@@ -6,13 +6,13 @@
 
 #include "DeeployBasicMath.h"
 
-// Can be parallelized over output channel by assigning each worker a chunk of the original F through setting F_begin/end
+// Can be parallelized over output channel by assigning each worker a chunk of
+// the original F through setting F_begin/end
 void Conv2d_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ pSrcA, uint32_t C,
                                 uint32_t H_padded, uint32_t W_padded,
-                                const float32_t *__restrict__ pSrcB, uint32_t F_begin,
-                                uint32_t F_end,
-                                uint32_t P, uint32_t Q, uint32_t SP,
-                                uint32_t SQ,
+                                const float32_t *__restrict__ pSrcB,
+                                uint32_t F_begin, uint32_t F_end, uint32_t P,
+                                uint32_t Q, uint32_t SP, uint32_t SQ,
                                 const float32_t *__restrict__ pSrcBias,
                                 const bool has_bias,
                                 float32_t *__restrict__ pDstC) {

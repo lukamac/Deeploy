@@ -5,6 +5,7 @@
 from Deeploy.DeeployTypes import NodeTemplate
 
 referenceTemplate = NodeTemplate("""
+% if size >= 6:
 // Add Parallel with 1x6 unrolling (Name: ${nodeName}, Op: ${nodeOp})
 int8_t ${nodeName}_core_id = pi_core_id();
 int8_t ${nodeName}_log2Core = log2(NUM_CORES);
@@ -25,4 +26,11 @@ for (; i+5 < ${nodeName}_chunk_stop; i+=6) {
 for (; i < ${nodeName}_chunk_stop; i++) {
     ${data_out}[i] = ${data_in_1}[i] + ${data_in_2}[i];
 }
+% else:
+BEGIN_SINGLE_CORE
+for (uint32_t i = 0; i < ${size}; i++) {
+    ${data_out}[i] = ${data_in_1}[i] + ${data_in_2}[i];
+}
+END_SINGLE_CORE
+% endif
 """)

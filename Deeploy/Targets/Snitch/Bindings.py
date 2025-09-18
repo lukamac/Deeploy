@@ -11,8 +11,8 @@ from Deeploy.CommonExtensions.CodeTransformationPasses.MemoryAllocation import A
 from Deeploy.CommonExtensions.DataTypes import float32_t, int8_t, int32_t, uint8_t
 from Deeploy.DeeployTypes import CodeTransformation, NodeBinding, NodeTypeChecker
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
-from Deeploy.Targets.Generic.Templates import iNoNormTemplate
-from Deeploy.Targets.Generic.TypeCheckers import AddChecker, GEMMChecker, RQAddChecker, SoftmaxChecker, iNoNormChecker
+from Deeploy.Targets.Generic.Templates import FloatReduceSumTemplate, iNoNormTemplate
+from Deeploy.Targets.Generic.TypeCheckers import AddChecker, GEMMChecker, RQAddChecker, ReduceMeanChecker, SoftmaxChecker, iNoNormChecker
 from Deeploy.Targets.Snitch.CodeTransformationPasses import SnitchClusterTiling, SnitchCoreFilterPass, \
     SnitchProfileExecutionBlockPass, SnitchSynchCoresPass
 from Deeploy.Targets.Snitch.DMA.SnitchDma import SnitchDma
@@ -125,3 +125,8 @@ SnitchFloatFusedConvReluBinding = NodeBinding(
     NodeTypeChecker([PointerClass(float32_t), PointerClass(float32_t),
                      PointerClass(float32_t)], [PointerClass(float32_t)]), FloatFusedConvRelu_Template,
     BasicComputeTransformer)
+
+SnitchFloatReduceSumBindings = [
+    NodeBinding(ReduceMeanChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+                FloatReduceSumTemplate.referenceTemplate, BasicComputeTransformer)
+]

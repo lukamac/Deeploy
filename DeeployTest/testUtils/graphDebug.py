@@ -36,7 +36,7 @@ def generateDebugConfig(test_inputs_files, test_outputs_files, activations_files
         test_inputs_files, test_outputs_files, activations_files, graph)
 
     # Choose nodes
-    graph.nodes = graph.nodes[:1]
+    graph.nodes = graph.nodes[:3]
     graph.outputs = list(graph.nodes[-1].outputs)
     graph.cleanup(remove_unused_graph_inputs = True, remove_unused_node_outputs = True)
 

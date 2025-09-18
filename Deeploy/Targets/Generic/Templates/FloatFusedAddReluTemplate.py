@@ -30,9 +30,9 @@ from Deeploy.DeeployTypes import NodeTemplate
 referenceTemplate = NodeTemplate("""
 // FusedAddRelu (Name: ${nodeName}, Op: ${nodeOp})
 BEGIN_SINGLE_CORE
-    for (uint32_t i=0;i<${size};i++){
-        const float res = ${data_in_1}[i] + ${data_in_2}[i];
-        ${data_out}[i] = res > 0.0 ? res : 0.0;
+    for (uint32_t i=0; i<${size}; i++){
+        const float32_t res = ${data_in_1}[i] + ${data_in_2}[i];
+        ${data_out}[i] = res > 0.0f ? res : 0.0f;
     }
 END_SINGLE_CORE
 """)

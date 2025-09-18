@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import math
-from typing import List, Tuple
-from Deeploy.DeeployTypes import NetworkContext, NodeTemplate, OperatorRepresentation, VariableBuffer
+
+from Deeploy.DeeployTypes import NodeTemplate
 
 referenceTemplate = NodeTemplate("""
 // Float Mul with parallelism and 6x unrolling (Name: ${nodeName}, Op: ${nodeOp})

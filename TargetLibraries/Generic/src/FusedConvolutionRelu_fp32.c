@@ -29,14 +29,13 @@
 
 #include "DeeployBasicMath.h"
 
-void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, uint32_t C,
-                                         uint32_t H_in, uint32_t W_in,
-                                         uint32_t pad_bottom, uint32_t pad_left,
-                                         uint32_t pad_top, uint32_t pad_right,
-                                         const float32_t *__restrict__ weights,
-                                         const float32_t *__restrict__ bias,
-                                         uint32_t F_begin, uint32_t F_end, uint32_t P, uint32_t Q,
-                                         uint32_t SP, uint32_t SQ, float32_t *__restrict__ output) {
+void FusedConv2dRelu_fp32_fp32_fp32_NCHW(
+    const float32_t *__restrict__ input, uint32_t C, uint32_t H_in,
+    uint32_t W_in, uint32_t pad_bottom, uint32_t pad_left, uint32_t pad_top,
+    uint32_t pad_right, const float32_t *__restrict__ weights,
+    const float32_t *__restrict__ bias, uint32_t F_begin, uint32_t F_end,
+    uint32_t P, uint32_t Q, uint32_t SP, uint32_t SQ,
+    float32_t *__restrict__ output) {
   const uint32_t H_out = (H_in - P + pad_top + pad_bottom) / SP + 1;
   const uint32_t W_out = (W_in - Q + pad_left + pad_right) / SQ + 1;
 
@@ -49,9 +48,12 @@ void FusedConv2dRelu_fp32_fp32_fp32_NCHW(const float32_t *__restrict__ input, ui
             for (uint32_t q = 0; q < Q; ++q) {
               const uint32_t w_in = w * SQ + q;
               const uint32_t h_in = h * SP + p;
-              if (h_in >= pad_bottom && (pad_top + pad_bottom + H_in - h_in) > pad_top &&
-                  w_in >= pad_left && (pad_left + pad_right + W_in - w_in) > pad_right) {
-                sum += input[c * H_in * W_in + (h_in - pad_bottom) * W_in + (w_in - pad_left)] *
+              if (h_in >= pad_bottom &&
+                  (pad_top + pad_bottom + H_in - h_in) > pad_top &&
+                  w_in >= pad_left &&
+                  (pad_left + pad_right + W_in - w_in) > pad_right) {
+                sum += input[c * H_in * W_in + (h_in - pad_bottom) * W_in +
+                             (w_in - pad_left)] *
                        weights[f * C * P * Q + c * P * Q + p * Q + q];
               }
             }
