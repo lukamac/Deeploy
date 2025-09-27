@@ -312,15 +312,9 @@ class MulLayer(ONNXLayer):
 
     def computeShapes(self, inputShapes: Shape, outputShapes: Shape, operatorRepresentation,
                       channels_first) -> Tuple[Shape, Shape]:
-
         if inputShapes[1] == () or inputShapes[1] == []:
             inputShapes[1] = (1,)
-
-        if len(inputShapes[0]) > len(inputShapes[1]):
-            inputShapes[1] = inputShapes[0]
-        else:
-            inputShapes[0] = inputShapes[1]
-        return (inputShapes, outputShapes)
+        return inputShapes, outputShapes
 
     def computeOps(self):
         return self.mapper.parser.operatorRepresentation['size']

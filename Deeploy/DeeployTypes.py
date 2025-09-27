@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import os
 import pickle
 import re
@@ -1895,47 +1896,35 @@ class ONNXLayer():
             broadcast to the target shape
 
         """
-        inputShapes = [ctxt.lookup(node.name).shape for node in self.node.inputs]
-        outputShapes = [ctxt.lookup(node.name).shape for node in self.node.outputs]
+        inputShapes = [tensor.shape for tensor in self.node.inputs]
+        outputShapes = [tensor.shape for tensor in self.node.outputs]
 
-        if not "channels_first" in self.mapper.parser.operatorRepresentation:
-            channels_first = default_channels_first
-        else:
-            channels_first = self.mapper.parser.operatorRepresentation['channels_first']
+        opRepr = self.mapper.parser.operatorRepresentation
+        channels_first = opRepr.get("channels_first", default_channels_first)
+        newInputShapes, newOutputShapes = self.computeShapes(inputShapes, outputShapes, opRepr, channels_first)
 
-        newInputShapes, newOutputShapes = self.computeShapes(inputShapes, outputShapes,
-                                                             self.mapper.parser.operatorRepresentation, channels_first)
+        for tensor, shape in zip(self.node.inputs + self.node.outputs, newInputShapes + newOutputShapes):
+            buffer = ctxt.lookup(tensor.name)
+            assert isinstance(buffer, VariableBuffer)
 
-        for node, newShape in zip(self.node.inputs + self.node.outputs, newInputShapes + newOutputShapes):
-            if ctxt.is_local(node.name):
-                ctxt.localObjects[node.name].shape = newShape
-                # Update shape of tensors in onnx graph
-                node.shape = newShape
-
-                # WIESEP: It is possible that the type was not yet set, so we assume some default type
-                # At this state, we assume that all local buffers are float32 type inference is not yet done.
-                if node.dtype is None:
-                    node.dtype = np.float32
-
-            elif ctxt.is_global(node.name):
-                ctxt.globalObjects[node.name].shape = newShape
-                if isinstance(ctxt.globalObjects[node.name], ConstantBuffer):
-
-                    # If the number of elements is equal, reshape
-                    if np.prod(ctxt.globalObjects[node.name].values.shape) == np.prod(newShape):
-                        ctxt.globalObjects[node.name].values.reshape(newShape)
-                    # The number of elements SHOULD be lower, and we broadcast
-                    else:
-                        try:
-                            ctxt.globalObjects[node.name].values = np.broadcast_to(ctxt.globalObjects[node.name].values,
-                                                                                   newShape)
-                        except:
-                            raise RuntimeError(
-                                f"Could not broadcast {node.name} from {ctxt.globalObjects[node.name].values.shape} to {newShape}!"
-                            )
-
-            else:
-                raise KeyError(f'Expected node {node.name} to be in context!')
+            if len(buffer.shape) == len(shape) and all(
+                    dim == other for dim, other in zip(buffer.shape, shape)):  # Same shape case
+                continue
+            elif math.prod(buffer.shape) == math.prod(shape):  # Reshape case
+                buffer.shape = shape
+                if isinstance(tensor, gs.Constant):
+                    tensor.values.reshape(shape)
+                else:
+                    tensor.shape = shape
+                if isinstance(buffer, ConstantBuffer):
+                    buffer.values.reshape(shape)
+            else:  # Differing shape case
+                assert isinstance(buffer,
+                                  ConstantBuffer), f"Buffer broadcasting is only supported on statically known tensors"
+                try:
+                    buffer.values = np.broadcast_to(buffer.values, shape)
+                except:
+                    raise RuntimeError(f"Could not broadcast {buffer.name} from {buffer.shape} to {shape}!")
 
         return ctxt
 

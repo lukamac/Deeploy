@@ -5,10 +5,10 @@
 from Deeploy.DeeployTypes import NodeTemplate
 
 referenceTemplate = NodeTemplate("""
-// Float Mul (Name: ${nodeName}, Op: ${nodeOp})
+// Float Mul Scalar (Name: ${nodeName}, Op: ${nodeOp})
 BEGIN_SINGLE_CORE
-    for (uint32_t i=0;i<${size};i++){
-        ${C}[i] = ${A}[i] * ${B}[0];
-    }
+for (uint32_t i=0;i<${size};i++){
+    ${C}[i] = ${A}[i] * ${B}[0];
+}
 END_SINGLE_CORE
 """)
