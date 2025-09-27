@@ -1907,8 +1907,8 @@ class ONNXLayer():
             buffer = ctxt.lookup(tensor.name)
             assert isinstance(buffer, VariableBuffer)
 
-            if len(buffer.shape) == len(shape) and all(
-                    dim == other for dim, other in zip(buffer.shape, shape)):  # Same shape case
+            if len(buffer.shape) == len(shape) and \
+                all(dim == other for dim, other in zip(buffer.shape, shape)):  # Same shape case
                 continue
             elif math.prod(buffer.shape) == math.prod(shape):  # Reshape case
                 buffer.shape = shape
@@ -1919,10 +1919,12 @@ class ONNXLayer():
                 if isinstance(buffer, ConstantBuffer):
                     buffer.values.reshape(shape)
             else:  # Differing shape case
-                assert isinstance(buffer,
-                                  ConstantBuffer), f"Buffer broadcasting is only supported on statically known tensors"
+                assert isinstance(buffer, ConstantBuffer), \
+                "Buffer broadcasting is only supported on statically known tensors"
                 try:
+                    buffer.shape = shape
                     buffer.values = np.broadcast_to(buffer.values, shape)
+                    tensor.values = np.broadcast_to(tensor.values, shape)
                 except:
                     raise RuntimeError(f"Could not broadcast {buffer.name} from {buffer.shape} to {shape}!")
 
