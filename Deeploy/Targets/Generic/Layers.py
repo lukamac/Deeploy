@@ -163,14 +163,8 @@ class AddLayer(ONNXLayer):
 
     def computeShapes(self, inputShapes: Shape, outputShapes: Shape, operatorRepresentation,
                       channels_first) -> Tuple[Shape, Shape]:
-
-        if len(inputShapes[0]) > len(inputShapes[1]):
-            inputShapes[1] = inputShapes[0]
-        else:
-            inputShapes[0] = inputShapes[1]
-
-        outputShapes = [inputShapes[0]]
-        return (inputShapes, outputShapes)
+        shape = np.broadcast_shapes(*inputShapes)
+        return [shape, shape], [shape]
 
     def computeOps(self):
         return self.mapper.parser.operatorRepresentation['size']
