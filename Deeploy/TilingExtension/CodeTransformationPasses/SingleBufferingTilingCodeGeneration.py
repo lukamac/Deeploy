@@ -40,9 +40,12 @@ class SingleBufferingTilingCodeGeneration(TilingCodeGeneration):
             externalBufferShape = tensorMemoryConstraint.memoryConstraints[self.externalMemory].shape
             assert externalBufferShape is not None
 
-            rectangles, externalBufferShape = self._legalizeTransfers(rectangles, tuple(externalBufferShape),
-                                                                      localBuffer._type.referencedType.typeWidth,
-                                                                      self.isFinalMemoryLevel(tensorMemoryConstraint))
+            try:
+                rectangles, externalBufferShape = self._legalizeTransfers(
+                    rectangles, tuple(externalBufferShape), localBuffer._type.referencedType.typeWidth,
+                    self.isFinalMemoryLevel(tensorMemoryConstraint))
+            except ValueError as e:
+                raise ValueError(f"Failed legalizing transfers for tensor {tensorName}\n{e}") from e
 
             externalBufferRef = self._hoistReference(ctxt,
                                                      externalBuffer.name + "_ref",

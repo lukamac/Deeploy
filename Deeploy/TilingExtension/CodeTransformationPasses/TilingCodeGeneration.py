@@ -158,7 +158,11 @@ class TilingCodeGeneration(CodeTransformationPass, IntrospectiveCodeTransformati
             minimizedTransfers = []
             for rect in transfers:
                 paddedRect = HyperRectangle(padOffset(rect.offset, commonRank), padShape(rect.dims, commonRank))
-                minRect, newMinOuterShape = minimizeRectangle(paddedRect, outerShape)
+                try:
+                    minRect, newMinOuterShape = minimizeRectangle(paddedRect, outerShape)
+                except AssertionError as e:
+                    raise ValueError(
+                        f"Failed to minimize rectangle {paddedRect} with outer shape {outerShape}.\n{e}") from e
                 if minOuterShape is None:
                     minOuterShape = newMinOuterShape
                 else:
@@ -248,9 +252,13 @@ Old minOuterShape produced by outerDims: {outerShape} and rects:
 
         operatorRepresentation.update(newOpRepr)
 
-        ctxt, executionBlock, applicable = self.generateTilingLoop(ctxt, executionBlock, nodeMemoryConstraint,
-                                                                   tilingSchedules, minimalVariableReplacement,
-                                                                   operatorRepresentation)
+        try:
+            ctxt, executionBlock, applicable = self.generateTilingLoop(ctxt, executionBlock, nodeMemoryConstraint,
+                                                                       tilingSchedules, minimalVariableReplacement,
+                                                                       operatorRepresentation)
+        except BaseException as e:
+            raise RuntimeError(f"Failed generating the tiling loop for node {name}.\n{e}") from e
+
         if applicable:
             ctxt, executionBlock = self.argStructGeneration.apply(ctxt, executionBlock, name)
 

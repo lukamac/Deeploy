@@ -181,9 +181,10 @@ def minimizeRectangle(rect: HyperRectangle, referenceShape: Sequence[int]) -> Tu
 
     # SCHEREMO: Collapse dimensions right to left
     currentCollapsedDim = 1
-    for rectDim, rectOffset, referenceDim in zip(reversed(rect.dims), reversed(rect.offset), reversed(referenceShape)):
+    for i, (rectDim, rectOffset,
+            referenceDim) in enumerate(zip(reversed(rect.dims), reversed(rect.offset), reversed(referenceShape))):
         if rectDim == referenceDim:
-            assert rectOffset == 0, f"Rectangle offset should be zero when the dimensions are the same. Received rectangle {rect} and reference shape {referenceShape}"
+            assert rectOffset == 0, f"Dimension {len(rect.dims) - i - 1} is same but the offset is non-zero."
             currentCollapsedDim *= rectDim
         else:
             minRectShape.insert(0, currentCollapsedDim * rectDim)
