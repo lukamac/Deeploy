@@ -308,12 +308,31 @@ class TilerModel():
         return True
 
     def _trySetupConstraints(self,) -> bool:
+        addedConstraints = []
         for constraint in self._constraints:
-            self._model.Add(constraint)
+            if self._model.CheckConstraint(constraint):
+                self._model.Add(constraint)
+                addedConstraints.append(constraint)
+            else:
+                errorMsg = [""]
+                errorMsg += ["ERROR: Some geometrical constraints are infeasible.\nOffending constraint:"]
+                errorMsg += [pformat(constraint, indent = 2)]
+                errorMsg += ["\nConstraint model prior to adding the offending constraint:"]
+                errorMsg += [pformat(addedConstraints, indent = 2)]
+                raise RuntimeError(("\n").join(errorMsg))
 
         for memLevel, constraint in self._memoryConstraints:
             constrExpr = constraint <= memLevel.size
-            self._model.Add(constrExpr)
+            if self._model.CheckConstraint(constrExpr):
+                self._model.Add(constrExpr)
+                addedConstraints.append(constrExpr)
+            else:
+                errorMsg = [""]
+                errorMsg += ["ERROR: Some memory constraints are infeasible.\nOffending constraint:"]
+                errorMsg += [pformat(constrExpr, indent = 2)]
+                errorMsg += ["\nConstraint model prior to adding the offending constraint:"]
+                errorMsg += [pformat(addedConstraints, indent = 2)]
+                raise RuntimeError(("\n").join(errorMsg))
 
         for _, performanceConstraint in sorted(self._performanceConstraints, reverse = True):
             if self._model.CheckConstraint(performanceConstraint):
