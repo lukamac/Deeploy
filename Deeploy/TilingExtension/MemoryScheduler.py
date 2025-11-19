@@ -13,7 +13,7 @@ import numpy as np
 from ortools.constraint_solver.pywrapcp import IntVar
 
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import _permute
-from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer
+from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy
 from Deeploy.TilingExtension.MemoryConstraints import PatternMemoryConstraints, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
@@ -90,13 +90,12 @@ class MemoryScheduler():
         overlap: bool = False
         overlap |= (lifetimeA[0] >= lifetimeB[0] and lifetimeA[0] <= lifetimeB[1])
         overlap |= (lifetimeB[0] >= lifetimeA[0] and lifetimeB[0] <= lifetimeA[1])
-
         return overlap
 
     def __init__(self, stringSuffix: str, tileScheduler: bool, seed: int = 1996080121):
         self._stringSuffix = stringSuffix
         self.stringSuffix = ""
-        self.tileScheduler = tileScheduler
+        self.tileScheduler = tileScheduler  # TODO: What is this?
 
         self.seed = seed
         self.memoryMap: Dict[str, List[List[MemoryBlock]]] = {}
@@ -256,77 +255,62 @@ class MemoryScheduler():
         return interferenceGraph
 
     def _calculateLifetimes(self, ctxt: NetworkContext, patternMemoryConstraint: PatternMemoryConstraints,
-                            memoryLevel: str):
+                            memoryLevel: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, TensorMemoryConstraint]]:
 
-        def filterTensorMemoryConstraint(ctxt: NetworkContext, tensorMemoryConstraint: TensorMemoryConstraint) -> bool:
-
-            if ctxt.lookup(tensorMemoryConstraint.tensorName)._deploy == False:
+        def filterBuffers(buffer: VariableBuffer) -> bool:
+            if not buffer._deploy:
                 return False
 
-            for level in tensorMemoryConstraint.memoryConstraints.values():
-
-                homeLevel = ctxt.lookup(tensorName)._memoryLevel
-
-                if not level.memoryLevel == memoryLevel:
-                    continue
-
-                # SCHEREMO: Transient buffers are only considered by last-level schedulers
-                if isinstance(ctxt.lookup(tensorMemoryConstraint.tensorName), TransientBuffer) and self.tileScheduler:
-                    return True
-
-                elif isinstance(ctxt.lookup(tensorMemoryConstraint.tensorName), TransientBuffer):
-                    return False
-
-                # SCHEREMO: The original level is only considered by "home-level" schedulers
-                if level.memoryLevel == homeLevel and not self.tileScheduler:
-
-                    if isinstance(ctxt.lookup(tensorMemoryConstraint.tensorName), ConstantBuffer):
-                        return False
-                    return True
-
-                if level.memoryLevel != homeLevel and self.tileScheduler:
-                    return True
-
-            return False
+            # SCHEREMO: Transient buffers are only considered by last-level schedulers
+            if isinstance(buffer, TransientBuffer):
+                return self.tileScheduler
+            elif isinstance(buffer, ConstantBuffer):
+                return self.tileScheduler and (memoryLevel != buffer._memoryLevel)
+            else:
+                return self.tileScheduler ^ (memoryLevel == buffer._memoryLevel)
 
         tensorMap = OrderedDict()
-        tensorLifetimeMap: Dict[str, Tuple[int, int]] = dict()
+        lifetimeMap: Dict[str, Tuple[int, int]] = dict()
         maxStepIdx = len(patternMemoryConstraint.nodeConstraints)
 
         for stepIdx, nodeConstraint in enumerate(patternMemoryConstraint.nodeConstraints):
             for tensorName, tensorMemoryConstraint in nodeConstraint.tensorMemoryConstraints.items():
-
-                if not filterTensorMemoryConstraint(ctxt, tensorMemoryConstraint):
+                if memoryLevel not in tensorMemoryConstraint.memoryConstraints:
                     continue
 
                 buffer = ctxt.lookup(tensorName)
-                # JUNGVI: Buffer targeted by alias have to say alive as long as their "aliasers"
-                if hasattr(buffer, "_alias"):
-                    alias = buffer._alias
-                    if alias in tensorLifetimeMap.keys():
-                        prevLifetime = tensorLifetimeMap[alias]
-                        tensorLifetimeMap[alias] = tuple((prevLifetime[0], stepIdx))
+                assert isinstance(buffer, VariableBuffer)
 
-                if tensorName in tensorLifetimeMap.keys():
-                    prevLifetime = tensorLifetimeMap[tensorName]
-                    tensorLifetimeMap[tensorName] = tuple((prevLifetime[0], stepIdx))
+                if not filterBuffers(buffer):
+                    continue
+
+                # LMACAN: Update end of lifetime for all existing aliases to the current one
+                #         because that one is the oldest one so far
+                for alias in ctxt.allAliases(tensorName):
+                    if alias in lifetimeMap:
+                        start = lifetimeMap[alias][0]
+                        lifetimeMap[alias] = (start, stepIdx)
+
+                if tensorName in lifetimeMap:
+                    start = lifetimeMap[tensorName][0]
+                    lifetimeMap[tensorName] = (start, stepIdx)
                 else:
-                    tensorLifetimeMap[tensorName] = tuple((stepIdx, stepIdx))
+                    lifetimeMap[tensorName] = (stepIdx, stepIdx)
                     tensorMap[tensorName] = tensorMemoryConstraint
 
         # JUNGVI: Align the lifetime of I/O tensors accordignly:
         #   - Input Tensors are alive at step 0
         #   - Output Tensors are alive until the last step
-        for tensorName, lifetime in tensorLifetimeMap.items():
+        # TODO: Why do we have to fixup the lifetime, i.e. why doesn't the top loop do it?
+        for tensorName, lifetime in lifetimeMap.items():
             buffer = ctxt.lookup(tensorName)
-            new_lifetime = lifetime
+            assert isinstance(buffer, VariableBuffer)
             if buffer.is_input:
-                new_lifetime = (0, lifetime[-1])
-            if buffer.is_output:
-                new_lifetime = (lifetime[0], maxStepIdx)
-            tensorLifetimeMap[tensorName] = new_lifetime
+                lifetimeMap[tensorName] = (0, lifetime[-1])
+            elif buffer.is_output:
+                lifetimeMap[tensorName] = (lifetime[0], maxStepIdx)
 
-        return tensorLifetimeMap, tensorMap
+        return lifetimeMap, tensorMap
 
     def _buildAdjacencyMatrix(self, graph, tensorMap):
         numVars = len(graph)
@@ -341,38 +325,32 @@ class MemoryScheduler():
 
         return adjacencyMatrix
 
-    def _buildCostVector(self, ctxt, graph, tensorMap, memoryLevel):
+    def _buildCostVector(self, ctxt: NetworkContext, graph, tensorMap: Dict[str, TensorMemoryConstraint], memoryLevel):
         costVector: List[Union[int, IntVar]] = []
-        numVars = len(graph)
 
-        if numVars == 0:
+        for tensor, neighbors in graph.items():
+            constr = tensorMap[tensor].memoryConstraints[memoryLevel]
+
+            buffer = ctxt.lookup(tensor)
+            assert isinstance(buffer, VariableBuffer)
+
+            # LMACAN: Alias buffers are costless when the buffer they alias is a neighbor
+            if buffer.aliasedBuffer is not None and buffer.aliasedBuffer in neighbors:
+                costVector.append(0)
+                continue
+
+            # TODO: This should be a method in either buffer, _type (Pointer), or referencedType (ImmediateType)
+            # NOTE: For now assume types are divisible by 8
+            assert buffer._type.referencedType.typeWidth % 8 == 0
+            sizeInBytes = constr.size * (buffer._type.referencedType.typeWidth // 8)
+
+            # SCHEREMO: Make sure each tile is word-aligned for better access performance
+            # and to comply with implicit PULP L3 tiling bugs
+            sizeInBytesAligned = ((sizeInBytes + self.byteAlignment - 1) // self.byteAlignment) * self.byteAlignment
+            costVector.append(sizeInBytesAligned * constr.multiBufferCoefficient)
+
+        if len(costVector) == 0:
             costVector.append(0)
-            return costVector
-
-        for node, neighbors in graph.items():
-
-            constraints = tensorMap[node].memoryConstraints
-            cost = 0
-
-            for c in constraints.values():
-                if c.memoryLevel == memoryLevel:
-
-                    if not isinstance(ctxt.lookup(node), TransientBuffer):
-                        typeWidth = max(1, ctxt.lookup(node)._type.referencedType.typeWidth // 8)
-                    else:
-                        typeWidth = 1
-
-                    # SCHEREMO: Make sure each tile is word-aligned for better access performance
-                    # and to comply with implicit PULP L3 tiling bugs
-                    wordCost = (((c.size * typeWidth) + type(self).byteAlignment - 1) //
-                                type(self).byteAlignment) * type(self).byteAlignment
-                    cost = wordCost * c.multiBufferCoefficient
-
-                    # SCHEREMO: In-place operator outputs are "costless" whenever their input is in the same pattern
-                    if hasattr(ctxt.lookup(node), "_alias") and ctxt.lookup(node)._alias in neighbors:
-                        cost = 0
-
-            costVector.append(cost)
 
         return costVector
 
@@ -415,8 +393,7 @@ class MemoryScheduler():
                     continue
 
                 if ctxt.is_global(alias):
-                    tensorLifetime = (0, lifetime[1])
-                    tensorLifetimeMap[key] = tensorLifetime
+                    tensorLifetimeMap[key] = (0, lifetime[1])
                     continue
 
                 aliasLifetime = tensorLifetimeMap[alias]
@@ -437,7 +414,7 @@ class MemoryScheduler():
     def _scheduleMemoryConstraints(self,
                                    tilerModel: TilerModel,
                                    ctxt: NetworkContext,
-                                   allMemoryConstraints: List[PatternMemoryConstraints],
+                                   patternMemoryConstraints: List[PatternMemoryConstraints],
                                    memoryHierarchy: MemoryHierarchy,
                                    memoryAllocStrategy: Literal["TetrisRandom", "TetrisCo-Opt"],
                                    memoryLevel: str = "L1"):
@@ -445,9 +422,15 @@ class MemoryScheduler():
         if memoryLevel not in self.memoryMap:
             self.memoryMap[memoryLevel] = []
 
-        for patternIdx, patternMemoryConstraint in enumerate(allMemoryConstraints):
-
+        for patternIdx, patternMemoryConstraint in enumerate(patternMemoryConstraints):
             tensorLifetimeMap, tensorMap = self._calculateLifetimes(ctxt, patternMemoryConstraint, memoryLevel)
+
+            #missingTensors = [
+            #    tensorMc.tensorName for nodeConstr in patternMemoryConstraint.nodeConstraints
+            #    for tensorMc in nodeConstr.tensorMemoryConstraints.values()
+            #    if ctxt.lookup(tensorMc.tensorName)._deploy and tensorMc.tensorName not in tensorMap
+            #]
+            #assert len(missingTensors) == 0, f"Some tensors have not been assigned their memory constraint: {missingTensors}"
 
             tensorLifetimeMap = self._dealiasLifetimeMap(ctxt, tensorLifetimeMap)
 
@@ -457,28 +440,21 @@ class MemoryScheduler():
 
             adjacencyMatrix = self._buildAdjacencyMatrix(interferenceGraph, tensorMap)
             costVector = self._buildCostVector(ctxt, interferenceGraph, tensorMap, memoryLevel)
-            nameVector: List[str] = []
 
-            blockList = []
+            blocks = []
+            for tensor in interferenceGraph.keys():
+                relativeLifeTime = tensorLifetimeMap[tensor]
+                lifetime = (relativeLifeTime[0] + patternIdx, relativeLifeTime[1] + patternIdx)
+                blocks.append(MemoryBlock(tensor, memoryLevel, lifetime, None))
 
-            for node, neighbors in interferenceGraph.items():
-                nameVector.append(node)
-                relativeLifeTime = tensorLifetimeMap[node]
-                absoluteLifetime = (relativeLifeTime[0] + patternIdx, relativeLifeTime[1] + patternIdx)
-
-                memBlock = MemoryBlock(node, memoryLevel, absoluteLifetime, None)
-                blockList.append(memBlock)
-
-            self.memoryMap[memoryLevel].append(blockList)
+            self.memoryMap[memoryLevel].append(blocks)
 
             # SCHEREMO: Build permutation matrix
             if memoryAllocStrategy == 'TetrisCo-Opt':
                 if numVars > 1:
-
                     permutationMatrix = self._addPermutationMatrix(tilerModel, numVars, patternIdx)
                     permAdj, permCost = self._permuteMatrices(tilerModel, permutationMatrix, adjacencyMatrix,
                                                               costVector, patternIdx)
-
                 else:
                     permutationMatrix = np.ones((1,))
                     permAdj, permCost = adjacencyMatrix, costVector
@@ -491,7 +467,7 @@ class MemoryScheduler():
                 #JUNVI: When using MiniMalloc we don't perform memory allocation with Tiling, hence we don't add the permutation constraints
                 continue
             else:
-                raise ("Unrecognized memory allocation strategy!")
+                raise (f"Unrecognized memory allocation strategy {memoryAllocStrategy}!")
 
             self._permutationState[memoryLevel + f"_{patternIdx}"] = permutationMatrix
 
@@ -646,18 +622,19 @@ class MemoryScheduler():
                 for blockIdx, memoryBlock in enumerate(permPattern):
 
                     blockNames = [block.name for block in permPattern]
-                    _buffer = ctxt.lookup(memoryBlock.name)
+                    buffer = ctxt.lookup(memoryBlock.name)
+                    assert isinstance(buffer, VariableBuffer)
 
-                    alias = ctxt.dealiasBuffer(memoryBlock.name)
+                    isAliasToGlobal = any(ctxt.is_global(alias) for alias in buffer.aliases)
 
                     # SCHEREMO: If we're handling an active alias to a global buffer in their home memory level, we don't need to resolve addresses
-                    if all([alias != memoryBlock.name, ctxt.is_global(alias), _buffer._memoryLevel == memoryLevel]):
+                    if isAliasToGlobal and buffer._memoryLevel == memoryLevel:
                         continue
 
                     # SCHEREMO: Don't fully unroll aliases here - this is pattern-sensitive!
-                    if hasattr(_buffer, "_alias") and _buffer._alias in blockNames:
-                        _alias = ctxt.lookup(memoryBlock.name)._alias
-                        aliasedBlocks.append((memoryBlock, _alias))
+                    buffAliasesInBlockNames = [alias for alias in buffer.aliases if alias in blockNames]
+                    aliasedBlocks.extend([(memoryBlock, alias) for alias in buffAliasesInBlockNames])
+                    if len(buffAliasesInBlockNames) > 0:
                         continue
 
                     upperIdx = blockIdx

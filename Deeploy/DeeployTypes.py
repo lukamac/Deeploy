@@ -238,7 +238,11 @@ class VariableBuffer():
     allocTemplate: NodeTemplate  #: NodeTemplate: Holds the buffer's allocation code
     deallocTemplate: NodeTemplate  #: NodeTemplate: Holds the buffer's deallocation code
 
-    def __init__(self, name: str = '', shape = [1], aliases: Optional[List[str]] = None):
+    def __init__(self,
+                 name: str = '',
+                 shape = [1],
+                 aliasedBuffer: Optional[str] = None,
+                 aliases: Optional[List[str]] = None):
         self.name: str = name  #: str: Canonical name that this buffer is registered as in the NetworkContext
         self.shape: Sequence[
             int] = shape  #: Sequence[int]: Represents the dimensions of the underlying tensor as a sequence of dimension sizes
@@ -257,6 +261,7 @@ class VariableBuffer():
         self.is_input: bool = False
         self.is_output: bool = False
 
+        self.aliasedBuffer: Optional[str] = aliasedBuffer
         self.aliases: Set[str] = set(aliases) if aliases is not None else set()
 
     def _bufferRepresentation(self) -> Dict:
@@ -323,30 +328,6 @@ class VariableBuffer():
     @classmethod
     def fromNode(cls, node: gs.Node):
         return (cls(name = node.name, shape = node.shape if not isinstance(node, gs.Constant) else node.values.shape))
-
-    def has_live_aliases(self, ctxt: NetworkContext) -> bool:
-        """Checks whether this VariableBuffer has any live aliases, i.e. buffers that are still live and are aliased by this buffer.
-        Parameters
-        ----------
-        ctxt : NetworkContext
-            Current NetworkContext
-        Returns
-        -------
-        bool
-            True if this VariableBuffer has any live aliases, False otherwise
-        """
-        # Do a breadth-first search across the aliasing double-linked list
-        live = self._live
-        queue = set(self.aliases)
-        visited = set(self.name)
-        while len(queue) > 0:
-            next = queue.pop()
-            buffNext = ctxt.lookup(next)
-            assert isinstance(buffNext, VariableBuffer)
-            live |= buffNext._live
-            visited.add(next)
-            queue |= buffNext.aliases - visited
-        return live
 
     def sizeInBytes(self) -> int:
         """Returns the size of this VariableBuffer in bytes
@@ -528,6 +509,36 @@ class NetworkContext():
         self._maxDynamicSize = {}  #: int: Maximum dynamic memory size occupied by live buffers at any point in time
         self._dynamicSize = {}  #: int: Current dynamic memory size occupied by live buffers
 
+    def allAliases(self, name: str) -> List[str]:
+        queue: List[str] = [name]
+        visited: Set[str] = set()
+        while len(queue) > 0:
+            buffer = self.lookup(queue.pop())
+            assert isinstance(buffer, VariableBuffer)
+            if buffer.name in visited:
+                continue
+            if buffer.aliasedBuffer is not None:
+                queue.append(buffer.aliasedBuffer)
+            queue.extend(buffer.aliases)
+            visited.add(buffer.name)
+        return list(visited)
+
+    def hasLiveAlias(self, name: str) -> bool:
+        queue: List[str] = [name]
+        visited: Set[str] = set()
+        while len(queue) > 0:
+            buffer = self.lookup(queue.pop())
+            assert isinstance(buffer, VariableBuffer)
+            if buffer.name in visited:
+                continue
+            if buffer._live:
+                return True
+            if buffer.aliasedBuffer is not None:
+                queue.append(buffer.aliasedBuffer)
+            queue.extend(buffer.aliases)
+            visited.add(buffer.name)
+        return False
+
     def dealiasBuffer(self, name: str) -> str:
         """Function to find the underlying aliased VariableBuffer
 
@@ -547,13 +558,13 @@ class NetworkContext():
             Raises an Exception if aliases are circular
 
         """
-        seenAliases: Set[str] = set()
-        alias = self.lookup(name)
-        while hasattr(alias, "_alias"):
-            seenAliases.add(alias.name)
-            alias = self.lookup(alias._alias)
-            assert alias.name not in seenAliases, "Circular aliasing detected!"
-        return alias.name
+        visited: Set[str] = set()
+        buffer = self.lookup(name)
+        while buffer.aliasedBuffer is not None:
+            visited.add(buffer.name)
+            buffer = self.lookup(buffer.aliasedBuffer)
+            assert buffer.name not in visited, "Circular aliasing detected!"
+        return buffer.name
 
     def unravelReference(self, ref: VariableBuffer) -> VariableBuffer:
         """Function to find the underlying referenced VariableBuffer

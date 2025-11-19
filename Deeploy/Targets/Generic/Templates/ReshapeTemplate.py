@@ -32,7 +32,11 @@ class _ReshapeTemplate(NodeTemplate):
 
         # Link aliases to each buffer
         bufferIn.aliases.add(bufferOut.name)
-        bufferOut.aliases.add(bufferIn.name)
+        assert bufferOut.aliasedBuffer is None, (
+            f"Failed to align to context reshape node {operatorRepresentation['nodeName']}. "
+            f"Cannot alias the reshape input buffer {bufferIn.name} with the output buffer {bufferOut.name}. "
+            f"The output buffer is already aliasing buffer {bufferOut.aliasedBuffer}.")
+        bufferOut.aliasedBuffer = bufferIn.name
 
         return ctxt, operatorRepresentation, []
 

@@ -22,7 +22,7 @@ import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.NetworkDeployers.NetworkDeployerWrapper import NetworkDeployerWrapper
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, NodeBinding, NodeTemplate, ONNXLayer, Schedule, \
-    SubGraph, TransientBuffer
+    SubGraph, TransientBuffer, VariableBuffer
 from Deeploy.Logging import DEFAULT_LOGGER as log
 from Deeploy.Logging import SUCCESS_MARK
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
@@ -40,7 +40,7 @@ from Deeploy.TilingExtension.TilerModel import TilerModel
 TilingSolution = List[PatternMemoryConstraints]
 MemoryMap = Dict[str, List[List[MemoryBlock]]]
 
-_deallocTemplate = NodeTemplate("")
+emptyTemplate = NodeTemplate("")
 
 
 class Tiler():
@@ -163,76 +163,71 @@ class Tiler():
 
         maxAddr: Dict[str, int] = {}
 
-        for memoryLevel, patternList in memoryMap.items():
+        for memory, patternList in memoryMap.items():
             currentMax = 0
             for nodeList in patternList:
-                blockNames = [block.name for block in nodeList]
+                nodeNames = [node.name for node in nodeList]
                 for node in nodeList:
-
-                    _buffer = ctxt.lookup(node.name)
+                    buffer = ctxt.lookup(node.name)
+                    assert isinstance(buffer, VariableBuffer)
+                    dealiasedBufferName = ctxt.dealiasBuffer(buffer.name)
                     # SCHEREMO: If alias buffers have zero cost, they don't contribute to the currentMax and their addrSpace is None
-                    if hasattr(_buffer, "_alias") and (ctxt.is_global(_buffer._alias) or _buffer._alias in blockNames):
-                        continue
+                    # TODO: This might need some way to check that we are looking at an output tensor
+                    if dealiasedBufferName != buffer.name:
+                        if ctxt.is_global(dealiasedBufferName):
+                            continue
+                        if buffer.aliasedBuffer in nodeNames:
+                            continue
 
+                    assert node._addrSpace is not None
                     currentMax = max(currentMax, node._addrSpace[1])
 
-            maxAddr[memoryLevel] = currentMax
-            self._worstCaseBufferSize[memoryLevel] = currentMax
+            maxAddr[memory] = currentMax
+            self._worstCaseBufferSize[memory] = currentMax
 
-        for level, addrSpace in maxAddr.items():
-            if addrSpace == 0:
+        arenas: Dict[str, VariableBuffer] = {}
+        for memory, end in maxAddr.items():
+            if end == 0:
                 continue
 
-            arenaName = f"{self.arenaName}_{level}"
+            arenaName = f"{self.arenaName}_{memory}"
 
-            scratchBuffer = ctxt.VariableBuffer(arenaName, [addrSpace])
-            scratchBuffer._type = PointerClass(BasicDataTypes.int8_t)
-            ctxt.add(scratchBuffer, "global")
-            scratchBuffer._instance = scratchBuffer._type(arenaName, ctxt)
-            scratchBuffer._memoryLevel = level
+            arena = ctxt.VariableBuffer(arenaName, shape = [end])
+            arena._type = PointerClass(BasicDataTypes.int8_t)
+            ctxt.add(arena, "global")
+            arena._instance = arena._type(arenaName, ctxt)
+            arena._memoryLevel = memory
 
             # JUNGVI: Memory Arena buffers should be allocated first since other variable global buffers may belong to a memory arena
-            ctxt.globalObjects.move_to_end(scratchBuffer.name, last = False)
+            # TODO: Check if this is still needed since now we are sorting the allocations in the memory codegen
+            ctxt.globalObjects.move_to_end(arena.name, last = False)
+
+            arenas[memory] = arena
 
         # SCHEREMO: Adapt homelevel tensors to their respective arena
-        for memoryLevel, patternList in memoryMap.items():
-            if not ctxt.is_global(f"{self.arenaName}_{memoryLevel}"):
-                continue
-            staticBuf = ctxt.lookup(f"{self.arenaName}_{memoryLevel}")
+        for memory, arena in arenas.items():
+            patternList = memoryMap[memory]
             for nodeList in patternList:
-                blockNames = [block.name for block in nodeList]
+                nodeNames = {node.name: node for node in nodeList}
                 for node in nodeList:
-                    tensorName = node.name
-                    _buffer = ctxt.lookup(tensorName)
+                    buffer = ctxt.lookup(node.name)
+                    assert isinstance(buffer, VariableBuffer)
 
-                    if _buffer._memoryLevel != memoryLevel:
+                    if buffer._memoryLevel != memory:
                         continue
 
-                    if hasattr(_buffer, "_alias") and ctxt.is_global(_buffer._alias):
+                    dealiasedBufferName = ctxt.dealiasBuffer(buffer.name)
+
+                    if ctxt.is_global(dealiasedBufferName):
                         continue
 
-                    if hasattr(_buffer, "_alias") and _buffer._alias in blockNames:
+                    if dealiasedBufferName != buffer.name:
+                        assert dealiasedBufferName in nodeNames, f"I don't know what happens if an alias buffer resides in a different memory level then it's origin"
+                        node = nodeNames[dealiasedBufferName]
 
-                        alias = ctxt.dealiasBuffer(tensorName)
-                        aliasNodes = [node for node in nodeList if node.name == alias]
-
-                        assert len(aliasNodes) == 1, f"alias {alias} references more than one node!"
-
-                        aliasNode = aliasNodes[0]
-
-                        _buffer.allocTemplate = NodeTemplate(
-                            " \
-                        ${name} = (${type.typeName}) " +
-                            f"((char*){str(staticBuf._instance)} + {aliasNode.addrSpace[0]});")
-                        _buffer.deallocTemplate = _deallocTemplate
-
-                        continue
-
-                    offset = node.addrSpace[0]
-
-                    _buffer.allocTemplate = NodeTemplate(" \
-                    ${name} = (${type.typeName}) " + f"((char*){str(staticBuf._instance)} + {offset});")
-                    _buffer.deallocTemplate = _deallocTemplate
+                    buffer.allocTemplate = NodeTemplate("${name} = (${type.typeName}) " +
+                                                        f"((char*){str(arena._instance)} + {node.addrSpace[0]});")
+                    buffer.deallocTemplate = emptyTemplate
 
         return ctxt
 
