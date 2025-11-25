@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import int8_t
-from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
+from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation, VariableBuffer
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
@@ -92,7 +92,9 @@ class MatMulTileConstraint(TileConstraint):
                                                                   operatorRepresentation, addrNames)
 
         buffA = ctxt.lookup(operatorRepresentation['A'])
+        assert isinstance(buffA, VariableBuffer)
         buffB = ctxt.lookup(operatorRepresentation['B'])
+        assert isinstance(buffB, VariableBuffer)
 
         NSize = buffA.shape[-1]
         NOffset = 0
@@ -137,8 +139,11 @@ class MatMulTileConstraint(TileConstraint):
 
             if len(buffB.shape) > 2:
                 batchDimCount = len(buffB.shape) - 2
-                BMatrixOffsets = tuple(cube.offset[:-2][-batchDimCount:]) + BMatrixOffsets
-                BMatrixShape = tuple(cube.dims[:-2][-batchDimCount:]) + BMatrixShape
+                BMatrixOffsets = tuple(off % dim for off, dim in zip(cube.offset[:-2][-batchDimCount:],
+                                                                     buffB.shape[:batchDimCount])) + BMatrixOffsets
+                BMatrixShape = tuple(
+                    min(dim, other)
+                    for dim, other in zip(cube.dims[:-2][-batchDimCount:], buffB.shape[:batchDimCount])) + BMatrixShape
 
             BCube = HyperRectangle(BMatrixOffsets, BMatrixShape)
             inputBCubes.append(BCube)
