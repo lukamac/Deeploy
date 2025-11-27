@@ -167,7 +167,7 @@ class NodeMemoryConstraint():
         return retStr
 
 
-class PatternMemoryConstraints():
+class PatternMemoryConstraint():
     __slots__ = ["nodeConstraints"]
 
     def __init__(self):
@@ -179,9 +179,9 @@ class PatternMemoryConstraints():
     def __add__(self, other):
 
         assert isinstance(other,
-                          PatternMemoryConstraints), f"Can't add {other} to {self}, expected PatternMemoryConstraints!"
+                          PatternMemoryConstraint), f"Can't add {other} to {self}, expected PatternMemoryConstraints!"
 
-        newConst = PatternMemoryConstraints()
+        newConst = PatternMemoryConstraint()
         for old, new in zip(self.nodeConstraints, other.nodeConstraints):
             newConst.addConstraint(old + new)
         return newConst

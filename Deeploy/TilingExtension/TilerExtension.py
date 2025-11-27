@@ -31,13 +31,13 @@ from Deeploy.MemoryLevelExtension.NetworkDeployers.MemoryLevelDeployer import Me
 from Deeploy.TilingExtension.GenericFlow import GenericFlowState
 from Deeploy.TilingExtension.MemoryConstraintFlows import GraphMemoryConstraintFlow, TensorMemLevelTuple, \
     convertFlowState2NodeMemoryConstraint
-from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, \
-    PatternMemoryConstraints, TensorMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, PatternMemoryConstraint, \
+    TensorMemoryConstraint
 from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock, MemoryScheduler
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
 
-TilingSolution = List[PatternMemoryConstraints]
+TilingSolution = List[PatternMemoryConstraint]
 MemoryMap = Dict[str, List[List[MemoryBlock]]]
 
 emptyTemplate = NodeTemplate("")
@@ -58,7 +58,7 @@ class Tiler():
         self.tilerModel: Optional[TilerModel] = None
         self.innerMemoryScheduler = self.memorySchedulerClass("_inner", tileScheduler = True)
         self.outerMemoryScheduler = self.memorySchedulerClass("_outer", tileScheduler = False)
-        self.symbolicMemoryConstraints: Optional[List[PatternMemoryConstraints]] = None
+        self.symbolicMemoryConstraints: Optional[List[PatternMemoryConstraint]] = None
 
         self._worstCaseBufferSize: Dict[str, int] = {}
 
@@ -402,8 +402,8 @@ class Tiler():
 
     # This version implements "static n-ple buffering"
 
-    def propagateIOBufferStrategy(self, tileConstraintPattern: PatternMemoryConstraints, pattern: SubGraph,
-                                  ctxt: NetworkContext) -> PatternMemoryConstraints:
+    def propagateIOBufferStrategy(self, tileConstraintPattern: PatternMemoryConstraint, pattern: SubGraph,
+                                  ctxt: NetworkContext) -> PatternMemoryConstraint:
 
         borderTensorStep = NodeMemoryConstraint()
         for patternStep in tileConstraintPattern.nodeConstraints:
@@ -448,7 +448,7 @@ class Tiler():
         return solvedTensorConstraint
 
     def _getTilingSolution(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
-                           allConstraints: List[PatternMemoryConstraints]) -> List[PatternMemoryConstraints]:
+                           allConstraints: List[PatternMemoryConstraint]) -> List[PatternMemoryConstraint]:
 
         retList = []
 
@@ -462,7 +462,7 @@ class Tiler():
             return True
 
         for patternConstraints in allConstraints:
-            newMemoryConstraint = PatternMemoryConstraints()
+            newMemoryConstraint = PatternMemoryConstraint()
             for stepConstraints in patternConstraints.nodeConstraints:
                 newStepMemoryConstraint = NodeMemoryConstraint()
                 for tensorName, tensorConstraint in stepConstraints.tensorMemoryConstraints.items():
@@ -557,12 +557,12 @@ class Tiler():
     def _setupMemoryConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
             layerBinding: OrderedDict[str, ONNXLayer],
-            targetMemoryLevelMapping: TargetMemoryLevelMapping) -> Tuple[TilerModel, List[PatternMemoryConstraints]]:
+            targetMemoryLevelMapping: TargetMemoryLevelMapping) -> Tuple[TilerModel, List[PatternMemoryConstraint]]:
 
         allMemoryConstraints = self._generateAllMemoryConstraints(tilerModel, ctxt, schedule, layerBinding,
                                                                   targetMemoryLevelMapping)
 
-        outerMemoryConstraints = PatternMemoryConstraints()
+        outerMemoryConstraints = PatternMemoryConstraint()
         for constraint in allMemoryConstraints:
             for nodeConstraint in constraint.nodeConstraints:
                 outerMemoryConstraints.addConstraint(nodeConstraint)
@@ -597,16 +597,16 @@ class Tiler():
     def _generateAllMemoryConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
             layerBinding: OrderedDict[str, ONNXLayer],
-            targetMemoryLevelMapping: TargetMemoryLevelMapping) -> List[PatternMemoryConstraints]:
+            targetMemoryLevelMapping: TargetMemoryLevelMapping) -> List[PatternMemoryConstraint]:
 
         dynamicTensorConstraints, constantTensorConstraints = self._generateMemoryConstraints(
             tilerModel, ctxt, schedule, layerBinding, targetMemoryLevelMapping)
 
-        allConstraints: List[PatternMemoryConstraints] = []
+        allConstraints: List[PatternMemoryConstraint] = []
         # Initialize structures
 
         for pattern in dynamicTensorConstraints:
-            allPattern = PatternMemoryConstraints()
+            allPattern = PatternMemoryConstraint()
             for step in pattern.nodeConstraints:
                 allStep = step + constantTensorConstraints
                 allPattern.addConstraint(allStep)
@@ -617,7 +617,7 @@ class Tiler():
     def _generateMemoryConstraints(
         self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
         layerBinding: OrderedDict[str, ONNXLayer], targetMemoryLevelMapping: TargetMemoryLevelMapping
-    ) -> Tuple[List[PatternMemoryConstraints], NodeMemoryConstraint]:
+    ) -> Tuple[List[PatternMemoryConstraint], NodeMemoryConstraint]:
 
         # SCHEREMO: Construct non-double-buffered constraints of local variable buffers
 
@@ -630,20 +630,20 @@ class Tiler():
 
         # SCHEREMO: Construct first-level constraint set (all global buffers + tensors stored in higher level)
 
-        firstLevelConstraints: List[PatternMemoryConstraints] = copy.copy(outerVariableConstraints)
+        firstLevelConstraints: List[PatternMemoryConstraint] = copy.copy(outerVariableConstraints)
         for patternConstraint in firstLevelConstraints:
             for idx in range(len(patternConstraint.nodeConstraints)):
                 patternConstraint.nodeConstraints[idx] += constantBufferConstraint
 
         # SCHEREMO: Construct constraint set for tiled tensors (including double buffering, excluding static global constraints)
-        tiledTensorConstraints: List[PatternMemoryConstraints] = self._generateTilePathConstraints(
+        tiledTensorConstraints: List[PatternMemoryConstraint] = self._generateTilePathConstraints(
             tilerModel, ctxt, firstLevelConstraints, innerVariableConstraints, schedule)
 
         # SCHEREMO: Construct constraint set for tiled tensors + local-only tensors (dynamic tensor set)
-        dynamicTensorConstraints: List[PatternMemoryConstraints] = []
+        dynamicTensorConstraints: List[PatternMemoryConstraint] = []
         for tilingConstraints, innerConstraints in zip(tiledTensorConstraints, innerVariableConstraints):
 
-            dynamicTensorPattern = PatternMemoryConstraints()
+            dynamicTensorPattern = PatternMemoryConstraint()
             for tilingPatternStep, innerPatternStep in zip(tilingConstraints.nodeConstraints,
                                                            innerConstraints.nodeConstraints):
                 dynamicTensorPatternStep = copy.copy(tilingPatternStep)
@@ -660,9 +660,9 @@ class Tiler():
             dynamicTensorConstraints.append(dynamicTensorPattern)
 
         # SCHEREMO: Construct unkilled tensor set
-        inplaceTensorConstraints: List[PatternMemoryConstraints] = []
+        inplaceTensorConstraints: List[PatternMemoryConstraint] = []
         for tilingConstraints, outerConstraints in zip(dynamicTensorConstraints, firstLevelConstraints):
-            dynamicTensorPattern = PatternMemoryConstraints()
+            dynamicTensorPattern = PatternMemoryConstraint()
             for tilingPatternStep, outerPatternStep in zip(tilingConstraints.nodeConstraints,
                                                            outerConstraints.nodeConstraints):
                 dynamicTensorPatternStep = copy.copy(tilingPatternStep)
@@ -729,9 +729,9 @@ class Tiler():
         return tileConstraintStep
 
     def _generateTilePathConstraints(self, tilerModel: TilerModel, ctxt: NetworkContext,
-                                     sourceConstraints: List[PatternMemoryConstraints],
-                                     destinationConstraints: List[PatternMemoryConstraints],
-                                     schedule: List[SubGraph]) -> List[PatternMemoryConstraints]:
+                                     sourceConstraints: List[PatternMemoryConstraint],
+                                     destinationConstraints: List[PatternMemoryConstraint],
+                                     schedule: List[SubGraph]) -> List[PatternMemoryConstraint]:
 
         tileConstraints = []
 
@@ -743,7 +743,7 @@ class Tiler():
                    ), "source pattern must be constant and single step, since it's live throughout the pattern!"
             sourcePatternStep = sourceConstraint.nodeConstraints[0]
 
-            tileConstraint = PatternMemoryConstraints()
+            tileConstraint = PatternMemoryConstraint()
 
             for destinationConstraintStep in destinationConstraint.nodeConstraints:
                 tileConstraintStep = self._generateIntermediateTilingSteps(tilerModel, ctxt, sourcePatternStep,
@@ -781,7 +781,7 @@ class Tiler():
     def _generateVariableBufferConstraints(
         self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
         layerBinding: OrderedDict[str, ONNXLayer], targetMemoryLevelMapping: TargetMemoryLevelMapping
-    ) -> Tuple[List[PatternMemoryConstraints], List[PatternMemoryConstraints]]:
+    ) -> Tuple[List[PatternMemoryConstraint], List[PatternMemoryConstraint]]:
 
         def deltaFlow(
                 patternFlow: List[GenericFlowState[TensorMemLevelTuple]]) -> GenericFlowState[TensorMemLevelTuple]:
@@ -813,15 +813,15 @@ class Tiler():
         constraintFlow = GraphMemoryConstraintFlow(ctxt, targetMemoryLevelMapping)
         graphFlowStates = constraintFlow.flow(schedule, initialLiveTensors)
 
-        innerMemConstraints: List[PatternMemoryConstraints] = []
-        outerMemConstraints: List[PatternMemoryConstraints] = []
+        innerMemConstraints: List[PatternMemoryConstraint] = []
+        outerMemConstraints: List[PatternMemoryConstraint] = []
 
         for idx, pattern in enumerate(schedule):
 
             tilerModel.copyIdx = idx
 
-            innerPatternMemoryConstraints = PatternMemoryConstraints()
-            outerPatternMemoryConstraints = PatternMemoryConstraints()
+            innerPatternMemoryConstraints = PatternMemoryConstraint()
+            outerPatternMemoryConstraints = PatternMemoryConstraint()
 
             outerFlowState = graphFlowStates[idx]
             patternFlow = constraintFlow._patternFlowStates[idx]

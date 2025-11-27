@@ -21,8 +21,8 @@ from Deeploy.Targets.PULPOpen.Deployer import PULPDeployer
 from Deeploy.Targets.PULPOpen.Platform import MemoryPULPPlatform, PULPOptimizer
 from Deeploy.Targets.Snitch.Deployer import SnitchDeployer
 from Deeploy.Targets.Snitch.Platform import SnitchOptimizer, SnitchPlatform
-from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, \
-    PatternMemoryConstraints, TensorMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, PatternMemoryConstraint, \
+    TensorMemoryConstraint
 from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerExtension import MemoryMap, TilerDeployerWrapper, TilingSolution
@@ -223,7 +223,7 @@ def generate_tiling(ctxt: NetworkContext, memoryStart: str, memoryOrder: List[st
         nodeMemoryConstraint.addTensorConstraint(inputTensorMemoryConstraint, 'input')
         nodeMemoryConstraint.addTensorConstraint(outputTensorMemoryConstraint, 'output')
 
-        patternMemoryConstraints = PatternMemoryConstraints()
+        patternMemoryConstraints = PatternMemoryConstraint()
         patternMemoryConstraints.addConstraint(nodeMemoryConstraint)
 
         tilingSolution.append(patternMemoryConstraints)

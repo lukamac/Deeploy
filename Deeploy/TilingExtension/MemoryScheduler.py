@@ -15,7 +15,7 @@ from ortools.constraint_solver.pywrapcp import IntVar
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import _permute
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy
-from Deeploy.TilingExtension.MemoryConstraints import PatternMemoryConstraints, TensorMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraints import PatternMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
 
 
@@ -271,7 +271,7 @@ class MemoryScheduler():
 
         return interferenceGraph
 
-    def _calculateLifetimes(self, ctxt: NetworkContext, patternMemoryConstraint: PatternMemoryConstraints,
+    def _calculateLifetimes(self, ctxt: NetworkContext, patternMemoryConstraint: PatternMemoryConstraint,
                             memoryLevel: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, TensorMemoryConstraint]]:
 
         def filterBuffers(buffer: VariableBuffer) -> bool:
@@ -431,7 +431,7 @@ class MemoryScheduler():
     def _scheduleMemoryConstraints(self,
                                    tilerModel: TilerModel,
                                    ctxt: NetworkContext,
-                                   patternMemoryConstraints: List[PatternMemoryConstraints],
+                                   patternMemoryConstraints: List[PatternMemoryConstraint],
                                    memoryHierarchy: MemoryHierarchy,
                                    memoryAllocStrategy: Literal["TetrisRandom", "TetrisCo-Opt"],
                                    memoryLevel: str = "L1"):
@@ -499,7 +499,7 @@ class MemoryScheduler():
     def scheduleMemoryConstraints(self,
                                   tilerModel: TilerModel,
                                   ctxt: NetworkContext,
-                                  allMemoryConstraints: List[PatternMemoryConstraints],
+                                  allMemoryConstraints: List[PatternMemoryConstraint],
                                   memoryHierarchy: MemoryHierarchy,
                                   memoryAllocStrategy: Literal["TetrisRandom", "TetrisCo-Opt"],
                                   memoryLevel: str = "L1"):
@@ -509,7 +509,7 @@ class MemoryScheduler():
                                                memoryAllocStrategy, memoryLevel)
 
     def constraintTileBuffersWithOverlappingLifetime(self, tilerModel: TilerModel, ctxt: NetworkContext,
-                                                     patternMemoryConstraint: PatternMemoryConstraints,
+                                                     patternMemoryConstraint: PatternMemoryConstraint,
                                                      memoryHierarchy: MemoryHierarchy):
         """This method adds the necessary constraints for tiling to be performed before the static memory allocation of the tile buffers.
         To perform static memory allocation after tiling (i.e. decouple tiling and memory alloc), we need to do two assumptions
