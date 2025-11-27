@@ -36,7 +36,8 @@ class MemoryBlock:
             self._addrSpace = None
             return
 
-        assert addrSpace[0] < addrSpace[1], "Address space range needs to be ordered from lesser to greater!"
+        begin, end = addrSpace
+        assert end >= begin, f"The end of the addres space should be greater or equal to the beginning. Received address space ({begin}, {end})"
         self._addrSpace = addrSpace
 
     @property
@@ -45,7 +46,8 @@ class MemoryBlock:
 
     @lifetime.setter
     def lifetime(self, lifetime: Tuple[int, int]):
-        assert lifetime[0] <= lifetime[1], "Lifetime range needs to be ordered from lesser to greater!"
+        begin, end = lifetime
+        assert end >= begin, f"The end of lifetime should be greater or equal to the beginning. Received lifetime ({begin}, {end})"
         self._lifetime = lifetime
 
     def __init__(self, name: str, level: str, lifetime: Tuple[int, int], addrSpace: Optional[Tuple[int, int]]):
