@@ -74,6 +74,21 @@ class MemoryBlock:
         return (xCollision and yCollision)
 
 
+@dataclass
+class Lifetime:
+    begin: int
+    end: int
+
+    def contains(self, timestamp: int) -> bool:
+        return self.begin <= timestamp and self.end >= timestamp
+
+    def overlaps(self, other: Lifetime) -> bool:
+        return self.contains(other.begin) or other.contains(self.begin)
+
+    def offset(self, offset: int) -> Lifetime:
+        return Lifetime(self.begin + offset, self.end + offset)
+
+
 class MemoryScheduler():
     _ROWSUMNAME = "rowSum"
     _COLSUMNAME = "colSum"
