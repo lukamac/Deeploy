@@ -120,7 +120,7 @@ class MemoryManagementGeneration(CodeTransformationPass, IntrospectiveCodeTransf
 
         # We have to allocate the output buffers, unless they are global
         for buffer in reversed(self.topologicallySortBuffers(outputs + transients)):
-            assert buffer._live == False, f"Tried to allocate already live buffer {buffer.name}"
+            assert not buffer._live, f"Tried to allocate already live buffer {buffer.name}"
             buffer._live = True
 
             memoryLevel = "None" if not hasattr(buffer, "_memoryLevel") else buffer._memoryLevel
@@ -138,7 +138,7 @@ class MemoryManagementGeneration(CodeTransformationPass, IntrospectiveCodeTransf
                 ctxt._maxDynamicSize[levels] = max(ctxt._maxDynamicSize.get(levels, 0), ctxt._dynamicSize[levels])
 
         for buffer in inputs + transients:
-            assert buffer._live == True, f"Tried to deallocate already dead buffer {buffer.name}"
+            assert buffer._live, f"Tried to deallocate already dead buffer {buffer.name}"
             buffer._live = False
             # Don't deallocate if it's an alias of a live buffer
             if not ctxt.hasLiveAlias(buffer.name):
