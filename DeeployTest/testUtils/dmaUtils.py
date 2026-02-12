@@ -23,10 +23,10 @@ from Deeploy.Targets.Snitch.Deployer import SnitchDeployer
 from Deeploy.Targets.Snitch.Platform import SnitchOptimizer, SnitchPlatform
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, PatternMemoryConstraint, \
     TensorMemoryConstraint
-from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerExtension import MemoryMap, TilerDeployerWrapper, TilingSolution
 from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, TilingSchedule, VariableReplacementScheme
+from Deeploy.TilingExtension.TilingTypes import AddressSpace, Lifetime, MemoryBlock
 
 from .tilingUtils import DBOnlyL3Tiler, DBTiler, SBTiler
 
@@ -157,18 +157,18 @@ def generate_tiling(ctxt: NetworkContext, memoryStart: str, memoryOrder: List[st
     if memoryMultibuffer is not None:
         assertFitsInMemory(multibufferSizeInBytes + tileSizeInBytes, memoryMultibuffer)
 
-    inputMultibufferAddrSpace = (0, multibufferSizeInBytes)
-    outputMultibufferAddrSpace = (multibufferSizeInBytes, 2 * multibufferSizeInBytes)
+    inputMultibufferAddrSpace = AddressSpace(base = 0, size = multibufferSizeInBytes)
+    outputMultibufferAddrSpace = AddressSpace(base = multibufferSizeInBytes, size = multibufferSizeInBytes)
 
-    inputTileAddrSpace = (0, tileSizeInBytes)
-    outputTileAddrSpace = (tileSizeInBytes, 2 * tileSizeInBytes)
+    inputTileAddrSpace = AddressSpace(base = 0, size = tileSizeInBytes)
+    outputTileAddrSpace = AddressSpace(base = tileSizeInBytes, size = tileSizeInBytes)
 
     # Tiling Solution
 
     tilingSolution = []
 
     def generateMemoryConstraint(memory: str, shape: Tuple[int, ...], multiBufferCoefficient: int,
-                                 addrSpace: Optional[Tuple[int, int]]) -> MemoryConstraint:
+                                 addrSpace: Optional[AddressSpace]) -> MemoryConstraint:
         size = math.prod(shape)
         mc = MemoryConstraint(memory, size)
         mc.shape = shape
@@ -235,34 +235,38 @@ def generate_tiling(ctxt: NetworkContext, memoryStart: str, memoryOrder: List[st
 
     # Set memoryStart memory
 
-    def appendMemoryMapStart(tensorName: str, lifetime: Tuple[int, int], addrSpace: Tuple[int, int]) -> None:
+    def appendMemoryMapStart(tensorName: str, lifetime: Lifetime, addrSpace: AddressSpace) -> None:
         memoryMap[memoryStart][-1].append(MemoryBlock(tensorName, memoryStart, lifetime, addrSpace))
 
-    addrSpacePing = (0, inputSizeInBytes)
-    addrSpacePong = (inputSizeInBytes, 2 * inputSizeInBytes)
+    addrSpacePing = AddressSpace(base = 0, size = inputSizeInBytes)
+    addrSpacePong = AddressSpace(base = inputSizeInBytes, size = inputSizeInBytes)
 
-    ## First input tensor has a special lifetime (0, 0)
-    appendMemoryMapStart(graph.nodes[0].inputs[0].name, (0, 0), addrSpacePing)
+    ## First input tensor has a special lifetime
+    appendMemoryMapStart(graph.nodes[0].inputs[0].name, Lifetime(start = 0, duration = 0), addrSpacePing)
 
     for i, node in enumerate(graph.nodes):
         # Start with addrSpacePong because we used "Ping" for the first input tensor
-        appendMemoryMapStart(node.outputs[0].name, (i, i + 1), addrSpacePong if i % 2 == 0 else addrSpacePing)
+        appendMemoryMapStart(node.outputs[0].name, Lifetime(start = i, duration = 1),
+                             addrSpacePong if i % 2 == 0 else addrSpacePing)
 
     ## Set the rest
 
-    def setMemoryMapRest(memory: str, inputAddrSpace: Tuple[int, int], outputAddrSpace: Tuple[int, int]) -> None:
+    def setMemoryMapRest(memory: str, inputAddrSpace: AddressSpace, outputAddrSpace: AddressSpace) -> None:
         for i, node in enumerate(graph.nodes):
             # Empirically concluded from looking at produced memory maps
             if i + 1 == len(graph.nodes):
-                endLifetime = i + 1
+                duration = 1
             else:
-                endLifetime = i
+                duration = 0
 
             memoryMap[memory][i].extend([
-                MemoryBlock(name = node.inputs[0].name, level = memory, lifetime = (i, i), addrSpace = inputAddrSpace),
+                MemoryBlock(name = node.inputs[0].name,
+                            level = memory,
+                            lifetime = Lifetime(start = i, duration = 0),
+                            addrSpace = inputAddrSpace),
                 MemoryBlock(name = node.outputs[0].name,
                             level = memory,
-                            lifetime = (i, endLifetime),
+                            lifetime = Lifetime(start = i, duration = duration),
                             addrSpace = outputAddrSpace),
             ])
 

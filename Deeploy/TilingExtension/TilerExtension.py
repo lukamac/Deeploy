@@ -33,9 +33,10 @@ from Deeploy.TilingExtension.MemoryConstraintFlows import GraphMemoryConstraintF
     convertFlowState2NodeMemoryConstraint
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, PatternMemoryConstraint, \
     TensorMemoryConstraint
-from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock, MemoryScheduler
+from Deeploy.TilingExtension.MemoryScheduler import MemoryScheduler
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
+from Deeploy.TilingExtension.TilingTypes import AddressSpace, MemoryBlock
 
 TilingSolution = List[PatternMemoryConstraint]
 MemoryMap = Dict[str, List[List[MemoryBlock]]]
@@ -107,7 +108,7 @@ class Tiler():
 
             for memoryMapStep in memoryMap[memoryLevel.name]:
                 for buffer in memoryMapStep:
-                    if not hasattr(buffer, "_addrSpace") or buffer._addrSpace is None:
+                    if buffer.addrSpace is None:
                         log.warning(
                             f"Buffer {buffer.name} has no address space assigned, skipping it in the memory allocation plot."
                         )
@@ -115,14 +116,14 @@ class Tiler():
 
                     fig.add_trace(
                         go.Scatter(x = [
-                            buffer._lifetime[0] - 0.5, buffer._lifetime[0] - 0.5, buffer._lifetime[1] + 0.5,
-                            buffer._lifetime[1] + 0.5
+                            buffer.lifetime.start - 0.5, buffer.lifetime.start - 0.5, buffer.lifetime.end + 0.5,
+                            buffer.lifetime.end + 0.5
                         ],
                                    y = [
-                                       constantBuffersOffset + buffer._addrSpace[0],
-                                       constantBuffersOffset + buffer._addrSpace[1],
-                                       constantBuffersOffset + buffer._addrSpace[1],
-                                       constantBuffersOffset + buffer._addrSpace[0]
+                                       constantBuffersOffset + buffer.addrSpace.base,
+                                       constantBuffersOffset + buffer.addrSpace.end,
+                                       constantBuffersOffset + buffer.addrSpace.end,
+                                       constantBuffersOffset + buffer.addrSpace.base
                                    ],
                                    name = buffer.name,
                                    text = buffer.name,
@@ -165,10 +166,10 @@ class Tiler():
 
         for memory, patternList in memoryMap.items():
             currentMax = 0
-            for nodeList in patternList:
-                nodeNames = [node.name for node in nodeList]
-                for node in nodeList:
-                    buffer = ctxt.lookup(node.name)
+            for blocks in patternList:
+                blockNames = [block.name for block in blocks]
+                for block in blocks:
+                    buffer = ctxt.lookup(block.name)
                     assert isinstance(buffer, VariableBuffer)
                     dealiasedBufferName = ctxt.dealiasBuffer(buffer.name)
                     # SCHEREMO: If alias buffers have zero cost, they don't contribute to the currentMax and their addrSpace is None
@@ -176,11 +177,11 @@ class Tiler():
                     if dealiasedBufferName != buffer.name:
                         if ctxt.is_global(dealiasedBufferName):
                             continue
-                        if buffer.aliasedBuffer in nodeNames:
+                        if buffer.aliasedBuffer in blockNames:
                             continue
 
-                    assert node._addrSpace is not None
-                    currentMax = max(currentMax, node._addrSpace[1])
+                    assert block.addrSpace is not None
+                    currentMax = max(currentMax, block.addrSpace.end)
 
             maxAddr[memory] = currentMax
             self._worstCaseBufferSize[memory] = currentMax
@@ -207,10 +208,10 @@ class Tiler():
         # SCHEREMO: Adapt homelevel tensors to their respective arena
         for memory, arena in arenas.items():
             patternList = memoryMap[memory]
-            for nodeList in patternList:
-                nodeNames = {node.name: node for node in nodeList}
-                for node in nodeList:
-                    buffer = ctxt.lookup(node.name)
+            for blocks in patternList:
+                blockNames = {node.name: node for node in blocks}
+                for block in blocks:
+                    buffer = ctxt.lookup(block.name)
                     assert isinstance(buffer, VariableBuffer)
 
                     if buffer._memoryLevel != memory:
@@ -222,50 +223,35 @@ class Tiler():
                         continue
 
                     if dealiasedBufferName != buffer.name:
-                        assert dealiasedBufferName in nodeNames, f"I don't know what happens if an alias buffer resides in a different memory level then it's origin"
-                        node = nodeNames[dealiasedBufferName]
+                        assert dealiasedBufferName in blockNames, f"I don't know what happens if an alias buffer resides in a different memory level then it's origin"
+                        block = blockNames[dealiasedBufferName]
 
+                    assert block.addrSpace is not None, f"Expected block {block.name} to have an allocated address space."
                     buffer.allocTemplate = NodeTemplate("${name} = (${type.typeName}) " +
-                                                        f"((char*){str(arena._instance)} + {node.addrSpace[0]});")
+                                                        f"((char*){str(arena._instance)} + {block.addrSpace.base});")
                     buffer.deallocTemplate = emptyTemplate
 
         return ctxt
 
-    def minimalloc(self, memoryMap, ctxt, nodeMemoryConstraint, capacity: int, memoryLevel: str):
-
+    def minimalloc(self, blocks: List[MemoryBlock], blockSizes: Dict[str, int], capacity: int, memory: str) -> None:
+        # Write minimalloc input file
         with open(f"{self._MINIMALLOC_INPUT_FILENAME}.csv", mode = "w", newline = "") as file:
             writer = csv.writer(file, lineterminator = "\n")
             writer.writerow(["id", "lower", "upper", "size"])
-            for memoryBlock in memoryMap:
+            for block in blocks:
+                writer.writerow(
+                    [block.name,
+                     str(block.lifetime.start),
+                     str(block.lifetime.end + 1),
+                     str(blockSizes[block.name])])
 
-                _buffer = ctxt.lookup(memoryBlock.name)
-                if nodeMemoryConstraint is None:
-                    _bufferSize = _buffer.size if isinstance(
-                        _buffer,
-                        TransientBuffer) else np.prod(_buffer.shape) * (_buffer._type.referencedType.typeWidth / 8)
-                else:
-                    if isinstance(_buffer, TransientBuffer):
-                        _bufferSize = nodeMemoryConstraint.tensorMemoryConstraints[
-                            memoryBlock.name].memoryConstraints[memoryLevel].size
-                    else:
-                        _bufferSize = nodeMemoryConstraint.tensorMemoryConstraints[
-                            memoryBlock.name].memoryConstraints[memoryLevel].size * (
-                                _buffer._type.referencedType.typeWidth /
-                                8) * nodeMemoryConstraint.tensorMemoryConstraints[
-                                    memoryBlock.name].memoryConstraints[memoryLevel].multiBufferCoefficient
-
-                writer.writerow([
-                    memoryBlock.name,
-                    str(memoryBlock.lifetime[0]),
-                    str(memoryBlock.lifetime[1] + 1),
-                    str(int(_bufferSize))
-                ])
-
+        # Check for the environment variable
         try:
             minimallocInstallDir = os.environ["MINIMALLOC_INSTALL_DIR"]
         except KeyError:
             raise KeyError("MINIMALLOC_INSTALL_DIR symbol not found!")
 
+        # Run minimalloc
         minimallocOutput = subprocess.run([
             f"{minimallocInstallDir}/minimalloc", f"--capacity={capacity}",
             f"--input={self._MINIMALLOC_INPUT_FILENAME}.csv", f"--output={self._MINIMALLOC_OUTPUT_FILENAME}.csv"
@@ -273,21 +259,26 @@ class Tiler():
                                           capture_output = True,
                                           text = True)
 
+        # Check return code
         if minimallocOutput.returncode != 0:
             log.error(
-                f"Memory allocator failed with return code {minimallocOutput.returncode} at memory level {memoryLevel} with capacity of {capacity} bytes!"
+                f"Memory allocator failed with return code {minimallocOutput.returncode} at memory level {memory} with capacity of {capacity} bytes!"
             )
             raise subprocess.CalledProcessError(minimallocOutput.returncode, " ".join(minimallocOutput.args))
 
+        # Read minimalloc output into a dict
+        allocations: Dict[str, Tuple[int, int]] = {}
         with open(f"{self._MINIMALLOC_OUTPUT_FILENAME}.csv", mode = "r", newline = "") as file:
             reader = csv.reader(file)
-            header = next(reader)
+            _ = next(reader)  # Skip header
             for row in reader:
-                for memoryBlock in memoryMap:
-                    if memoryBlock.name == row[0]:
-                        memoryBlock._addrSpace = (int(row[-1]), int(row[-1]) + int(row[-2]))
+                _id, _, _, size, offset = row
+                allocations[_id] = (int(size), int(offset))
 
-        return memoryMap
+        # Annotate blocks
+        for block in blocks:
+            size, offset = allocations[block.name]
+            block.addrSpace = AddressSpace(base = offset, size = size)
 
     def computeTilingSchedule(self, ctxt: NetworkContext) -> TilingSolution:
         assert self.tilerModel is not None and self.symbolicMemoryConstraints is not None, "Set up the model before trying to compute a schedule!"
@@ -308,18 +299,31 @@ class Tiler():
 
         if self.memoryAllocStrategy == "MiniMalloc":
             log.debug(" - Solve Memory Allocation with MiniMalloc")
-            for memoryLevel in memoryMap.keys():
-                constantTensorOffset = self.outerMemoryScheduler.getConstantTensorOffset(ctxt, memoryLevel)
-                if memoryLevel == self.memoryHierarchy._defaultMemoryLevel.name:
-                    memoryMap[memoryLevel][-1] = self.minimalloc(
-                        memoryMap[memoryLevel][-1], ctxt, None,
-                        self.memoryHierarchy.memoryLevels[memoryLevel].size - constantTensorOffset, memoryLevel)
+            for memory, patterns in memoryMap.items():
+                constantTensorOffset = self.outerMemoryScheduler.getConstantTensorOffset(ctxt, memory)
+                capacity = self.memoryHierarchy.memoryLevels[memory].size - constantTensorOffset
+
+                if memory == self.memoryHierarchy._defaultMemoryLevel.name:
+                    blocks = patterns[-1]  # TODO: Investigate this -1
+                    blockSizes = {block.name: ctxt.lookup(block.name).sizeInBytes() for block in blocks}
+                    self.minimalloc(blocks, blockSizes, capacity, memory)
                 else:
-                    for idx, memMap in enumerate(memoryMap[memoryLevel]):
-                        if len(memoryMap[memoryLevel][idx]) != 0:
-                            memoryMap[memoryLevel][idx] = self.minimalloc(
-                                memMap, ctxt, tilingSolution[idx].nodeConstraints[0],
-                                self.memoryHierarchy.memoryLevels[memoryLevel].size - constantTensorOffset, memoryLevel)
+                    for idx, blocks in enumerate(patterns):
+                        if len(blocks) == 0:
+                            continue
+                        nodeConstr = tilingSolution[idx].nodeConstraints[0]
+                        blockSizes = {}
+                        for block in blocks:
+                            constr = nodeConstr.tensorMemoryConstraints[block.name].memoryConstraints[memory]
+                            buff = ctxt.lookup(block.name)
+                            assert isinstance(buff, VariableBuffer)
+                            if isinstance(buff, TransientBuffer):
+                                blockSizes[block.name] = constr.size
+                            else:
+                                blockSizes[block.name] = (constr.size * constr.multiBufferCoefficient *
+                                                          buff._type.referencedType.typeWidth) // 8
+                        self.minimalloc(blocks, blockSizes, capacity, memory)
+
             log.info(f" {SUCCESS_MARK} Memory allocation successful!")
 
         return memoryMap
@@ -905,8 +909,7 @@ class Tiler():
                     for memoryConstraint in tensorMemoryConstraint.memoryConstraints.values():
                         if memoryConstraint.addrSpace is not None:
                             assert isinstance(memoryConstraint.multiBufferCoefficient, int)
-                            bufferSize = (memoryConstraint.addrSpace[1] -
-                                          memoryConstraint.addrSpace[0]) // memoryConstraint.multiBufferCoefficient
+                            bufferSize = memoryConstraint.addrSpace.size // memoryConstraint.multiBufferCoefficient
                             assert bufferSize % byteAlignment == 0, f"Buffer in {memoryConstraint} is not {byteAlignment} byte aligned"
 
     def testMemoryMapCorrectness(self, memoryMap: Dict[str, List[List[MemoryBlock]]], graph: gs.Graph,
@@ -918,22 +921,22 @@ class Tiler():
 
         # JUNGVI: Assert output buffers are alive until the end
         for tensor in graph.outputs:
-            assert memoryBlockMap[tensor.name]._lifetime[-1] == len(
-                schedule), "Invalid memory map! Output buffer is not alive at the last step!"
+            assert memoryBlockMap[tensor.name].lifetime.end == len(schedule), \
+                    "Invalid memory map! Output buffer is not alive at the last step!"
 
         # JUNGVI: Assert input buffers are alive at the beginning
         for inputBuffer in graph.inputs:
-            assert memoryBlockMap[
-                inputBuffer.name]._lifetime[0] == 0, "Invalid memory map! Input buffer is not alive at step 0!"
+            assert memoryBlockMap[inputBuffer.name].lifetime.start == 0, \
+                    "Invalid memory map! Input buffer is not alive at step 0!"
 
         # JUNGVI: Assert that at every computation step, the required buffers are alive somewhere in memory
         for stepIdx, pattern in enumerate(schedule):
             node = pattern[0]
             nodeIO = [node for node in node.inputs + node.outputs if not isinstance(node, gs.Constant)]
             for tensor in nodeIO:
-                lifetime = memoryBlockMap[tensor.name]._lifetime
-                assert stepIdx in range(lifetime[0], lifetime[-1] +
-                                        1), f"Invalid memory map! Buffer {tensor.name} is not alive at step {stepIdx}!"
+                lifetime = memoryBlockMap[tensor.name].lifetime
+                assert lifetime.contains(stepIdx), \
+                        f"Invalid memory map! Buffer {tensor.name} is not alive at step {stepIdx}!"
 
 
 class TilerDeployerWrapper(NetworkDeployerWrapper):

@@ -124,7 +124,7 @@ class TilingHoistingMixIn:
         tensorName = tensorMemoryConstraint.tensorName
         memoryConstraint = tensorMemoryConstraint.memoryConstraints[self.memory]
         assert memoryConstraint.addrSpace is not None, "Assuming address space is set"
-        totalSize = memoryConstraint.addrSpace[1] - memoryConstraint.addrSpace[0]
+        totalSize = memoryConstraint.addrSpace.size
         assert isinstance(memoryConstraint.multiBufferCoefficient,
                           int), "Assuming multi buffer coefficient has been assigned"
         assert totalSize % memoryConstraint.multiBufferCoefficient == 0, "Assuming total size is divisible by the multi buffer coefficient"

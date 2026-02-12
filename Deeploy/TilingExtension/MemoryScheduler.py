@@ -6,89 +6,17 @@ from __future__ import annotations
 
 import random
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Dict, List, Literal, Sequence, Tuple, Union
 
 import numpy as np
 from ortools.constraint_solver.pywrapcp import IntVar
 
-from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import _permute
+from Deeploy.CommonExtensions.PermutationUtils import _permute
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy
 from Deeploy.TilingExtension.MemoryConstraints import PatternMemoryConstraint, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
-
-
-@dataclass
-class MemoryBlock:
-    name: str
-    level: str
-    _lifetime: Tuple[int, int]
-    _addrSpace: Optional[Tuple[int, int]] = None
-
-    @property
-    def addrSpace(self) -> Optional[Tuple[int, int]]:
-        return self._addrSpace
-
-    @addrSpace.setter
-    def addrSpace(self, addrSpace: Optional[Tuple[int, int]]):
-        if addrSpace is None:
-            self._addrSpace = None
-            return
-
-        begin, end = addrSpace
-        assert end >= begin, f"The end of the addres space should be greater or equal to the beginning. Received address space ({begin}, {end})"
-        self._addrSpace = addrSpace
-
-    @property
-    def lifetime(self) -> Tuple[int, int]:
-        return self._lifetime
-
-    @lifetime.setter
-    def lifetime(self, lifetime: Tuple[int, int]):
-        begin, end = lifetime
-        assert end >= begin, f"The end of lifetime should be greater or equal to the beginning. Received lifetime ({begin}, {end})"
-        self._lifetime = lifetime
-
-    def __init__(self, name: str, level: str, lifetime: Tuple[int, int], addrSpace: Optional[Tuple[int, int]]):
-        self.name = name
-        self.level = level
-        self.lifetime = lifetime
-
-        if addrSpace is not None:
-            self.addrSpace = addrSpace
-
-    def collides(self, other: MemoryBlock) -> bool:
-        assert (isinstance(other, MemoryBlock)), f"{other} is not a MemoryBlock!"
-
-        if self.addrSpace is None or other.addrSpace is None:
-            return False
-
-        xCollision: bool = False
-        yCollision: bool = False
-
-        if self.lifetime[0] <= other.lifetime[1] and self.lifetime[1] >= other.lifetime[0]:
-            xCollision = True
-
-        if self.addrSpace[0] < other.addrSpace[1] and self.addrSpace[1] > other.addrSpace[0]:
-            yCollision = True
-
-        return (xCollision and yCollision)
-
-
-@dataclass
-class Lifetime:
-    begin: int
-    end: int
-
-    def contains(self, timestamp: int) -> bool:
-        return self.begin <= timestamp and self.end >= timestamp
-
-    def overlaps(self, other: Lifetime) -> bool:
-        return self.contains(other.begin) or other.contains(self.begin)
-
-    def offset(self, offset: int) -> Lifetime:
-        return Lifetime(self.begin + offset, self.end + offset)
+from Deeploy.TilingExtension.TilingTypes import AddressSpace, Lifetime, MemoryBlock
 
 
 class MemoryScheduler():
@@ -102,13 +30,6 @@ class MemoryScheduler():
 
     byteAlignment = 4
 
-    @staticmethod
-    def overlap(lifetimeA: Tuple[int, int], lifetimeB: Tuple[int, int]) -> bool:
-        overlap: bool = False
-        overlap |= (lifetimeA[0] >= lifetimeB[0] and lifetimeA[0] <= lifetimeB[1])
-        overlap |= (lifetimeB[0] >= lifetimeA[0] and lifetimeB[0] <= lifetimeA[1])
-        return overlap
-
     def __init__(self, stringSuffix: str, tileScheduler: bool, seed: int = 1996080121):
         self._stringSuffix = stringSuffix
         self.stringSuffix = ""
@@ -119,84 +40,82 @@ class MemoryScheduler():
 
         self._permutationState: Dict[str, Union[List[List[Union[IntVar]]], np.ndarray]] = {}
 
-    def _addPermutationMatrix(self, tilerModel: TilerModel, numVars: int,
-                              patternIdx: int) -> List[List[Union[IntVar, int]]]:
+    def _transposeMatrix(self, x: List[List[IntVar]]) -> List[List[IntVar]]:
+        return list(map(list, zip(*x, strict = True)))
 
-        permMat: List[List[Union[IntVar, int]]] = []
+    def _initVarMatrix(self, name: str, height: int, width: int, lowerBound: int, upperBound: int,
+                       tilerModel: TilerModel, copyIdx: int) -> List[List[IntVar]]:
+        return [[
+            tilerModel.addVariable(f"{name}_{i}_{j}" + self.stringSuffix, lowerBound, upperBound, copyIdx)
+            for j in range(width)
+        ]
+                for i in range(height)]
 
-        for i in range(numVars):
-            rowSumName = f"{self._ROWSUMNAME}_{i}" + self.stringSuffix
-            jSum = tilerModel.addVariable(rowSumName, 0, 1, patternIdx)
-            permMat.append([])
-            for j in range(numVars):
-                name = f"{self._PERMUTATIONIDXNAME}_{i}_{j}" + self.stringSuffix
-                jVar = tilerModel.addVariable(name, 0, 1, patternIdx)
-                permMat[i].append(jVar)
-            tilerModel.addConstraint(tilerModel._model.SumEquality(permMat[i], jSum))
-            tilerModel.addConstraint(jSum == 1)
+    def _initVarVector(self, name: str, length: int, lowerBound: int, upperBound: int, tilerModel: TilerModel,
+                       copyIdx: int) -> List[IntVar]:
+        return [
+            tilerModel.addVariable(f"{name}_{i}" + self.stringSuffix, lowerBound, upperBound, copyIdx)
+            for i in range(length)
+        ]
 
-        for i in range(numVars):
-            colSumName = f"{self._COLSUMNAME}_{i}" + self.stringSuffix
-            jSum = tilerModel.addVariable(colSumName, 0, 1, patternIdx)
-            constraintVec = []
-            for j in range(numVars):
-                name = f"{self._PERMUTATIONIDXNAME}_{j}_{i}" + self.stringSuffix
-                jVar = tilerModel.getVariable(name, patternIdx)
-                constraintVec.append(jVar)
-            tilerModel.addConstraint(tilerModel._model.SumEquality(constraintVec, jSum))
-            tilerModel.addConstraint(jSum == 1)
+    def _addPermutationMatrix(self, tilerModel: TilerModel, numVars: int, patternIdx: int) -> List[List[IntVar]]:
+        # Create permutation matrix
+        permMat = self._initVarMatrix(self._PERMUTATIONIDXNAME, numVars, numVars, 0, 1, tilerModel, patternIdx)
+
+        # Constraint row sum to 1
+        for i, row in enumerate(permMat):
+            sumVar = tilerModel.addVariable(f"{self._ROWSUMNAME}_{i}" + self.stringSuffix, 0, 1, patternIdx)
+            tilerModel.addConstraint(tilerModel._model.SumEquality(row), sumVar)
+            tilerModel.addConstraint(sumVar == 1)
+
+        # Constraint column sum to 1
+        for i, col in enumerate(self._transposeMatrix(permMat)):
+            sumVar = tilerModel.addVariable(f"{self._COLSUMNAME}_{i}" + self.stringSuffix, 0, 1, patternIdx)
+            tilerModel.addConstraint(tilerModel._model.SumEquality(col), sumVar)
+            tilerModel.addConstraint(sumVar == 1)
 
         return permMat
 
+    def _addMatMulConstraint(self, A: Sequence[Sequence[IntVar]], B: Sequence[Sequence[IntVar]],
+                             C: Sequence[Sequence[IntVar]], tilerModel: TilerModel):
+        M = len(A)
+        assert M > 0
+        assert len(C) == M
+        K = len(A[0])
+        assert K > 0
+        assert len(B) == K
+        N = len(B[0])
+        assert len(C[0]) == N
+
+        for m in range(M):
+            for n in range(N):
+                sum = 0
+                for k in range(K):
+                    sum += A[m][k] * B[k][n]
+                tilerModel.addConstraint(C[m][n] == sum)
+
+    def _addMatVecMulConstraint(self, mat: Sequence[Sequence[IntVar]], vec: Sequence[IntVar], resVec: Sequence[IntVar],
+                                tilerModel: TilerModel):
+        M = len(mat)
+        assert M > 0
+        K = len(mat[0])
+        assert K > 0
+        assert len(vec) == K
+        assert len(resVec) == M
+
+        for m in range(M):
+            sum = 0
+            for k in range(K):
+                sum += mat[m][k] * vec[k]
+            tilerModel.addConstraint(resVec[m] == sum)
+
     def _permuteMatrices(self, tilerModel: TilerModel, permutationMatrix: List[List[Union[IntVar, int]]],
                          adjacencyMatrix: List[List[int]], costVector: List[Union[int, IntVar]], patternIdx: int):
-
-        def boolMatMulSingle(A, B, row, col, transposeB = False):
-
-            constr = 0
-            numVars = len(A)
-
-            for j in range(numVars):
-                if not transposeB:
-                    constr += A[row][j] * B[j][col]
-                else:
-                    constr += A[row][j] * B[col][j]
-
-            return constr
-
-        def boolMatVecMulSingle(A, B, row):
-
-            constr = 0
-            numVars = len(B)
-
-            for j in range(numVars):
-                constr += A[row][j] * B[j]
-
-            return constr
-
-        permAdj_intermediate: List[List[Union[IntVar, int]]] = []
-        permAdj: List[List[Union[IntVar, int]]] = []
-        permCost: List[Union[IntVar, int]] = []
-
         numVars = len(costVector)
 
-        for i in range(numVars):
-            permAdj_intermediate.append([])
-            for j in range(numVars):
-                name = f"{self._INTERMEDIATEADJPRODUCTNAME}_{i}_{j}" + self.stringSuffix
-                jVar = tilerModel.addVariable(name, 0, 1, patternIdx)
-                constr = boolMatMulSingle(permutationMatrix, adjacencyMatrix, i, j, False)
-                tilerModel.addConstraint(jVar == constr)
-                permAdj_intermediate[i].append(jVar)
-
-        for i in range(numVars):
-            permAdj.append([])
-            for j in range(numVars):
-                name = f"{self._FINALADJPRODUCTNAME}_{i}_{j}" + self.stringSuffix
-                jVar = tilerModel.addVariable(name, 0, 1, patternIdx)
-                constr = boolMatMulSingle(permAdj_intermediate, permutationMatrix, i, j, True)
-                tilerModel.addConstraint(jVar == constr)
-                permAdj[i].append(jVar)
+        permAdj_intermediate = self._initVarMatrix(self._INTERMEDIATEADJPRODUCTNAME, numVars, numVars, 0, 1, tilerModel,
+                                                   patternIdx)
+        permAdj = self._initVarMatrix(self._FINALADJPRODUCTNAME, numVars, numVars, 0, 1, tilerModel, patternIdx)
 
         costMax = 0
         for cost in costVector:
@@ -205,20 +124,18 @@ class MemoryScheduler():
             else:
                 newCost = cost.Max()
             costMax = max(costMax, newCost)
+        permCost = self._initVarVector(self._COSTPRODUCTNAME, numVars, 0, costMax, tilerModel, patternIdx)
 
-        for j in range(numVars):
-            name = f"{self._COSTPRODUCTNAME}_{j}" + self.stringSuffix
-            jVar = tilerModel.addVariable(name, 0, costMax, patternIdx)
-            constr = boolMatVecMulSingle(permutationMatrix, costVector, j)
-            tilerModel.addConstraint(jVar == constr)
-            permCost.append(jVar)
+        self._addMatMulConstraint(permutationMatrix, adjacencyMatrix, permAdj_intermediate, tilerModel)
+        self._addMatMulConstraint(permAdj_intermediate, list(map(list, zip(*permutationMatrix))), permAdj, tilerModel)
+        self._addMatVecMulConstraint(permutationMatrix, costVector, permCost, tilerModel)
 
         return permAdj, permCost
 
     def _generateCost(self, tilerModel: TilerModel, adjMatrix: List[List[Union[int, IntVar]]],
                       costVector: List[Union[int, IntVar]], patternIdx: int):
 
-        def maxVal(val) -> int:
+        def maxVal(val: Union[int, IntVar]) -> int:
             if isinstance(val, int):
                 return val
             else:
@@ -255,26 +172,22 @@ class MemoryScheduler():
 
         return cost
 
-    def _buildInterferenceGraph(self, lifetimeMap) -> Dict[str, List[str]]:
-
+    def _buildInterferenceGraph(self, lifetimeMap: Dict[str, Lifetime]) -> Dict[str, List[str]]:
         interferenceGraph: Dict[str, List[str]] = {}
         for name, lifetime in lifetimeMap.items():
             neighbors: List[str] = []
             for neighborName, neighborLifetime in lifetimeMap.items():
                 if neighborName == name:
                     continue
-
-                if self.overlap(lifetime, neighborLifetime):
+                if lifetime.overlaps(neighborLifetime):
                     neighbors.append(neighborName)
-
             interferenceGraph[name] = neighbors
-
         return interferenceGraph
 
     def _calculateLifetimes(self, ctxt: NetworkContext, patternMemoryConstraint: PatternMemoryConstraint,
-                            memoryLevel: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, TensorMemoryConstraint]]:
+                            memoryLevel: str) -> Tuple[Dict[str, Lifetime], Dict[str, TensorMemoryConstraint]]:
 
-        def filterBuffers(buffer: VariableBuffer) -> bool:
+        def hasLifetime(buffer: VariableBuffer) -> bool:
             if not buffer._deploy:
                 return False
 
@@ -287,8 +200,7 @@ class MemoryScheduler():
                 return self.tileScheduler ^ (memoryLevel == buffer._memoryLevel)
 
         tensorMap = OrderedDict()
-        lifetimeMap: Dict[str, Tuple[int, int]] = dict()
-        maxStepIdx = len(patternMemoryConstraint.nodeConstraints)
+        lifetimeMap: Dict[str, Lifetime] = {}
 
         for stepIdx, nodeConstraint in enumerate(patternMemoryConstraint.nodeConstraints):
             for tensorName, tensorMemoryConstraint in nodeConstraint.tensorMemoryConstraints.items():
@@ -298,34 +210,32 @@ class MemoryScheduler():
                 buffer = ctxt.lookup(tensorName)
                 assert isinstance(buffer, VariableBuffer)
 
-                if not filterBuffers(buffer):
+                if not hasLifetime(buffer):
                     continue
 
-                # LMACAN: Update end of lifetime for all existing aliases to the current one
-                #         because that one is the oldest one so far
-                for alias in ctxt.allAliases(tensorName):
-                    if alias in lifetimeMap:
-                        start = lifetimeMap[alias][0]
-                        lifetimeMap[alias] = (start, stepIdx)
-
                 if tensorName in lifetimeMap:
-                    start = lifetimeMap[tensorName][0]
-                    lifetimeMap[tensorName] = (start, stepIdx)
+                    lifetimeMap[tensorName].setEnd(stepIdx)
                 else:
-                    lifetimeMap[tensorName] = (stepIdx, stepIdx)
+                    lifetimeMap[tensorName] = Lifetime(start = stepIdx, duration = 0)
                     tensorMap[tensorName] = tensorMemoryConstraint
 
-        # JUNGVI: Align the lifetime of I/O tensors accordignly:
-        #   - Input Tensors are alive at step 0
-        #   - Output Tensors are alive until the last step
-        # TODO: Why do we have to fixup the lifetime, i.e. why doesn't the top loop do it?
+                # LMACAN: Update end of lifetime for all visited aliases
+                for name in lifetimeMap.keys():
+                    if name != tensorName and ctxt.isAliased(tensorName, name):
+                        lifetimeMap[name].setEnd(stepIdx)
+
+        # JUNGVI: Align the lifetime of I/O tensors
         for tensorName, lifetime in lifetimeMap.items():
             buffer = ctxt.lookup(tensorName)
             assert isinstance(buffer, VariableBuffer)
+
+            # Inputs should be alive from the beginning
             if buffer.is_input:
-                lifetimeMap[tensorName] = (0, lifetime[-1])
-            elif buffer.is_output:
-                lifetimeMap[tensorName] = (lifetime[0], maxStepIdx)
+                lifetimeMap[tensorName] = Lifetime(start = 0, duration = lifetime.end)
+
+            # Outputs should be alive until the end
+            if buffer.is_output:
+                lifetime.setEnd(len(patternMemoryConstraint.nodeConstraints))
 
         return lifetimeMap, tensorMap
 
@@ -375,7 +285,6 @@ class MemoryScheduler():
         permutationList = list(range(len(costVector)))
         random.seed(self.seed)
         random.shuffle(permutationList)
-
         return permutationList
 
     def _stablePermutation(self, adjacencyMatrix, costVector, permutationList):
@@ -397,27 +306,22 @@ class MemoryScheduler():
         return newAdjacencyMatrix, newCostVector, permutationMatrix
 
     # SCHEREMO: Set the end of the lifetime of in-place operator inputs to the lifetime of their outputs
-    def _dealiasLifetimeMap(self, ctxt: NetworkContext,
-                            tensorLifetimeMap: Dict[str, Tuple[int, int]]) -> Dict[str, Tuple[int, int]]:
-
-        tensorLifetimeMap = tensorLifetimeMap.copy()
-
+    def _dealiasLifetimeMap(self, ctxt: NetworkContext, lifetimeMap: Dict[str, Lifetime]) -> Dict[str, Lifetime]:
+        lifetimeMap = lifetimeMap.copy()
         if not self.tileScheduler:
-            for key, lifetime in tensorLifetimeMap.items():
-                alias = ctxt.dealiasBuffer(key)
+            for name, lifetime in lifetimeMap.items():
+                origin = ctxt.dealiasBuffer(name)
 
-                if alias == key:
+                if origin == name:
                     continue
 
-                if ctxt.is_global(alias):
-                    tensorLifetimeMap[key] = (0, lifetime[1])
+                if ctxt.is_global(origin):
+                    lifetimeMap[name] = Lifetime(0, lifetime.end)
                     continue
 
-                aliasLifetime = tensorLifetimeMap[alias]
-                tensorLifetime = (aliasLifetime[0], max(aliasLifetime[1], lifetime[1]))
-                tensorLifetimeMap[alias] = tensorLifetime
-
-        return tensorLifetimeMap
+                originLifetime = lifetimeMap[origin]
+                lifetimeMap[origin] = Lifetime(originLifetime.start, max(originLifetime.duration, lifetime.duration))
+        return lifetimeMap
 
     def getConstantTensorOffset(self, ctxt: NetworkContext, memoryLevel: str):
         constantTensorSize = 0
@@ -440,7 +344,7 @@ class MemoryScheduler():
             self.memoryMap[memoryLevel] = []
 
         for patternIdx, patternMemoryConstraint in enumerate(patternMemoryConstraints):
-            tensorLifetimeMap, tensorMap = self._calculateLifetimes(ctxt, patternMemoryConstraint, memoryLevel)
+            lifetimeMap, tensorMap = self._calculateLifetimes(ctxt, patternMemoryConstraint, memoryLevel)
 
             #missingTensors = [
             #    tensorMc.tensorName for nodeConstr in patternMemoryConstraint.nodeConstraints
@@ -449,20 +353,20 @@ class MemoryScheduler():
             #]
             #assert len(missingTensors) == 0, f"Some tensors have not been assigned their memory constraint: {missingTensors}"
 
-            tensorLifetimeMap = self._dealiasLifetimeMap(ctxt, tensorLifetimeMap)
+            lifetimeMap = self._dealiasLifetimeMap(ctxt, lifetimeMap)
 
-            interferenceGraph = self._buildInterferenceGraph(tensorLifetimeMap)
+            interferenceGraph = self._buildInterferenceGraph(lifetimeMap)
 
             numVars = len(interferenceGraph)
 
             adjacencyMatrix = self._buildAdjacencyMatrix(interferenceGraph, tensorMap)
             costVector = self._buildCostVector(ctxt, interferenceGraph, tensorMap, memoryLevel)
 
-            blocks = []
-            for tensor in interferenceGraph.keys():
-                relativeLifeTime = tensorLifetimeMap[tensor]
-                lifetime = (relativeLifeTime[0] + patternIdx, relativeLifeTime[1] + patternIdx)
-                blocks.append(MemoryBlock(tensor, memoryLevel, lifetime, None))
+            # offset lifetimes by patternIdx
+            for lt in lifetimeMap.values():
+                lt.start += patternIdx
+
+            blocks = [MemoryBlock(tensor, memoryLevel, lifetimeMap[tensor]) for tensor in interferenceGraph.keys()]
 
             self.memoryMap[memoryLevel].append(blocks)
 
@@ -602,20 +506,22 @@ class MemoryScheduler():
     def annotateSolution(self, ctxt: NetworkContext, tilerModel: TilerModel):
 
         def permMatrix2permList(permMatrix: np.ndarray) -> List[int]:
-
-            _permMatrix = []
-
             if len(permMatrix) == 0:
                 return []
 
             if len(permMatrix) == 1:
                 return [0]
 
+            _permMatrix = []
             for i in range(permMatrix.shape[0]):
                 rowVec = list(permMatrix[i])
                 _permMatrix.append(rowVec)
+            origret = [row.index(1) for row in _permMatrix]
 
-            return [row.index(1) for row in _permMatrix]
+            newret = permMatrix.nonzero()[1].tolist()
+            assert all(orig == new for orig, new in zip(origret, newret))
+
+            return origret
 
         for memoryLevel, patternList in self.memoryMap.items():
             for patternIdx, pattern in enumerate(patternList):
@@ -628,30 +534,28 @@ class MemoryScheduler():
                     _permutationMatrix = permutationMatrix
 
                 permList = permMatrix2permList(_permutationMatrix)
-
-                if pattern != [] and len(pattern) > 1:
-                    permPattern = _permute(pattern, permList)
-                else:
-                    permPattern = pattern
+                permPattern = _permute(pattern, permList)
 
                 aliasedBlocks = []
-
                 for blockIdx, memoryBlock in enumerate(permPattern):
-
                     blockNames = [block.name for block in permPattern]
                     buffer = ctxt.lookup(memoryBlock.name)
                     assert isinstance(buffer, VariableBuffer)
 
-                    isAliasToGlobal = any(ctxt.is_global(alias) for alias in buffer.aliases)
-
                     # SCHEREMO: If we're handling an active alias to a global buffer in their home memory level, we don't need to resolve addresses
-                    if isAliasToGlobal and buffer._memoryLevel == memoryLevel:
+                    if ctxt.is_global(ctxt.dealiasBuffer(buffer.name)) and buffer._memoryLevel == memoryLevel:
                         continue
 
                     # SCHEREMO: Don't fully unroll aliases here - this is pattern-sensitive!
-                    buffAliasesInBlockNames = [alias for alias in buffer.aliases if alias in blockNames]
-                    aliasedBlocks.extend([(memoryBlock, alias) for alias in buffAliasesInBlockNames])
+                    buffAliasesInBlockNames = []
+                    origin = ctxt.dealiasBuffer(buffer.name)
+                    for name in blockNames:
+                        if ctxt.dealiasBuffer(name) == origin:
+                            buffAliasesInBlockNames.append(name)
+
+                    buffAliasesInBlockNames.remove(buffer.name)
                     if len(buffAliasesInBlockNames) > 0:
+                        aliasedBlocks.extend([(memoryBlock, alias) for alias in buffAliasesInBlockNames])
                         continue
 
                     upperIdx = blockIdx
@@ -660,17 +564,16 @@ class MemoryScheduler():
                         f"{self._COSTVARIABLENAME}_{upperIdx}{self._stringSuffix}_{memoryLevel}", patternIdx)
                     upperEnd = tilerModel._resolveVariable(upperEndVar)
 
-                    maxAddr = 0
-                    for idx, oldBlock in enumerate(permPattern):
-                        if self.overlap(oldBlock.lifetime, memoryBlock.lifetime):
+                    maxEnd = 0
+                    for oldBlock in permPattern:
+                        if oldBlock.lifetime.overlaps(memoryBlock.lifetime):
                             if oldBlock.addrSpace is not None:
-                                maxAddr = max(maxAddr, oldBlock.addrSpace[1])
+                                maxEnd = max(maxEnd, oldBlock.addrSpace.end)
 
-                    lowerEnd = maxAddr
-                    memoryBlock.addrSpace = (lowerEnd, upperEnd)
+                    memoryBlock.addrSpace = AddressSpace(maxEnd, upperEnd - maxEnd)
 
                 for block, alias in aliasedBlocks:
-                    for refBlock in sorted(permPattern, key = lambda x: x.lifetime[0]):
+                    for refBlock in sorted(permPattern, key = lambda x: x.lifetime.start):
                         if refBlock.name == alias:
                             block.addrSpace = refBlock.addrSpace
                             break

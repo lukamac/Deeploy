@@ -10,6 +10,7 @@ from typing import Dict, Generator, List, Sequence, Tuple, Type
 import numpy as np
 
 from Deeploy.AbstractDataTypes import Pointer
+from Deeploy.CommonExtensions.PermutationUtils import _permute
 from Deeploy.DeeployTypes import OperatorRepresentation, VariableBuffer
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint
 
@@ -28,11 +29,15 @@ class HyperRectangle():
     dims: Tuple[int, ...]
 
     def __init__(self, offset: Tuple[int, ...], dims: Tuple[int, ...]):
-        assert len(offset) == len(
-            dims), f"HyperRectangle offset and dims for mismatching dimensions {offset} and {dims}"
+        assert len(offset) == len(dims), \
+            f"HyperRectangle offset and dims for mismatching dimensions {offset} and {dims}"
 
         self.offset = offset
         self.dims = dims
+
+    def permute(self, permutation: Sequence[int]) -> HyperRectangle:
+        assert len(self.dims) == len(permutation), "Permutation list and HyperRectangle must have equal dimensionality!"
+        return HyperRectangle(tuple(_permute(self.offset, permutation)), tuple(_permute(self.dims, permutation)))
 
 
 @dataclass

@@ -14,8 +14,7 @@ from testUtils.platformMapping import mapDeployer, mapPlatform, setupMemoryPlatf
 from testUtils.testRunner import TestGeneratorArgumentParser
 from testUtils.typeMapping import inferTypeAndOffset
 
-from Deeploy.DeeployTypes import NetworkContext, NetworkDeployer, ONNXLayer, Schedule, StructBuffer, TransientBuffer, \
-    VariableBuffer
+from Deeploy.DeeployTypes import NetworkContext, NetworkDeployer, ONNXLayer, Schedule, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevels import MemoryHierarchy, MemoryLevel
 from Deeploy.NetworkDeployers.MemoryLevelDeployer import MemoryDeployerWrapper
 from Deeploy.OptimizationPasses.MemoryLevelAnnotationPasses import AnnotateDefaultMemoryLevel, AnnotateIOMemoryLevel
@@ -121,44 +120,34 @@ def validateTilingTopologySolution(schedule: Schedule, tilingSchedule: Schedule,
 
 
 def _findBlocks(memoryMap: Dict[str, List[List[MemoryBlock]]], name: str) -> List[MemoryBlock]:
-
-    res = []
-
-    for key, patterns in memoryMap.items():
-        for pattern in patterns:
-            for block in pattern:
-                if block.name == name:
-                    res.append(block)
-
-    return res
+    return [block for patterns in memoryMap.values() for pattern in patterns for block in pattern if block.name == name]
 
 
 def validateStaticMemoryLayoutSolution(ctxt: NetworkContext, memoryMap: Dict[str, List[List[MemoryBlock]]]):
-
     # SCHEREMO: Assert that every VariableBuffer and ConstantBuffer is fully allocated somewhere
     # SCHEREMO: This doesn't need to hold for depth-first tiling!
-    for key, buf in {**ctxt.localObjects}.items():
-        if not isinstance(buf, (VariableBuffer)) or isinstance(buf, TransientBuffer) or isinstance(buf, StructBuffer):
+    for name, buff in ctxt.localObjects.items():
+        if not isinstance(buff, VariableBuffer):
             continue
 
         # SCHEREMO: Exception for memory arenas
-        if buf._users == []:
+        if len(buff._users) == 0:
             continue
 
-        blocks = _findBlocks(memoryMap, key)
+        blocks = _findBlocks(memoryMap, name)
+        assert len(blocks) > 0, f"Found no blocks for buffer {name}"
 
-        if len(blocks) == 0:
-            raise Exception(f"Didn't find any allocation of {key}")
-
-        buf = ctxt.lookup(key)
-        blockSize = np.prod(buf.shape) * (buf._type.referencedType.typeWidth // 8)
-
-        blockFound = False
-        for block in blocks:
-            size = block.addrSpace[1] - block.addrSpace[0]
-            blockFound |= (size == blockSize)
-
-        assert blockFound, f"Didn't find full allocation of block {key}, expected {size} got {blockSize}"
+        mismatched = [b for b in blocks if b.addrSpace is None or b.addrSpace.size != buff.sizeInBytes()]
+        if len(mismatched) > 0:
+            for block in mismatched:
+                print(f"Buffer {name} of size {buff.sizeInBytes()} has mismatching block allocations:")
+                if block.addrSpace is None:
+                    print(f"  - {block.name}: address space was not allocated")
+                elif block.addrSpace.size > buff.sizeInBytes():
+                    print(f"  - {block.name}: too much space allocated")
+                elif block.addrSpace.size < buff.sizeInBytes():
+                    print(f"  - {block.name}: not enough space allocated")
+            raise RuntimeError(f"Buffer {name} has mismatching block allocations")
 
 
 def validateDynamicMemoryLayoutSolution(ctxt: NetworkContext, tilingSchedule: TilingSolution,
@@ -172,44 +161,38 @@ def validateDynamicMemoryLayoutSolution(ctxt: NetworkContext, tilingSchedule: Ti
                 blocks = _findBlocks(memoryMap, tensorConstraint.tensorName)
                 blockLevels = [block.level for block in blocks]
 
-                buf = ctxt.lookup(tensorConstraint.tensorName)
+                buff = ctxt.lookup(tensorConstraint.tensorName)
 
                 for memoryConstraint in tensorConstraint.memoryConstraints.values():
-
                     # SCHEREMO: Don't check static allocation
-                    if buf._memoryLevel == memoryConstraint.memoryLevel:
+                    if buff._memoryLevel == memoryConstraint.memoryLevel:
                         continue
 
                     assert memoryConstraint.memoryLevel in blockLevels, f"No constraint for {tensorConstraint.tensorName} memoryLevel {memoryConstraint.memoryLevel}"
 
                     patternBlocks = memoryMap[memoryConstraint.memoryLevel][patternIdx]
 
-                    _block = [block for block in patternBlocks if block.name == tensorConstraint.tensorName]
+                    tensorBlocks = [block for block in patternBlocks if block.name == tensorConstraint.tensorName]
+                    assert len(
+                        tensorBlocks) == 1, f"{tensorConstraint.tensorName} not exactly once in pattern {patternIdx}!"
 
-                    assert len(_block) == 1, f"{tensorConstraint.tensorName} not exactly once in pattern {patternIdx}!"
+                    block = tensorBlocks[0]
 
-                    block = _block[0]
-                    otherBlocks = [oblock for oblock in patternBlocks if oblock != block]
-
-                    collisions = []
-                    _buffer = ctxt.lookup(block.name)
-                    for other in otherBlocks:
-                        _otherBuffer = ctxt.lookup(other.name)
-                        if (hasattr(_buffer, "_alias")
-                                and _buffer._alias == other.name) or (hasattr(_otherBuffer, "_alias")
-                                                                      and _otherBuffer._alias == block.name):
-                            collisions.append(False)
-                            continue
-
-                        collisions.append(block.collides(other))
-
-                    assert not any(collisions), f"{block.name} collides with another block in pattern {patternIdx}"
+                    collisions = [
+                        other.name
+                        for other in patternBlocks
+                        if other != block and not ctxt.isAliased(block.name, other.name) and block.collides(other)
+                    ]
+                    assert len(
+                        collisions
+                    ) > 0, f"Block {block.name} has collisions in pattern {patternIdx}. Collisions: {collisions}"
 
                     ctxtSize = memoryConstraint.size * memoryConstraint.multiBufferCoefficient * (
-                        buf._type.referencedType.typeWidth // 8)
-                    blockSize = block.addrSpace[1] - block.addrSpace[0]
-
-                    assert ctxtSize <= blockSize, f"{tensorConstraint.tensorName}'s expected size does not match!"
+                        buff._type.referencedType.typeWidth // 8)
+                    assert block.addrSpace is not None, f"Expected block {block.name} to have an assigned address space."
+                    assert ctxtSize <= block.addrSpace.size, (
+                        f"{tensorConstraint.tensorName}'s expected size does not fit into the block's allocated address space!"
+                        f"Expected size {ctxtSize} > allocated address space {block.addrSpace.size}")
 
 
 def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkDeployer:
@@ -259,31 +242,28 @@ def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkD
 
 def validateEffectiveLoad(outerMemoryMap: Dict[str, List[List[MemoryBlock]]],
                           innerMemoryMap: Dict[str, List[List[MemoryBlock]]], memoryHierarchy: MemoryHierarchy):
-    staticLoadDict = {}
-    maxAddr = 0
-    for level, patterns in outerMemoryMap.items():
-        maxAddr = 0
-        for pattern in patterns:
-            for block in pattern:
-                maxAddr = max(maxAddr, block.addrSpace[1])
-        staticLoadDict[level] = maxAddr
 
-    dynamicLoadDict = {}
-    maxAddr = 0
-    for level, patterns in innerMemoryMap.items():
-        maxAddr = 0
-        for pattern in patterns:
-            for block in pattern:
-                maxAddr = max(maxAddr, block.addrSpace[1])
-        dynamicLoadDict[level] = maxAddr
+    def perMemLoad(memMap: Dict[str, List[List[MemoryBlock]]]) -> Dict[str, int]:
+        load = {}
+        for memory, patterns in memMap.items():
+            maxAddr = 0
+            for pattern in patterns:
+                for block in pattern:
+                    assert block.addrSpace is not None, f"Expected block {block.name} to have an allocated address space."
+                    maxAddr = max(maxAddr, block.addrSpace.end)
+            load[memory] = maxAddr
+        return load
 
-    totalLoadDict = {}
-    for level in dynamicLoadDict.keys():
-        totalLoadDict[level] = staticLoadDict[level] + dynamicLoadDict[level]
+    staticMemoryLoad = perMemLoad(outerMemoryMap)
+    dynamicMemoryLoad = perMemLoad(innerMemoryMap)
 
-    for level, load in totalLoadDict.items():
-        assert memoryHierarchy.memoryLevels[
-            level].size > load, f"Effective memory layout does not fit {memoryHierarchy.memoryLevels[level].size} in {level}"
+    totalMemoryLoad = {}
+    for level in dynamicMemoryLoad.keys():
+        totalMemoryLoad[level] = staticMemoryLoad[level] + dynamicMemoryLoad[level]
+
+    for level, load in totalMemoryLoad.items():
+        assert memoryHierarchy.memoryLevels[level].size > load, \
+            f"Effective memory layout does not fit {memoryHierarchy.memoryLevels[level].size} in {level}"
 
 
 def validateDynamicLifetimes(ctxt: NetworkContext, tilingSchedule: TilingSolution,
@@ -302,8 +282,8 @@ def validateDynamicLifetimes(ctxt: NetworkContext, tilingSchedule: TilingSolutio
                 assert len(blocks) == 1, f"Found {name} more than once in static life time map!"
 
                 block = blocks[0]
-                assert (patternIdx >= block.lifetime[0] and patternIdx
-                        <= block.lifetime[1]), f"Tile of {name} is used after deallocation of the static buffer!"
+                assert block.lifetime.contains(patternIdx), \
+                        f"Tile of {name} is used after deallocation of the static buffer!"
 
 
 if __name__ == '__main__':

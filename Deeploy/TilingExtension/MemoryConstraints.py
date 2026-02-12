@@ -11,6 +11,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 from ortools.constraint_solver.pywrapcp import IntVar
 
 from Deeploy.DeeployTypes import NetworkContext
+from Deeploy.TilingExtension.TilingTypes import AddressSpace
 
 
 class MemoryConstraint():
@@ -22,7 +23,7 @@ class MemoryConstraint():
         self.multiBufferCoefficient: Union[int, IntVar] = 1
 
         self.shape: Optional[Tuple[int, ...]] = None
-        self.addrSpace: Optional[Tuple[int, int]] = None
+        self.addrSpace: Optional[AddressSpace] = None
 
     def __repr__(self) -> str:
         retStr = f"MemoryLevel: {self.memoryLevel}, Size: {self.size}, MultiBuffer: {self.multiBufferCoefficient}"
@@ -101,7 +102,7 @@ class NodeMemoryConstraint():
         self.outputTensorMemoryConstraints: Dict[str, TensorMemoryConstraint] = {}
 
     @property
-    def tensorMemoryConstraints(self):
+    def tensorMemoryConstraints(self) -> Dict[str, TensorMemoryConstraint]:
         return {
             **self.inputTensorMemoryConstraints,
             **self.intermediateTensorMemoryConstraints,

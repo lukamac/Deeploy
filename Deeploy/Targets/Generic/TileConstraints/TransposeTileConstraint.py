@@ -6,8 +6,7 @@ from typing import Dict, List, Tuple
 
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.DataTypes import uint16_t
-from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import \
-    _invertPermutation, _permuteHyperRectangle
+from Deeploy.CommonExtensions.PermutationUtils import _invertPermutation
 from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
@@ -58,7 +57,7 @@ class TransposeTileConstraint(TileConstraint):
         invPerm = _invertPermutation(operatorRepresentation['perm'])
         inputCubes = []
         for outCube in outputCubes:
-            inCube = _permuteHyperRectangle(outCube, invPerm)
+            inCube = outCube.permute(invPerm)
             inputCubes.append(inCube)
             for i, dim in enumerate(inCube.dims):
                 replacements[f"dimLen_{i}"].append(dim)

@@ -51,7 +51,7 @@ class TilingVariableReplacement(CodeTransformationPass, IntrospectiveCodeTransfo
             assert len(memoryConstraints) == 1, f"Tiled transient buffer {buffer.name} has more than one memory level!"
             constraint = next(iter(memoryConstraints.values()))
             assert constraint.addrSpace is not None, f"Address space of {constraint} cannot be None!"
-            offset = constraint.addrSpace[0]
+            offset = constraint.addrSpace.base
             self._arenaAllocate(ctxt, buffer, offset)
 
         return ctxt

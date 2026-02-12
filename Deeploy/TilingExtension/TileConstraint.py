@@ -41,35 +41,31 @@ class TileConstraint():
         return {}
 
     @staticmethod
-    def getBaseAddr(tilingSolution, targetMemLevel, name) -> List[Optional[int]]:
-        mc = tilingSolution.tensorMemoryConstraints[name].memoryConstraints[targetMemLevel]
-
+    def getBaseAddr(mc: MemoryConstraint) -> List[Optional[int]]:
         if mc.addrSpace is None:
             return [None]
 
-        start, end = mc.addrSpace
-        bufferSize = (end - start) // mc.multiBufferCoefficient
-
-        return [start + bufferSize * i for i in range(mc.multiBufferCoefficient)]
+        bufferSize = mc.addrSpace.size // mc.multiBufferCoefficient
+        return [mc.addrSpace.base + bufferSize * i for i in range(mc.multiBufferCoefficient)]
 
     @staticmethod
-    def extractBaseAddr(tilingSolution: NodeMemoryConstraint, targetMemLevel: str,
+    def extractBaseAddr(nodeMemoryConstraint: NodeMemoryConstraint, targetMemLevel: str,
                         operatorRepresentation: OperatorRepresentation,
-                        addrNames: List[str]) -> Tuple[Dict[str, int], Dict[str, int]]:
-
-        varList = list(map(lambda x: operatorRepresentation[x], addrNames))
-        addrList = list(map(lambda x: TileConstraint.getBaseAddr(tilingSolution, targetMemLevel, x), varList))
-
+                        symNames: List[str]) -> Tuple[Dict[str, List[Optional[int]]], Dict[str, List[Optional[int]]]]:
         inputBaseOffsets = {}
         outputBaseOffsets = {}
-
-        for addr, addrName, varName in zip(addrList, addrNames, varList):
-            if varName in tilingSolution.outputTensorMemoryConstraints.keys():
-                outputBaseOffsets[addrName] = addr
-            elif varName in tilingSolution.inputTensorMemoryConstraints.keys():
-                inputBaseOffsets[addrName] = addr
+        for symName in symNames:
+            tensorName = operatorRepresentation[symName]
+            if tensorName in nodeMemoryConstraint.inputTensorMemoryConstraints:
+                memoryConstraint = nodeMemoryConstraint.inputTensorMemoryConstraints[tensorName].memoryConstraints[
+                    targetMemLevel]
+                inputBaseOffsets[symName] = TileConstraint.getBaseAddr(memoryConstraint)
+            elif tensorName in nodeMemoryConstraint.outputTensorMemoryConstraints:
+                memoryConstraint = nodeMemoryConstraint.outputTensorMemoryConstraints[tensorName].memoryConstraints[
+                    targetMemLevel]
+                outputBaseOffsets[symName] = TileConstraint.getBaseAddr(memoryConstraint)
             else:
-                raise Exception(f"{addrName} not in input or output!")
+                raise Exception(f"Tensor {tensorName} not found in neither input nor output!")
 
         return inputBaseOffsets, outputBaseOffsets
 

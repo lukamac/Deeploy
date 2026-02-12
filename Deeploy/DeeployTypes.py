@@ -566,6 +566,10 @@ class NetworkContext():
             assert buffer.name not in visited, "Circular aliasing detected!"
         return buffer.name
 
+    def isAliased(self, name: str, other: str) -> bool:
+        """Check if the buffers are aliases"""
+        return self.dealiasBuffer(name) == self.dealiasBuffer(other)
+
     def unravelReference(self, ref: VariableBuffer) -> VariableBuffer:
         """Function to find the underlying referenced VariableBuffer
 
