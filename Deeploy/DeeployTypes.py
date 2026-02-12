@@ -340,6 +340,16 @@ class VariableBuffer():
         """
         return (math.prod(self.shape) * (self._type.referencedType.typeWidth)) // 8
 
+    def isAlias(self) -> bool:
+        """Returns true if the buffer is an alias
+
+        Returns
+        -------
+        bool
+            True if the buffer is an alias
+        """
+        return self.aliasedBuffer is not None
+
 
 class TransientBuffer(VariableBuffer):
     """Class to represent memory space required by kernels that is not covered by input and output tensors, e.g. im2col buffers in convolutions

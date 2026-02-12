@@ -171,16 +171,14 @@ class Tiler():
                 for block in blocks:
                     buffer = ctxt.lookup(block.name)
                     assert isinstance(buffer, VariableBuffer)
-                    dealiasedBufferName = ctxt.dealiasBuffer(buffer.name)
                     # SCHEREMO: If alias buffers have zero cost, they don't contribute to the currentMax and their addrSpace is None
                     # TODO: This might need some way to check that we are looking at an output tensor
-                    if dealiasedBufferName != buffer.name:
-                        if ctxt.is_global(dealiasedBufferName):
-                            continue
-                        if buffer.aliasedBuffer in blockNames:
-                            continue
+                    if buffer.isAlias() and (ctxt.is_global(ctxt.dealiasBuffer(buffer.name))
+                                             or buffer.aliasedBuffer in blockNames):
+                        continue
 
-                    assert block.addrSpace is not None
+                    assert block.addrSpace is not None, \
+                            f"Block {block.name} in the {memory} memory doesn't have an allocated address space even though it's neither aliasing a global buffer nor a neighboring buffer"
                     currentMax = max(currentMax, block.addrSpace.end)
 
             maxAddr[memory] = currentMax
@@ -217,14 +215,15 @@ class Tiler():
                     if buffer._memoryLevel != memory:
                         continue
 
-                    dealiasedBufferName = ctxt.dealiasBuffer(buffer.name)
+                    origin = ctxt.dealiasBuffer(buffer.name)
 
-                    if ctxt.is_global(dealiasedBufferName):
+                    # Skip if the buffer is an alias to a global buffer or if the buffer itself is global
+                    if ctxt.is_global(origin):
                         continue
 
-                    if dealiasedBufferName != buffer.name:
-                        assert dealiasedBufferName in blockNames, f"I don't know what happens if an alias buffer resides in a different memory level then it's origin"
-                        block = blockNames[dealiasedBufferName]
+                    if buffer.isAlias():
+                        assert origin in blockNames, "I don't know what happens if an alias buffer resides in a different memory level then it's origin"
+                        block = blockNames[origin]
 
                     assert block.addrSpace is not None, f"Expected block {block.name} to have an allocated address space."
                     buffer.allocTemplate = NodeTemplate("${name} = (${type.typeName}) " +

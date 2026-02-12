@@ -470,7 +470,6 @@ class MemoryScheduler():
         return cost
 
     def getHVector(self, tilerModel, patternIdx: int, memoryLevel: str) -> np.ndarray:
-
         stringSuffix = self._stringSuffix + f"_{memoryLevel}"
         numVars = len(self.memoryMap[memoryLevel][patternIdx])
 
@@ -485,11 +484,9 @@ class MemoryScheduler():
         return hVec
 
     def getBlockVector(self, patternIdx: int, memoryLevel: str) -> List[MemoryBlock]:
-
         return self.memoryMap[memoryLevel][patternIdx]
 
     def getPMatrix(self, tilerModel, patternIdx: int, memoryLevel: str) -> np.ndarray:
-
         stringSuffix = self._stringSuffix + f"_{memoryLevel}"
         numVars = len(self.memoryMap[memoryLevel][patternIdx])
         permMat = np.zeros((numVars, numVars))
@@ -512,16 +509,7 @@ class MemoryScheduler():
             if len(permMatrix) == 1:
                 return [0]
 
-            _permMatrix = []
-            for i in range(permMatrix.shape[0]):
-                rowVec = list(permMatrix[i])
-                _permMatrix.append(rowVec)
-            origret = [row.index(1) for row in _permMatrix]
-
-            newret = permMatrix.nonzero()[1].tolist()
-            assert all(orig == new for orig, new in zip(origret, newret))
-
-            return origret
+            return permMatrix.nonzero()[1].tolist()
 
         for memoryLevel, patternList in self.memoryMap.items():
             for patternIdx, pattern in enumerate(patternList):
@@ -536,41 +524,35 @@ class MemoryScheduler():
                 permList = permMatrix2permList(_permutationMatrix)
                 permPattern = _permute(pattern, permList)
 
+                blockNames = [block.name for block in permPattern]
+
                 aliasedBlocks = []
-                for blockIdx, memoryBlock in enumerate(permPattern):
-                    blockNames = [block.name for block in permPattern]
-                    buffer = ctxt.lookup(memoryBlock.name)
+                allocatedBlocks = []
+                for blockIdx, block in enumerate(permPattern):
+                    buffer = ctxt.lookup(block.name)
                     assert isinstance(buffer, VariableBuffer)
 
                     # SCHEREMO: If we're handling an active alias to a global buffer in their home memory level, we don't need to resolve addresses
-                    if ctxt.is_global(ctxt.dealiasBuffer(buffer.name)) and buffer._memoryLevel == memoryLevel:
+                    origin = ctxt.dealiasBuffer(buffer.name)
+                    if buffer.isAlias() and ctxt.is_global(origin) and buffer._memoryLevel == memoryLevel:
                         continue
 
                     # SCHEREMO: Don't fully unroll aliases here - this is pattern-sensitive!
-                    buffAliasesInBlockNames = []
-                    origin = ctxt.dealiasBuffer(buffer.name)
-                    for name in blockNames:
-                        if ctxt.dealiasBuffer(name) == origin:
-                            buffAliasesInBlockNames.append(name)
-
-                    buffAliasesInBlockNames.remove(buffer.name)
-                    if len(buffAliasesInBlockNames) > 0:
-                        aliasedBlocks.extend([(memoryBlock, alias) for alias in buffAliasesInBlockNames])
+                    if buffer.isAlias() and buffer.aliasedBuffer in blockNames:
+                        aliasedBlocks.append((block, buffer.aliasedBuffer))
                         continue
 
-                    upperIdx = blockIdx
-
                     upperEndVar = tilerModel.getVariable(
-                        f"{self._COSTVARIABLENAME}_{upperIdx}{self._stringSuffix}_{memoryLevel}", patternIdx)
+                        f"{self._COSTVARIABLENAME}_{blockIdx}{self._stringSuffix}_{memoryLevel}", patternIdx)
                     upperEnd = tilerModel._resolveVariable(upperEndVar)
 
-                    maxEnd = 0
-                    for oldBlock in permPattern:
-                        if oldBlock.lifetime.overlaps(memoryBlock.lifetime):
-                            if oldBlock.addrSpace is not None:
-                                maxEnd = max(maxEnd, oldBlock.addrSpace.end)
+                    base = 0
+                    for other in allocatedBlocks:
+                        if block.lifetime.overlaps(other.lifetime):
+                            base = max(base, other.addrSpace.end)
 
-                    memoryBlock.addrSpace = AddressSpace(maxEnd, upperEnd - maxEnd)
+                    block.addrSpace = AddressSpace(base = base, size = upperEnd - base)
+                    allocatedBlocks.append(block)
 
                 for block, alias in aliasedBlocks:
                     for refBlock in sorted(permPattern, key = lambda x: x.lifetime.start):
