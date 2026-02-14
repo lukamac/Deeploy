@@ -1,10 +1,8 @@
 # SPDX-FileCopyrightText: 2023 ETH Zurich and University of Bologna
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import os
-from collections import OrderedDict
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import onnx
@@ -14,122 +12,92 @@ from testUtils.platformMapping import mapDeployer, mapPlatform, setupMemoryPlatf
 from testUtils.testRunner import TestGeneratorArgumentParser
 from testUtils.typeMapping import inferTypeAndOffset
 
-from Deeploy.DeeployTypes import GlobalDefinition, NetworkDeployer, ONNXLayer, Schedule, TransientBuffer
+from Deeploy.DeeployTypes import NetworkContext, Schedule, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
 from Deeploy.MemoryLevelExtension.NetworkDeployers.MemoryLevelDeployer import MemoryDeployerWrapper
 from Deeploy.MemoryLevelExtension.OptimizationPasses.MemoryLevelAnnotationPasses import AnnotateDefaultMemoryLevel, \
     AnnotateIOMemoryLevel
-from Deeploy.TilingExtension.TilerExtension import TilerDeployerWrapper
-
-# Mock of the Global Scheduler's inteface
-# Returns a list of list of nodes instead of simply a list
-# Inner list represent the patter over which we tile
+from Deeploy.TilingExtension.MemoryConstraints import TensorMemoryConstraint
+from Deeploy.TilingExtension.TilerExtension import TilerDeployerWrapper, TilingSolution
 
 
 def _mockScheduler(graph: gs.Graph) -> List[List[gs.Node]]:
+    """Mock of the Global Scheduler's inteface
 
-    schedule = [[node] for node in graph.nodes]
-
-    return schedule
-
-
-def _filterSchedule(schedule: List[List[gs.Node]], layerBinding: 'OrderedDict[str, ONNXLayer]') -> List[List[gs.Node]]:
-
-    filteredSchedule = []
-
-    for pattern in schedule:
-
-        filteredSchedulePattern = []
-        for node in pattern:
-            if node.name in layerBinding.keys():
-                filteredSchedulePattern.append(node)
-        filteredSchedule.append(filteredSchedulePattern)
-
-    return filteredSchedule
+    Returns a list of list of nodes instead of simply a list.
+    Inner list represent the patter over which we tile.
+    """
+    return [[node] for node in graph.nodes]
 
 
-def getMemoryOccupation(ctxt, tiledTensors, memoryLevel):
-
+# TODO: Remove this function in favour of the ones that are implemented in Deeploy
+def getMemoryOccupation(ctxt: NetworkContext, tensorMemoryConstraints: Dict[str, TensorMemoryConstraint],
+                        memoryLevel: str):
     occupation = 0
 
-    for tensor in ctxt.globalObjects.values():
+    for buffer in ctxt.globalObjects.values():
+        if not isinstance(buffer, VariableBuffer):
+            continue
+        if buffer._memoryLevel == memoryLevel and len(buffer._users) > 0 and buffer._deploy:
+            occupation += buffer.sizeInBytes()
 
-        if isinstance(tensor, GlobalDefinition):
+    for name, tensorMemoryConstraint in tensorMemoryConstraints.items():
+        if memoryLevel not in tensorMemoryConstraint.memoryConstraints:
             continue
 
-        if tensor._memoryLevel == memoryLevel and tensor._users != []:
-            occupation += np.prod(tensor.shape) * (tensor._type.referencedType.typeWidth // 8)
+        mc = tensorMemoryConstraint.memoryConstraints[memoryLevel]
 
-    for tensor in tiledTensors.values():
-        for memoryConstraint in tensor.memoryConstraints.values():
-            if memoryConstraint.memoryLevel == memoryLevel:
+        buffer = ctxt.lookup(name)
+        if isinstance(buffer, TransientBuffer):
+            typeWidth = 1
+        else:
+            typeWidth = (buffer._type.referencedType.typeWidth // 8)
 
-                if not isinstance(ctxt.lookup(tensor.tensorName), TransientBuffer):
-                    typeWidth = (ctxt.lookup(tensor.tensorName)._type.referencedType.typeWidth // 8)
-                else:
-                    typeWidth = 1
-
-                delta = memoryConstraint.multiBufferCoefficient * memoryConstraint.size * typeWidth
-                occupation += delta
+        occupation += mc.multiBufferCoefficient * mc.size * typeWidth
 
     return occupation
 
 
-def validateSolution(schedule: Schedule, tilingSchedule: Schedule, memoryHierarchy: MemoryHierarchy):
+def validateSolution(schedule: Schedule, tilingSolution: TilingSolution, memoryHierarchy: MemoryHierarchy,
+                     ctxt: NetworkContext):
 
-    assert len(schedule) == len(tilingSchedule), "ERROR: schedule and tilingSchedule don't have the same length"
+    assert len(schedule) == len(tilingSolution), "ERROR: schedule and tilingSchedule don't have the same length"
 
-    for pattern, tilingPattern in zip(schedule, tilingSchedule):
-        subGraph = gs.Graph(nodes = pattern)
-        patternTensors = set([key for key, value in subGraph.tensors().items() if ctxt.lookup(key)._deploy])
+    for pattern, patternMemoryConstraint in zip(schedule, tilingSolution):
 
-        # intermediateTensors are all tensors that are used and produced by the pattern.
-        # Including transient Buffers!
-        usedTensors = set()
-        producedTensors = set()
-        transientTensors = set()
-
-        for tensor in patternTensors:
-            users = ctxt.lookup(tensor)._users
-
-            for node in pattern:
-                if node.name in users:
-                    usedTensors.add(tensor)
-                    break
-
+        # Collect all deployed tensors
+        patternTensors = set()
         for node in pattern:
-            outputTensors = {node.name for node in node.outputs}
-            producedTensors |= outputTensors
+            for tensor in node.inputs + node.outputs:
+                if ctxt.lookup(tensor.name)._deploy:
+                    patternTensors.add(tensor.name)
 
-        for tensorName, varBuffer in ctxt.localObjects.items():
-            if isinstance(varBuffer, TransientBuffer):
-                assert len(varBuffer._users) == 1
-                if varBuffer._users[0] in patternTensors:
-                    transientTensors.add(tensorName)
+        nodeNames = {node.name for node in pattern}
+        usedTensors = {t for t in patternTensors if not nodeNames.isdisjoint(ctxt.lookup(t)._users)}
+        producedTensors = {tensor.name for node in pattern for tensor in node.outputs}
 
-        for tilingStep in tilingPattern.nodeConstraints:
+        for nodeMemoryConstraint in patternMemoryConstraint.nodeConstraints:
             borderTensors = {
                 tensor.tensorName
-                for tensor in tilingStep.tensorMemoryConstraints.values()
+                for tensor in nodeMemoryConstraint.tensorMemoryConstraints.values()
                 if len(tensor.memoryConstraints) > 1
             }
 
             intermediateTensors = patternTensors - borderTensors
 
-            assert intermediateTensors == ((usedTensors & producedTensors) |
-                                           transientTensors), "ERROR in tilingSchedule!"
-            assert borderTensors == (usedTensors - producedTensors) | (producedTensors -
-                                                                       usedTensors), "ERROR in tilingSchedule!"
+            assert intermediateTensors == usedTensors & producedTensors, \
+                    "ERROR in tilingSchedule!"
+            assert borderTensors == usedTensors ^ producedTensors, \
+                    "ERROR in tilingSchedule!"
 
-            l1Occupation = getMemoryOccupation(ctxt, tilingStep.tensorMemoryConstraints, "L1")
+            l1Occupation = getMemoryOccupation(ctxt, nodeMemoryConstraint.tensorMemoryConstraints, "L1")
             assert l1Occupation <= memoryHierarchy.memoryLevels['L1'].size, "L1 usage is too high!"
 
-            l2Occupation = getMemoryOccupation(ctxt, tilingStep.tensorMemoryConstraints, "L2")
+            l2Occupation = getMemoryOccupation(ctxt, nodeMemoryConstraint.tensorMemoryConstraints, "L2")
             assert l2Occupation <= memoryHierarchy.memoryLevels['L2'].size, "L2 usage is too high!"
 
 
-def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkDeployer:
-
+def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> TilerDeployerWrapper:
     inputTypes = {}
     inputOffsets = {}
 
@@ -138,8 +106,8 @@ def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkD
     inputs = np.load(f'./{args.dir}/inputs.npz')
     tensors = graph.tensors()
 
-    # Load as int64 and infer types later
-    test_inputs = [inputs[x].reshape(-1).astype(np.int64) for x in inputs.files]
+    # Load as float64 and infer types later
+    test_inputs = [inputs[x].reshape(-1).astype(np.float64) for x in inputs.files]
 
     platform, signProp = mapPlatform(args.platform)
 
@@ -175,12 +143,10 @@ def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkD
 
 
 if __name__ == '__main__':
-
     parser = TestGeneratorArgumentParser(description = "Test Utility for the Tiler Extension.")
-
-    parser.add_argument('--l1', metavar = 'l1', dest = 'l1', type = int, default = 64000, help = 'Set L1 size\n')
-    parser.add_argument('--shouldFail', action = 'store_true')
-    parser.set_defaults(shouldFail = False)
+    parser.add_argument('--l1', type = int, default = 64000, help = 'Set L1 size\n')
+    parser.add_argument('--l2', type = int, default = 512000, help = 'Set L2 size\n')
+    parser.add_argument('--shouldFail', action = 'store_true', default = False)
     args = parser.parse_args()
 
     onnx_graph = onnx.load_model(f'./{args.dir}/network.onnx')
@@ -189,7 +155,7 @@ if __name__ == '__main__':
     # Instantiate Classes Requried for Memory Level Annotation Extension
     L3_2 = MemoryLevel(name = "L3.1", neighbourNames = ["L2"], size = 1024000)
     L3_1 = MemoryLevel(name = "L3.2", neighbourNames = ["L2"], size = 4000)
-    L2 = MemoryLevel(name = "L2", neighbourNames = ["L3.1", "L3.2", "L1"], size = 512000)
+    L2 = MemoryLevel(name = "L2", neighbourNames = ["L3.1", "L3.2", "L1"], size = args.l2)
     L1 = MemoryLevel(name = "L1", neighbourNames = ["L2"], size = args.l1)
 
     memoryHierarchy = MemoryHierarchy([L3_1, L3_2, L2, L1])
@@ -197,25 +163,24 @@ if __name__ == '__main__':
 
     deployer = setupDeployer(memoryHierarchy, graph)
 
-    schedule = _filterSchedule(_mockScheduler(graph), deployer.layerBinding)
-
     if args.shouldFail:
         with pytest.raises(Exception):
-            tilingSchedule = deployer.tiler.computeTilingSchedule(deployer.ctxt)
+            tilingSolution = deployer.tiler.computeTilingSchedule(deployer.ctxt)
 
         print("Tiler test ended, failed as expected!")
     else:
-
         _ = deployer.generateFunction()
 
-        tilingSchedule = deployer.tiler._getTilingSolution(deployer.tiler.tilerModel, deployer.ctxt,
-                                                           deployer.tiler.tilerModel._collector,
-                                                           deployer.tiler.symbolicMemoryConstraints)
+        tiler = deployer.tiler
+        tilerModel = tiler.tilerModel
+        symbolicMemoryConstraints = tiler.symbolicMemoryConstraints
 
-        ctxt = deployer.ctxt
-        layerBinding = deployer.layerBinding
+        assert tilerModel is not None, "The tiler model is undefined"
+        assert tilerModel._collector is not None, "The constraint problem hasn't been solved"
+        assert symbolicMemoryConstraints is not None, "The tiler's symbolic memory constraints are undefined"
+        tilingSolution = tiler._getTilingSolution(tilerModel, deployer.ctxt, tilerModel._collector,
+                                                  symbolicMemoryConstraints)
+
         schedule = _mockScheduler(deployer.graph)
-
-        validateSolution(schedule, tilingSchedule, memoryHierarchy)
-
+        validateSolution(schedule, tilingSolution, memoryHierarchy, deployer.ctxt)
         print("Tiler test ended, no memory violations!")
