@@ -68,31 +68,27 @@ class MemoryHierarchy():
             assert len(violatingNodes) == 0, \
                 f'Invalid Memory Hierarchy graph, node {node.name} point to non-existing neighbour(s) {violatingNodes}'
 
-    def bfs(self, start: str, target: str) -> List[str]:
+    def pathSearch(self, start: str, target: str) -> List[str]:
+        """Breadth-first search for the shortest path between start and target.
+
+        Returns an empty list if no path could be found.
+        """
+        if start == target:
+            return [start]
 
         visited = [start]
-
         queue = [[start]]
-        queueIdx = 0
-
-        if start == target:
-            return queue[0]
-
-        while queueIdx < len(queue):
-            currentPath = queue[queueIdx]
+        while queue:
+            currentPath = queue.pop(0)
             neighbours = self.memoryLevels[currentPath[-1]].neighbourNames
 
             if target in neighbours:
-                currentPath.append(target)
-                return currentPath
+                return currentPath + [target]
 
-            for nextNode in neighbours:
-                if nextNode not in visited:
-                    newPath = currentPath[:]
-                    newPath.append(nextNode)
-                    queue.append(newPath)
-                    visited.append(nextNode)
-            queueIdx += 1
+            for memory in neighbours:
+                if memory not in visited:
+                    queue.append(currentPath + [memory])
+                    visited.append(memory)
 
         return []
 

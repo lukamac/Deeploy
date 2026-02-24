@@ -715,7 +715,7 @@ class Tiler():
         base = constraintA if isinstance(constraintA.size, int) else constraintB
         end = constraintA if base == constraintB else constraintB
 
-        path = self.memoryHierarchy.bfs(base.memoryLevel, end.memoryLevel)
+        path = self.memoryHierarchy.pathSearch(base.memoryLevel, end.memoryLevel)
         requiredHops = path[1:]
 
         returnTensorConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
