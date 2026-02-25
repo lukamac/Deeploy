@@ -102,7 +102,7 @@ class RQDWConv2DTileConstraint(TileConstraint):
 
         # SCHEREMO: Work around tiling issue with non-wordaligned accesses
         if "L3" in ctxt.lookup(parseDict['data_in'])._memoryLevel:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict, 'ch_im_in', inputChannelVar, 4)
+            tilerModel.addTileSizeDivisibleConstraint(inputChannelVar, 4)
 
         strides = parseDict["strides"]
         pads = parseDict["pads"]

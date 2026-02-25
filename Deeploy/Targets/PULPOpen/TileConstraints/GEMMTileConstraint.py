@@ -81,8 +81,7 @@ class GEMMTileConstraint(TileConstraint):
         tilerModel.addConstraint(BFirstDimVar == parseDict['N'])
 
         if (parseDict["O"] >= 16):
-            #modulus = tilerModel.addMinTileSizeConstraint(parseDict, 'O', BSecondDimVar, 8, prefix = "8_")
-            modulus = tilerModel.addTileSizeDivisibleConstraint(parseDict, 'O', BSecondDimVar, 16, prefix = "16_")
+            tilerModel.addTileSizeDivisibleConstraint(BSecondDimVar, 16)
 
         return tilerModel
 
@@ -263,8 +262,7 @@ class FloatGEMMTileConstraint(TileConstraint):
         tilerModel.addConstraint(BFirstDimVar == parseDict['N'])
 
         if (parseDict["O"] >= 16):
-            # modulus = tilerModel.addMinTileSizeConstraint(parseDict, 'O', BSecondDimVar, 8, prefix="8_")
-            modulus = tilerModel.addTileSizeDivisibleConstraint(parseDict, 'O', BSecondDimVar, 16, prefix = "16_")
+            tilerModel.addTileSizeDivisibleConstraint(BSecondDimVar, 16)
 
         return tilerModel
 

@@ -89,29 +89,17 @@ class NeurekaPWConv2DTileConstraint(TileConstraint):
 
         # N-EUREKA tile constraints to align with N-EUREKA's hardware subtiling
         if parseDict["dim_im_out_x"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_x",
-                                                      outputHeightVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 3))
+            tilerModel.addTileSizeDivisibleConstraint(outputHeightVar, 6, strategy = PerformanceHint(priority = 3))
         else:
             tilerModel.addConstraint(outputHeightVar == outputHeightVar.Max(), strategy = PerformanceHint(priority = 3))
 
         if parseDict["dim_im_out_y"] > 6:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "dim_im_out_y",
-                                                      outputWidthVar,
-                                                      6,
-                                                      strategy = PerformanceHint(priority = 2))
+            tilerModel.addTileSizeDivisibleConstraint(outputWidthVar, 6, strategy = PerformanceHint(priority = 2))
         else:
             tilerModel.addConstraint(outputWidthVar == outputWidthVar.Max(), strategy = PerformanceHint(priority = 2))
 
         if parseDict["ch_im_out"] > 32:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "ch_im_out",
-                                                      outputChannelVar,
-                                                      32,
-                                                      strategy = PerformanceHint(priority = 1))
+            tilerModel.addTileSizeDivisibleConstraint(outputChannelVar, 32, strategy = PerformanceHint(priority = 1))
         else:
             tilerModel.addConstraint(outputChannelVar == outputChannelVar.Max(),
                                      strategy = PerformanceHint(priority = 1))

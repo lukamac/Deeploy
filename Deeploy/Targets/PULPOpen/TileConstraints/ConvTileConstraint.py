@@ -11,7 +11,7 @@ from Deeploy.CommonExtensions.DataTypes import uint8_t, uint16_t
 from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
 from Deeploy.TilingExtension.MemoryConstraints import NodeMemoryConstraint
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
-from Deeploy.TilingExtension.TilerModel import TilerModel
+from Deeploy.TilingExtension.TilerModel import PerformanceHint, TilerModel
 from Deeploy.TilingExtension.TilingCodegen import AbsoluteHyperRectangle, HyperRectangle, TilingSchedule, \
     VariableReplacementScheme
 
@@ -96,9 +96,6 @@ class RQConv2DTileConstraint(TileConstraint):
         # VIC: Force at least one row of A and one col of B in the GEMM (since it's a im2col Conv) to avoid partial results
         tilerModel.addConstraint(inputChannelVar == parseDict['ch_im_in'])
 
-        if (parseDict["ch_im_out"] >= 8):
-            tilerModel.addMinTileSizeConstraint(parseDict, 'ch_im_out', outputChannelVar, 8)
-
         tilerModel.addConstraint(inputHeightVar >= parseDict['dim_kernel_x'])
         tilerModel.addConstraint(inputWidthVar >= parseDict['dim_kernel_y'])
         tilerModel.addConstraint(weightInChannelVar == parseDict['ch_im_in'])
@@ -112,6 +109,10 @@ class RQConv2DTileConstraint(TileConstraint):
 
         tilerModel.addConstraint((inputHeightVar % strides[0]) == 0)
         tilerModel.addConstraint((inputWidthVar % strides[1]) == 0)
+
+        tilerModel.addConstraint(outputChannelVar >= 8, strategy = PerformanceHint(priority = 2))
+        _, outputChannelRemainderTileVar = tilerModel.getQuotRem(outputChannelVar)
+        tilerModel.addConstraint(outputChannelRemainderTileVar == 0, strategy = PerformanceHint(priority = 1))
 
         return tilerModel
 
@@ -667,13 +668,14 @@ class RQConv1DTileConstraint(TileConstraint):
         # VIC: Force at least one row of A and one col of B in GEMM (since it's a im2col Conv) to avoid partial results
         tilerModel.addConstraint(inputChannelVar == parseDict['ch_im_in'])
 
-        if (parseDict["ch_im_out"] >= 8):
-            tilerModel.addMinTileSizeConstraint(parseDict, 'ch_im_out', outputChannelVar, 8)
-
         tilerModel.addConstraint(inputLengthVar >= parseDict['dim_kernel_y'])
         tilerModel.addConstraint(weightInChannelVar == parseDict['ch_im_in'])
         tilerModel.addConstraint(weightLengthVar == parseDict['dim_kernel_y'])
         tilerModel.addConstraint((inputLengthVar % stride) == 0)
+
+        tilerModel.addConstraint(outputChannelVar >= 8, strategy = PerformanceHint(priority = 2))
+        _, outputChannelRemainderTileVar = tilerModel.getQuotRem(outputChannelVar)
+        tilerModel.addConstraint(outputChannelRemainderTileVar == 0, strategy = PerformanceHint(priority = 1))
 
         return tilerModel
 

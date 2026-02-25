@@ -10,7 +10,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import numpy as np
 from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, SolutionCollector, Solver
 
-from Deeploy.DeeployTypes import NetworkContext, OperatorRepresentation
+from Deeploy.DeeployTypes import NetworkContext
 from Deeploy.Logging import DEFAULT_LOGGER as log
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryLevel
 
@@ -201,53 +201,36 @@ class TilerModel():
 
         return transientSize
 
-    def addMinTileSizeConstraint(self,
-                                 operatorRepresentation: OperatorRepresentation,
-                                 variableName: str,
-                                 intvar: IntVar,
-                                 modulo: int,
-                                 prefix: str = "",
-                                 strategy: Optional[AddConstraintStrategy] = None) -> IntVar:
+    def getQuotRem(self, tile: IntVar) -> Tuple[IntVar, IntVar]:
+        tileName, copyIdx = self.getNameCopyIdx(tile.Name())
 
-        tileSizeVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_tileSize",
-                                       1, operatorRepresentation[variableName])
-        mulVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_mul", 1,
-                                  operatorRepresentation[variableName])
-        addVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_add", 0,
-                                  operatorRepresentation[variableName])
-        self.addConstraint(addVar <= tileSizeVar, strategy = strategy)
-        self.addConstraint(addVar >= (modulo * (tileSizeVar < intvar.Max())), strategy = strategy)
-        self.addConstraint(operatorRepresentation[variableName] == mulVar * tileSizeVar + addVar, strategy = strategy)
-        self.addConstraint(intvar == tileSizeVar, strategy = strategy)
+        def varName(name: str) -> str:
+            return f"{tileName}_{name}" + self._getSuffix(copyIdx)
 
-        return addVar
+        quot: Optional[IntVar] = self._variables.get(varName("quotient"), None)
+        rem: Optional[IntVar] = self._variables.get(varName("remainder"), None)
+
+        assert (quot is None and rem is None) or (quot is not None and rem is not None), (
+            "Tile's quotient and remiander should have already been set or unset. "
+            f"Tile {tile.Name()} has {'remainder' if rem is not None else 'quotient'} set "
+            f"and {'quotient' if quot is None else 'remainder'} unset.")
+
+        if quot is None and rem is None:
+            quot = self._addVariable(varName("quotient"), 1, tile.Max())
+            rem = self._addVariable(varName("remainder"), 0, tile.Max())
+            self.addConstraint(tile.Max() == quot * tile + rem)
+            self.addConstraint(rem < tile)
+
+        assert quot is not None and rem is not None
+        return quot, rem
 
     def addTileSizeDivisibleConstraint(self,
-                                       operatorRepresentation: OperatorRepresentation,
-                                       variableName: str,
-                                       intvar: IntVar,
+                                       tile: IntVar,
                                        modulo: int,
-                                       prefix: str = "",
-                                       strategy: Optional[AddConstraintStrategy] = None) -> IntVar:
-
-        tileSizeVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_tileSize",
-                                       1, operatorRepresentation[variableName])
-        mulVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_mul", 1,
-                                  operatorRepresentation[variableName])
-
-        mulMulVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_mulmul", 1,
-                                     operatorRepresentation[variableName])
-
-        addVar = self.addVariable(prefix + operatorRepresentation["nodeName"] + f"_{variableName}" + "_add", 0,
-                                  operatorRepresentation[variableName])
-
-        self.addConstraint(addVar <= tileSizeVar,
-                           strategy = strategy)  # Reminder tile has to be smaller than the regular tile
-        self.addConstraint(tileSizeVar == mulMulVar * modulo, strategy = strategy)
-        self.addConstraint(operatorRepresentation[variableName] == mulVar * tileSizeVar + addVar, strategy = strategy)
-        self.addConstraint(intvar == tileSizeVar, strategy = strategy)
-
-        return addVar
+                                       strategy: Optional[AddConstraintStrategy] = None) -> None:
+        name, copyIdx = self.getNameCopyIdx(tile.Name())
+        quotVar = self.addVariable(name + "_modulo_{modulo}_quotient", 1, tile.Max(), copyIdx = copyIdx)
+        self.addConstraint(tile == quotVar * modulo, strategy = strategy)
 
     def debugConstraints(self) -> bool:
 

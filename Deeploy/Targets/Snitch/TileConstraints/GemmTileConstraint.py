@@ -91,11 +91,7 @@ class GemmTileConstraint(TileConstraint):
 
         # We parallelize over the output height dimension so try to keep it divisible by the number of cores (8)
         if parseDict["M"] > 8:
-            tilerModel.addTileSizeDivisibleConstraint(parseDict,
-                                                      "M",
-                                                      YHeightDimVar,
-                                                      8,
-                                                      strategy = PerformanceHint(priority = 1))
+            tilerModel.addTileSizeDivisibleConstraint(YHeightDimVar, 8, strategy = PerformanceHint(priority = 1))
 
         return tilerModel
 
