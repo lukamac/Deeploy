@@ -213,7 +213,7 @@ def convertFlowState2NodeMemoryConstraint(tilerModel: TilerModel,
 
     for tensorName, memoryLevel in memoryOccupyingSet:
 
-        if tilerModel.existsCopyIdx(tensorName):
+        if tilerModel.checkTensorExists(tensorName):
             tilerModel.addTensorNumOfEltToModel(ctxt, tensorName)
             memorySize = tilerModel.getTensorNumberOfEltVar(tensorName)
 

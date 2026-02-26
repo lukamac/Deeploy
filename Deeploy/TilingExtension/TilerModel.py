@@ -92,17 +92,9 @@ class TilerModel():
 
         return (varName, int(copyIdx))
 
-    def existsCopyIdx(self, name: str, copyIdx: Optional[int] = None) -> bool:
-
-        if copyIdx is None:
-            _copyIdx = self.copyIdx
-        else:
-            _copyIdx = copyIdx
-
-        varName1 = name + "_num_elements" + self._getSuffix(_copyIdx)
-        varName2 = name + "_dim_0" + self._getSuffix(_copyIdx)
-        ret = (varName1 in self._variables) or (varName2 in self._variables)
-        return ret
+    def checkTensorExists(self, tensorName: str, copyIdx: Optional[int] = None) -> bool:
+        """Checks if tensor exists within the model by checking if it's 0'th dimension variable exists"""
+        return self.isVariable(tensorName + "_dim_0", copyIdx)
 
     def addObjective(self, objective: Objective):
         self._objectives.append(objective)
