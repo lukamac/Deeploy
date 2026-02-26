@@ -71,7 +71,6 @@ class TilerModel():
         return self._collector.Value(self._collector.SolutionCount() - 1, var)
 
     def _addVariable(self, name: str, lowerBound: int, upperBound: int) -> IntVar:
-
         assert name not in self._variables.keys(), \
             f"Error while adding {name} variable in {self}, variable already exists."
 
@@ -79,11 +78,8 @@ class TilerModel():
         return self._variables[name]
 
     def _getSuffix(self, copyIdx: Optional[int]) -> str:
-        if copyIdx is not None:
-            varName = f"{self._copyIdxSuffix}{copyIdx}"
-        else:
-            varName = f"{self._copyIdxSuffix}{self.copyIdx}"
-        return varName
+        copyIdx = copyIdx if copyIdx is not None else self.copyIdx
+        return f"{self._copyIdxSuffix}{copyIdx}"
 
     def getNameCopyIdx(self, variableName: str) -> Tuple[str, int]:
         splitList = variableName.split(self._copyIdxSuffix)
