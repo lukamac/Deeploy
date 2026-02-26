@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 from pprint import pformat
 from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, Union
 
-import numpy as np
 from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, OptimizeVar, SolutionCollector, Solver
 
-from Deeploy.DeeployTypes import NetworkContext
+from Deeploy.DeeployTypes import NetworkContext, VariableBuffer
 from Deeploy.Logging import DEFAULT_LOGGER as log
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryLevel
 
@@ -127,70 +127,51 @@ class TilerModel():
                 self._memoryConstraints.append((memoryLevel, constraintExpression))
 
     def addVariable(self, name: str, lowerBound: int, upperBound: int, copyIdx: Optional[int] = None) -> IntVar:
-
-        varName = name + self._getSuffix(copyIdx)
-        return self._addVariable(varName, lowerBound, upperBound)
+        return self._addVariable(name + self._getSuffix(copyIdx), lowerBound, upperBound)
 
     def getVariable(self, name: str, copyIdx: Optional[int] = None) -> IntVar:
-        varName = name + self._getSuffix(copyIdx)
-        return self._variables[varName]
+        return self._variables[name + self._getSuffix(copyIdx)]
 
-    def getTensorDimVar(self, tensorName: str, dimIdx: int, copyIdx: Optional[int] = None):
-
-        varName = f"{tensorName}_dim_{dimIdx}" + self._getSuffix(copyIdx)
-
-        return self._variables[varName]
-
-    def getTensorNumberOfEltVar(self, tensorName: str, copyIdx: Optional[int] = None):
-
-        varName = f"{tensorName}_num_elements" + self._getSuffix(copyIdx)
-
-        return self._variables[varName]
+    def isVariable(self, name: str, copyIdx: Optional[int] = None) -> bool:
+        return (name + self._getSuffix(copyIdx)) in self._variables
 
     def addTensorDimToModel(self, ctxt: NetworkContext, tensorName: str, copyIdx: Optional[int] = None):
         '''
         Add every dimensions of an unseen tensors in the given list as Integer Variable of the Model and the context.
         Namespace of added variables is: f"{tensor.name}_dim_{idx}".
         '''
-        tensor = ctxt.lookup(tensorName)
+        buffer = ctxt.lookup(tensorName)
+        assert isinstance(buffer, VariableBuffer)
 
-        for idx, dim in enumerate([
-                tensor.shape,
-        ] if isinstance(tensor.shape, int) else tensor.shape):
+        shape = [buffer.shape] if isinstance(buffer.shape, int) else buffer.shape
+        for dimIdx, dimSize in enumerate(shape):
+            varName = f"{buffer.name}_dim_{dimIdx}"
+            if not self.isVariable(varName):
+                self.addVariable(varName, 1, dimSize, copyIdx)
 
-            varName = f"{tensor.name}_dim_{idx}" + self._getSuffix(copyIdx)
-
-            if varName in self._variables:
-                continue
-
-            self._addVariable(name = varName, lowerBound = 1, upperBound = dim)
+    def getTensorDimVar(self, tensorName: str, dimIdx: int, copyIdx: Optional[int] = None):
+        return self.getVariable(f"{tensorName}_dim_{dimIdx}", copyIdx)
 
     def addTensorNumOfEltToModel(self, ctxt: NetworkContext, tensorName: str, copyIdx: Optional[int] = None):
         '''
         For each tensor in the given list, add a variable equal to the product of dimension variables of this tensor.
-        Namespace of those new variables are f"{tensor.name}_num_elements".
+        Namespace of those new variables are f"{tensorName}_num_elements".
         '''
-
-        varNameNumElt = f"{tensorName}_num_elements" + self._getSuffix(copyIdx)
-        if varNameNumElt in self._variables:
+        varName = f"{tensorName}_num_elements"
+        if self.isVariable(varName, copyIdx):
             return
 
-        tensor = ctxt.lookup(tensorName)
+        buffer = ctxt.lookup(tensorName)
+        assert isinstance(buffer, VariableBuffer)
 
-        tensorDimProductExpr = 1
+        shape = [buffer.shape] if isinstance(buffer.shape, int) else buffer.shape
 
-        for idx, _ in enumerate([
-                tensor.shape,
-        ] if isinstance(tensor.shape, int) else tensor.shape):
+        prodVar = self.addVariable(varName, 1, math.prod(shape), copyIdx)
+        dimVars = [self.getVariable(f"{buffer.name}_dim_{i}", copyIdx) for i in range(len(shape))]
+        self.addConstraint(prodVar == math.prod(dimVars))
 
-            varNameIdx = f"{tensor.name}_dim_{idx}" + self._getSuffix(copyIdx)
-            tensorDimProductExpr *= self._variables[varNameIdx]
-
-        tensorDimProductVar = self._addVariable(name = varNameNumElt,
-                                                lowerBound = 1,
-                                                upperBound = np.prod(tensor.shape))
-
-        self._model.Add(tensorDimProductVar == tensorDimProductExpr)
+    def getTensorNumberOfEltVar(self, tensorName: str, copyIdx: Optional[int] = None):
+        return self.getVariable(f"{tensorName}_num_elements", copyIdx)
 
     def addTransientBufferSizeToModel(self, tensorName: str, memorySizeExpr: Union[IntExpr, IntVar, int]) -> IntVar:
 
