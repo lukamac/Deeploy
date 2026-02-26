@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2023 ETH Zurich and University of Bologna
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import logging
 from dataclasses import dataclass
+from enum import Enum
 from pprint import pformat
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
-from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, SolutionCollector, Solver
+from ortools.constraint_solver.pywrapcp import IntExpr, IntVar, OptimizeVar, SolutionCollector, Solver
 
 from Deeploy.DeeployTypes import NetworkContext
 from Deeploy.Logging import DEFAULT_LOGGER as log
@@ -31,6 +31,16 @@ class PerformanceHint(AddConstraintStrategy):
     priority: int = 0
 
 
+class Objective(NamedTuple):
+
+    class OptimizationDirection(Enum):
+        Minimize = 0
+        Maximize = 1
+
+    var: IntVar
+    optDir: OptimizationDirection
+
+
 class TilerModel():
 
     def __init__(self,
@@ -38,7 +48,7 @@ class TilerModel():
                  searchStrategy: Literal['min', 'max', 'random-max'] = 'random-max'):
 
         self._model: Solver = Solver('CPSimple')
-        self._objectives: List[Tuple[IntVar, bool]] = []
+        self._objectives: List[Objective] = []
         self._constraints: List[IntExpr] = []
         self._memoryConstraints: List[Tuple[MemoryLevel, IntExpr]] = []
         self._performanceConstraints: List[Tuple[int, IntExpr]] = []
@@ -94,11 +104,8 @@ class TilerModel():
         ret = (varName1 in self._variables) or (varName2 in self._variables)
         return ret
 
-    def addObjective(self, objective: IntVar, objectiveType: Union[Literal['maximize'], Literal['minimize']]):
-        if objectiveType == 'maximize':
-            self._objectives.append((objective, False))
-        else:
-            self._objectives.append((objective, True))
+    def addObjective(self, objective: Objective):
+        self._objectives.append(objective)
 
     def addConstraint(self,
                       constraintExpression: IntExpr,
@@ -313,26 +320,17 @@ class TilerModel():
 
         return self._model.CheckConstraint(self._model.TrueConstraint())
 
-    def _setupObjective(self, patternIdx: Optional[int] = None):
+    def _setupObjective(self, patternIdx: Optional[int] = None) -> OptimizeVar:
+        patternIdx = patternIdx if patternIdx is not None else 0
 
-        _patternIdx: int
+        assert patternIdx <= len(self._objectives), \
+                f"patternIdx {patternIdx} is larger than list of _objectives, {len(self._objectives)}"
 
-        if patternIdx is None:
-            _patternIdx = 0
+        objective = self._objectives[patternIdx]
+        if objective.optDir == Objective.OptimizationDirection.Maximize:
+            return self._model.Maximize(objective.var, step = 1)
         else:
-            _patternIdx = patternIdx
-
-        assert _patternIdx <= len(
-            self._objectives), f"patternIdx {_patternIdx} is larger than list of _objectives, {len(self._objectives)}"
-
-        _objective = self._objectives[_patternIdx]
-
-        if _objective[1] == False:
-            objective = self._model.Maximize(_objective[0], step = 1)
-        else:
-            objective = self._model.Minimize(_objective[0], step = 1)
-
-        return objective
+            return self._model.Minimize(objective.var, step = 1)
 
     def trySolveModel(self):
 
