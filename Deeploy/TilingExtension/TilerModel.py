@@ -83,10 +83,10 @@ class TilerModel():
 
     def getNameCopyIdx(self, variableName: str) -> Tuple[str, int]:
         splitList = variableName.split(self._copyIdxSuffix)
-        varName = splitList[0]
-        copyIdx = splitList[1]
-
-        return (varName, int(copyIdx))
+        assert len(splitList) == 2, (f"Expected a single copyIdx suffix \"{self._copyIdxSuffix}\" in a variable name.",
+                                     f"Found {len(splitList) - 1} suffixes in variable name {variableName}")
+        name, copyIdx = splitList
+        return name, int(copyIdx)
 
     def checkTensorExists(self, tensorName: str, copyIdx: Optional[int] = None) -> bool:
         """Checks if tensor exists within the model by checking if it's 0'th dimension variable exists"""
