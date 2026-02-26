@@ -424,7 +424,6 @@ class Tiler():
 
         for idx in range(len(tileConstraintPattern.nodeConstraints)):
             tileConstraintPattern.nodeConstraints[idx] += borderTensorStep
-
         return tileConstraintPattern
 
     def _resolveTensorMemoryConstraint(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
@@ -493,43 +492,31 @@ class Tiler():
 
     def _setupTensorDimensionProducts(self, tilerModel: TilerModel, ctxt: NetworkContext,
                                       schedule: List[SubGraph]) -> TilerModel:
-
         for idx, pattern in enumerate(schedule):
             subGraph = gs.Graph(nodes = pattern)
-            subgraphTensors: OrderedDict[str, gs.Tensor] = subGraph.tensors(check_duplicates = True)
+            subGraphTensors = subGraph.tensors(check_duplicates = True)
 
-            for _, tensor in subgraphTensors.items():
+            for tensor in subGraphTensors.values():
                 if not ctxt.lookup(tensor.name)._deploy:
                     continue
-
                 tilerModel.addTensorNumOfEltToModel(ctxt, tensor.name, idx)
 
         return tilerModel
 
     def _setupGeometricConstraints(self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
                                    layerBinding: OrderedDict[str, ONNXLayer]) -> TilerModel:
-
         # SCHEREMO: Each pattern is a decoupled sub-problem w.r.t the geometric constraints.
         # We need to regenerate dimension variables for each tensor
         # This is done by setting the copyIdx in the tilerModel
-
         for idx, pattern in enumerate(schedule):
             tilerModel.copyIdx = idx
-
             for node in pattern:
-
                 if node.name not in layerBinding.keys():
                     continue
-
-                parseDict = layerBinding[node.name].mapper.parser.operatorRepresentation
-                template = layerBinding[node.name].mapper.binder.template
-
-                tilerModel = template.tileConstraint.addGeometricalConstraint(tilerModel,
-                                                                              parseDict = parseDict,
-                                                                              ctxt = ctxt)
-
-                tilerModel = template.tileConstraint.addPolicyConstraint(tilerModel, parseDict = parseDict, ctxt = ctxt)
-
+                opRepr = layerBinding[node.name].mapper.parser.operatorRepresentation
+                tileConstraint: TileConstraint = layerBinding[node.name].mapper.binder.template.tileConstraint
+                tilerModel = tileConstraint.addGeometricalConstraint(tilerModel, opRepr, ctxt)
+                tilerModel = tileConstraint.addPolicyConstraint(tilerModel, opRepr, ctxt)
         return tilerModel
 
     def _setupHeuristics(self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph]) -> TilerModel:
@@ -741,19 +728,15 @@ class Tiler():
                                      sourceConstraints: List[PatternMemoryConstraints],
                                      destinationConstraints: List[PatternMemoryConstraints],
                                      schedule: List[SubGraph]) -> List[PatternMemoryConstraints]:
-
         tileConstraints = []
-
         for idx, (sourceConstraint, destinationConstraint) in enumerate(zip(sourceConstraints, destinationConstraints)):
-
             tilerModel.copyIdx = idx
 
-            assert (len(sourceConstraint.nodeConstraints) == 1
-                   ), "source pattern must be constant and single step, since it's live throughout the pattern!"
+            assert (len(sourceConstraint.nodeConstraints) == 1), \
+                    "Source pattern must be constant and single step, since it's alive throughout the pattern!"
             sourcePatternStep = sourceConstraint.nodeConstraints[0]
 
             tileConstraint = PatternMemoryConstraints()
-
             for destinationConstraintStep in destinationConstraint.nodeConstraints:
                 tileConstraintStep = self._generateIntermediateTilingSteps(tilerModel, ctxt, sourcePatternStep,
                                                                            destinationConstraintStep, schedule[idx])
@@ -763,26 +746,18 @@ class Tiler():
             assert len(propagatedTileConstraint.nodeConstraints) == len(tileConstraint.nodeConstraints)
 
             tileConstraints.append(propagatedTileConstraint)
-
         return tileConstraints
 
     def _generateBufferConstraints(self, ctxt: NetworkContext) -> NodeMemoryConstraint:
-
         constantGlobalConstraint: NodeMemoryConstraint = NodeMemoryConstraint()
-        constantGlobalBuffers = [
-            node for node in ctxt.globalObjects.values() if isinstance(node, ConstantBuffer) and node._deploy == True
+        constantGlobalBuffers: List[ConstantBuffer] = [
+            obj for obj in ctxt.globalObjects.values() if isinstance(obj, ConstantBuffer) and obj._deploy
         ]
 
-        for constantBuffer in constantGlobalBuffers:
-
-            tensorName = constantBuffer.name
-
-            memorySize = int(np.prod(ctxt.lookup(tensorName).shape))
-
-            elementMemorySize = memorySize
-            memoryConstraint = MemoryConstraint(constantBuffer._memoryLevel, elementMemorySize)
-            tensorConstraint = TensorMemoryConstraint(constantBuffer.name,
-                                                      {memoryConstraint.memoryLevel: memoryConstraint}, ctxt)
+        for buffer in constantGlobalBuffers:
+            memoryConstraint = MemoryConstraint(buffer._memoryLevel, buffer.sizeInBytes())
+            tensorConstraint = TensorMemoryConstraint(buffer.name, {memoryConstraint.memoryLevel: memoryConstraint},
+                                                      ctxt)
             constantGlobalConstraint.addTensorConstraint(tensorConstraint, "input")
 
         return constantGlobalConstraint
@@ -864,47 +839,28 @@ class Tiler():
     def _generatePatternStepTransientBufferConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, layerBinding: OrderedDict[str, ONNXLayer],
             step: gs.Node, targetMemoryLevelMapping: TargetMemoryLevelMapping) -> NodeMemoryConstraint:
-
         patternStepTransientBufferSizes = NodeMemoryConstraint()
 
         template = layerBinding[step.name].mapper.binder.template
+        opRepr = layerBinding[step.name].mapper.parser.operatorRepresentation
 
-        symbolicNodeRep = template.tileConstraint.constructSymbolicNodeRep(
-            tilerModel, parseDict = layerBinding[step.name].mapper.parser.operatorRepresentation, ctxt = ctxt)
-
-        transientBufferList: List[Tuple[str,
-                                        Union[int,
-                                              IntVar]]] = template.computeTransientBuffersSize(ctxt, symbolicNodeRep)
-
-        for tensorName, memorySize in transientBufferList:
-
+        symbolicOpRepr = template.tileConstraint.constructSymbolicNodeRep(tilerModel, parseDict = opRepr, ctxt = ctxt)
+        for name, size in template.computeTransientBuffersSize(ctxt, symbolicOpRepr):
             # SCHEREMO: Assume transientbuffers end up in the same level as their user's main input
-            memoryLevelName = targetMemoryLevelMapping.lookup(step.name, step.inputs[0].name)
-            ctxt.lookup(tensorName)._memoryLevel = memoryLevelName
-
-            transientSize = tilerModel.addTransientBufferSizeToModel(tensorName, memorySize)
-
-            #memoryLevelName = self.memoryHierarchy.getDefaultMemoryLevel().name
-
-            transientMemoryConstraint = MemoryConstraint(memoryLevelName, transientSize)
-            transientBufferConstraint = TensorMemoryConstraint(tensorName, {memoryLevelName: transientMemoryConstraint},
-                                                               ctxt)
-            patternStepTransientBufferSizes.addTensorConstraint(transientBufferConstraint, "intermediate")
+            memoryLevel = targetMemoryLevelMapping.lookup(step.name, step.inputs[0].name)
+            ctxt.lookup(name)._memoryLevel = memoryLevel
+            varSize = tilerModel.addTransientBufferSizeToModel(name, size)
+            memoryConstraint = MemoryConstraint(memoryLevel, varSize)
+            tensorConstraint = TensorMemoryConstraint(name, {memoryLevel: memoryConstraint}, ctxt)
+            patternStepTransientBufferSizes.addTensorConstraint(tensorConstraint, "intermediate")
 
         return patternStepTransientBufferSizes
 
     def assertLayerWiseTiling(self, schedule: List[List[gs.Node]]) -> bool:
-        for pattern in schedule:
-            if len(pattern) > 1:
-                return False
+        return all(len(pattern) == 1 for pattern in schedule)
 
-        return True
-
-    def assertUniformMemoryLevelAllocation(self, ctxt: NetworkContext, defaultMemoryLevel: str) -> bool:
-        for buffer in ctxt.localObjects.values():
-            if buffer._memoryLevel != defaultMemoryLevel:
-                return False
-        return True
+    def assertUniformMemoryLevelAllocation(self, ctxt: NetworkContext, memoryLevel: str) -> bool:
+        return all(buffer._memoryLevel == memoryLevel for buffer in ctxt.localObjects.values())
 
     def testTilingSolutionCorrectness(self, tilingSolution: TilingSolution) -> None:
         # LMACAN: Assert buffer sizes are word aligned as per comment in MemoryScheduler.py:MemoryScheduler._buildCostVector()
