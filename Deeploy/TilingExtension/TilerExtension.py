@@ -35,7 +35,7 @@ from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemo
     PatternMemoryConstraints, TensorMemoryConstraint
 from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock, MemoryScheduler
 from Deeploy.TilingExtension.TileConstraint import TileConstraint
-from Deeploy.TilingExtension.TilerModel import TilerModel
+from Deeploy.TilingExtension.TilerModel import Objective, TilerModel
 
 TilingSolution = List[PatternMemoryConstraints]
 MemoryMap = Dict[str, List[List[MemoryBlock]]]
@@ -572,8 +572,7 @@ class Tiler():
                                                      upperBound = _max,
                                                      copyIdx = idx)
             tilerModel.addConstraint(patternVariable == patternMemSizeExpr)
-
-            tilerModel.addObjective(patternVariable, 'maximize')
+            tilerModel.addObjective(Objective(var = patternVariable, optDir = Objective.OptimizationDirection.Maximize))
 
         return tilerModel
 
