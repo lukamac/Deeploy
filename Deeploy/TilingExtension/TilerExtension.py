@@ -259,28 +259,22 @@ class Tiler():
             writer.writerow(["id", "lower", "upper", "size"])
             for memoryBlock in memoryMap:
 
-                _buffer = ctxt.lookup(memoryBlock.name)
+                buff = ctxt.lookup(memoryBlock.name)
+                assert isinstance(buff, VariableBuffer)
                 if nodeMemoryConstraint is None:
-                    _bufferSize = _buffer.size if isinstance(
-                        _buffer,
-                        TransientBuffer) else np.prod(_buffer.shape) * (_buffer._type.referencedType.typeWidth / 8)
+                    size = buff.sizeInBytes()
                 else:
-                    if isinstance(_buffer, TransientBuffer):
-                        _bufferSize = nodeMemoryConstraint.tensorMemoryConstraints[
-                            memoryBlock.name].memoryConstraints[memoryLevel].size
+                    mc = nodeMemoryConstraint.tensorMemoryConstraints[memoryBlock.name].memoryConstraints[memoryLevel]
+                    if isinstance(buff, TransientBuffer):
+                        size = mc.size
                     else:
-                        _bufferSize = nodeMemoryConstraint.tensorMemoryConstraints[
-                            memoryBlock.name].memoryConstraints[memoryLevel].size * (
-                                _buffer._type.referencedType.typeWidth /
-                                8) * nodeMemoryConstraint.tensorMemoryConstraints[
-                                    memoryBlock.name].memoryConstraints[memoryLevel].multiBufferCoefficient
+                        size = mc.size * (buff._type.referencedType.typeWidth / 8) * mc.multiBufferCoefficient
 
-                writer.writerow([
-                    memoryBlock.name,
-                    str(memoryBlock.lifetime[0]),
-                    str(memoryBlock.lifetime[1] + 1),
-                    str(int(_bufferSize))
-                ])
+                writer.writerow(
+                    [memoryBlock.name,
+                     str(memoryBlock.lifetime[0]),
+                     str(memoryBlock.lifetime[1] + 1),
+                     str(int(size))])
 
         try:
             minimallocInstallDir = os.environ["MINIMALLOC_INSTALL_DIR"]
