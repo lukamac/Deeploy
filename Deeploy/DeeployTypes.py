@@ -240,8 +240,10 @@ class VariableBuffer():
 
     def __init__(self, name: str = '', shape = [1], aliases: Optional[List[str]] = None):
         self.name: str = name  #: str: Canonical name that this buffer is registered as in the NetworkContext
-        self.shape: Sequence[
-            int] = shape  #: Sequence[int]: Represents the dimensions of the underlying tensor as a sequence of dimension sizes
+
+        #: Sequence[int]: Represents the dimensions of the underlying tensor as a sequence of dimension sizes
+        assert isinstance(shape, (list, tuple))
+        self._shape: Sequence[int] = shape
 
         self._users: List[gs.Node] = [
         ]  #: List[gs.Node]: DO NOT OVERRIDE - this variable stores all downstream users of this buffer
@@ -258,6 +260,15 @@ class VariableBuffer():
         self.is_output: bool = False
 
         self.aliases: Set[str] = set(aliases) if aliases is not None else set()
+
+    @property
+    def shape(self) -> Sequence[int]:
+        return self._shape
+
+    @shape.setter
+    def shape(self, value: Sequence[int]) -> None:
+        assert isinstance(value, (list, tuple))
+        self._shape = value
 
     def _bufferRepresentation(self) -> Dict:
         return {"type": self._instance, "name": self.name, "size": int(np.prod(self.shape))}
@@ -436,7 +447,7 @@ class StructBuffer(VariableBuffer):
     """
 
     def __init__(self, name: str, structDict: Dict):
-        super().__init__(name, None)
+        super().__init__(name)
         self.structDict = structDict
 
     def __eq__(self, other):
@@ -1913,7 +1924,7 @@ class ONNXLayer():
                     node.dtype = np.float32
 
             elif ctxt.is_global(node.name):
-                ctxt.globalObjects[node.name].shape = newShape
+                ctxt.globalObjects[node.name].shape = [newShape] if isinstance(newShape, int) else newShape
                 if isinstance(ctxt.globalObjects[node.name], ConstantBuffer):
 
                     # If the number of elements is equal, reshape
