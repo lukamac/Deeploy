@@ -426,13 +426,8 @@ class MemoryScheduler():
         return tensorLifetimeMap
 
     def getConstantTensorOffset(self, ctxt: NetworkContext, memoryLevel: str):
-        constantTensorSize = 0
-        for buffer in ctxt.globalObjects.values():
-            if not "MEMORYARENA" in buffer.name and isinstance(buffer,
-                                                               ConstantBuffer) and buffer._memoryLevel == memoryLevel:
-                constantTensorSize += np.prod(buffer.shape) * buffer._type.referencedType.typeWidth // 8
-
-        return int(constantTensorSize)
+        return sum(buffer.sizeInBytes() for buffer in ctxt.globalObjects.values() if isinstance(buffer, ConstantBuffer)
+                   and "MEMORYARENA" not in buffer.name and buffer._memoryLevel == memoryLevel)
 
     def _scheduleMemoryConstraints(self,
                                    tilerModel: TilerModel,
