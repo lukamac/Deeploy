@@ -99,8 +99,8 @@ class NodeMemoryConstraint():
 
     def _amendTensorConstraint(self, tensorMemoryConstraint: TensorMemoryConstraint):
         name = tensorMemoryConstraint.tensorName
-        if name in self.tensorMemoryConstraints.keys():
-            self.tensorMemoryConstraints[name]._amendMemoryConstraints(tensorMemoryConstraint.memoryConstraints)
+        assert name in self.tensorMemoryConstraints, f"Tried amending a non-existent tensor {name}"
+        self.tensorMemoryConstraints[name]._amendMemoryConstraints(tensorMemoryConstraint.memoryConstraints)
 
     def getIO(self, tensorName: str) -> Optional[Literal["input", "intermediate", "output"]]:
         if tensorName in self.inputTensorMemoryConstraints.keys():
