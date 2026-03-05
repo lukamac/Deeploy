@@ -13,7 +13,7 @@ import numpy as np
 from ortools.constraint_solver.pywrapcp import IntVar
 
 from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.LoweringOptimizationPasses import _permute
-from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer
+from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, TransientBuffer, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy
 from Deeploy.TilingExtension.MemoryConstraints import PatternMemoryConstraints, TensorMemoryConstraint
 from Deeploy.TilingExtension.TilerModel import TilerModel
@@ -524,36 +524,28 @@ class MemoryScheduler():
             1. All tile buffers for each node have overlapping lifetime, so we can find their memory footprint by just summing their sizes and hence we don't need to know the specific memory allocation. This assumption is true as soon as we don't do tile several nodes together (ask me if you don't know what I mean here).
             2. We don't allocate the tensors of the graph in the same memory level than the tiles (for instance we put all tensor in L2 and the tiles only live in L1).
         """
+        for nodeMc in patternMemoryConstraint.nodeConstraints:
+            memoryUsage = {memory.name: 0 for memory in memoryHierarchy.memoryLevels.values()}
 
-        for nodeConstraint in patternMemoryConstraint.nodeConstraints:
-            tileMemoryConstraint = {}
+            for tensorMc in nodeMc.tensorMemoryConstraints.values():
+                for mc in tensorMc.memoryConstraints.values():
+                    if isinstance(mc.size, IntVar):
+                        buff = ctxt.lookup(tensorMc.tensorName)
+                        assert isinstance(buff, VariableBuffer)
 
-            for tensorMemoryConstraints in nodeConstraint.tensorMemoryConstraints.values():
-                for memoryConstraint in tensorMemoryConstraints.memoryConstraints.values():
-                    if isinstance(memoryConstraint.size, IntVar):
+                        size = mc.size * mc.multiBufferCoefficient
+                        if not isinstance(buff, TransientBuffer):
+                            size *= int(buff._type.referencedType.typeWidth / 8)
 
-                        _buffer = ctxt.lookup(tensorMemoryConstraints.tensorName)
+                        memoryUsage[mc.memoryLevel] += size
 
-                        if not isinstance(_buffer, TransientBuffer):
-                            _typeWidthFactor = int(_buffer._type.referencedType.typeWidth / 8)
-                        else:
-                            _typeWidthFactor = 1
-
-                        tileMemoryConstraint[tensorMemoryConstraints.tensorName] = {
-                            "sizeVar": memoryConstraint.size,
-                            "typeWidthFactor": _typeWidthFactor,
-                            "memoryLevel": memoryConstraint.memoryLevel,
-                            "multiBufferCoeff": memoryConstraint.multiBufferCoefficient,
-                        }
-
-            for memoryLevel in memoryHierarchy.memoryLevels.values():
-                sumExpr = 0
-                constantTensorOffset = self.getConstantTensorOffset(ctxt, memoryLevel.name)
-                for infoDict in tileMemoryConstraint.values():
-                    if memoryLevel.name == infoDict['memoryLevel']:
-                        sumExpr += infoDict['sizeVar'] * infoDict['typeWidthFactor'] * infoDict['multiBufferCoeff']
-                if sumExpr != 0:
-                    tilerModel.addConstraint(sumExpr + constantTensorOffset, memoryLevel = memoryLevel)
+            for memory, usage in memoryUsage.items():
+                # LMACAN: Important to check whether _usage_ is an instance of int because in the case of an
+                #         constraint expression, this might evaluate incorrectly.
+                if isinstance(usage, int) and usage == 0:
+                    continue
+                offset = self.getConstantTensorOffset(ctxt, memory)
+                tilerModel.addConstraint(usage + offset, memoryLevel = memoryHierarchy.memoryLevels[memory])
 
     def getSymbolicCostName(self, patternIdx: int, memoryLevel: str) -> str:
         return f"cost{self._stringSuffix}_{memoryLevel}"
