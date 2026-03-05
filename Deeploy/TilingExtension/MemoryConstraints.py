@@ -55,28 +55,17 @@ class TensorMemoryConstraint():
             constraints)  # Lists are mutable, so copy for persistence
 
     def _amendMemoryConstraints(self, memoryConstraints: Dict[str, MemoryConstraint]):
+        for memory, constr in memoryConstraints.items():
+            if memory in self.memoryConstraints:
+                assert self.memoryConstraints[memory].size == constr.size, (
+                    f"Tried amending the {self.tensorName} tensor's memory constraints with different sizes. "
+                    f"Memory: {memory}, original size: {self.memoryConstraints[memory].size}, override size: {constr.size}"
+                )
+            else:
+                self.addMemoryConstraint(constr)
 
-        _cleanConstraints = []
-        for key, new in memoryConstraints.items():
-
-            if not key in self.memoryConstraints.keys():
-                _cleanConstraints.append(new)
-                continue
-
-            old = self.memoryConstraints[key]
-
-            if old.memoryLevel == new.memoryLevel:
-                assert old.size == new.size, "Tried to override existing constraints!"
-                continue
-
-            _cleanConstraints.append(new)
-
-        for constraint in _cleanConstraints:
-            self.addMemoryConstraint(constraint)
-
-    def addMemoryConstraint(self, memoryConstraint: MemoryConstraint):
-        name = memoryConstraint.memoryLevel
-        self.memoryConstraints[name] = memoryConstraint
+    def addMemoryConstraint(self, constr: MemoryConstraint):
+        self.memoryConstraints[constr.memoryLevel] = constr
 
     def __repr__(self) -> str:
         retStr = f"{self.tensorName}: "
