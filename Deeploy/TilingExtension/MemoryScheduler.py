@@ -556,24 +556,13 @@ class MemoryScheduler():
                     tilerModel.addConstraint(sumExpr + constantTensorOffset, memoryLevel = memoryLevel)
 
     def getSymbolicCostName(self, patternIdx: int, memoryLevel: str) -> str:
-        stringSuffix = self._stringSuffix + f"_{memoryLevel}"
+        return f"cost{self._stringSuffix}_{memoryLevel}"
 
-        name = f"cost{stringSuffix}"
-        return name
-
-    def getCost(self, tilerModel, patternIdx: int, memoryLevel: str) -> int:
-
-        stringSuffix = self._stringSuffix + f"_{memoryLevel}"
-
-        name = f"cost{stringSuffix}_copyIdx_{patternIdx}"
-        symVar = tilerModel._variables[name]
-        var = tilerModel._resolveVariable(symVar)
-        cost = var
-
-        return cost
+    def getCost(self, tilerModel: TilerModel, patternIdx: int, memoryLevel: str) -> int:
+        return tilerModel._resolveVariable(
+            tilerModel.getVariable(self.getSymbolicCostName(patternIdx, memoryLevel), copyIdx = patternIdx))
 
     def getHVector(self, tilerModel, patternIdx: int, memoryLevel: str) -> np.ndarray:
-
         stringSuffix = self._stringSuffix + f"_{memoryLevel}"
         numVars = len(self.memoryMap[memoryLevel][patternIdx])
 
