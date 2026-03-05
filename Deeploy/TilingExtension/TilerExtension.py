@@ -372,24 +372,16 @@ class Tiler():
 
     def setupModel(self, ctxt: NetworkContext, schedule: Schedule, layerBinding: OrderedDict[str, ONNXLayer],
                    targetMemoryLevelMapping: TargetMemoryLevelMapping) -> NetworkContext:
-
-        wrapSchedule: List[SubGraph] = []
-        for entry in schedule:
-            if isinstance(entry, gs.Node):
-                wrapSchedule.append([entry])
-            else:
-                wrapSchedule.append(entry)
-
+        # Transform schedule into type List[SubGraph] from Union[SubGraph, List[SubGraph]]
+        schedule: List[SubGraph] = [[entry] if isinstance(entry, gs.Node) else entry for entry in schedule]
         tilerModel = TilerModel(searchStrategy = self.searchStrategy)
-        tilerModel = self._setupGeometricConstraints(tilerModel, ctxt, wrapSchedule, layerBinding)
-        tilerModel = self._setupTensorDimensionProducts(tilerModel, ctxt, wrapSchedule)
-        tilerModel = self._setupHeuristics(tilerModel, ctxt, wrapSchedule)
-        tilerModel, allSymbolicMemoryConstraints = self._setupMemoryConstraints(tilerModel, ctxt, wrapSchedule,
-                                                                                layerBinding, targetMemoryLevelMapping)
-
+        tilerModel = self._setupGeometricConstraints(tilerModel, ctxt, schedule, layerBinding)
+        tilerModel = self._setupTensorDimensionProducts(tilerModel, ctxt, schedule)
+        tilerModel = self._setupHeuristics(tilerModel, ctxt, schedule)
+        tilerModel, symbolicMemoryConstraints = self._setupMemoryConstraints(tilerModel, ctxt, schedule, layerBinding,
+                                                                             targetMemoryLevelMapping)
         self.tilerModel = tilerModel
-        self.symbolicMemoryConstraints = allSymbolicMemoryConstraints
-
+        self.symbolicMemoryConstraints = symbolicMemoryConstraints
         return ctxt
 
     # SCHEREMO: Return a integer factor or IntVar variable for the multi Buffer coefficient given the tiling path, hop and tensorName.
