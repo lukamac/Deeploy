@@ -701,52 +701,48 @@ class Tiler():
 
     def _generateTilePath(self, tilerModel: TilerModel, ctxt: NetworkContext,
                           tensorMemoryConstraint: TensorMemoryConstraint, pattern: SubGraph) -> TensorMemoryConstraint:
-
-        assert len(tensorMemoryConstraint.memoryConstraints.keys()
-                  ) == 2, "Can't generate a tile path for more than one hierarchy level!"
-
         tensorName = tensorMemoryConstraint.tensorName
 
-        valList = list(tensorMemoryConstraint.memoryConstraints.values())
-        constraintA = valList[0]
-        constraintB = valList[1]
+        memoryConstraints = list(tensorMemoryConstraint.memoryConstraints.values())
+        assert len(memoryConstraints) == 2, (
+            f"Tile path can be generated for exactly 2 memory levels! "
+            f"Tensor {tensorName} has {tensorMemoryConstraint.memoryConstraints.keys()}")
+        constrA, constrB = memoryConstraints
 
         # SCHEREMO : Base is whichever constraint is constant
-        base = constraintA if isinstance(constraintA.size, int) else constraintB
-        end = constraintA if base == constraintB else constraintB
+        base, end = (constrA, constrB) if isinstance(constrA.size, int) else (constrB, constrA)
+
+        # We always add the base memory constraint even if there is no path from base to end
+        tilePathConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
+        tilePathConstraint.addMemoryConstraint(base)
 
         path = self.memoryHierarchy.pathSearch(base.memoryLevel, end.memoryLevel)
-        requiredHops = path[1:]
+        if len(path) > 0:
+            for hop in path[1:]:
+                factor = self.multiBufferStrategy(tilerModel, ctxt, pattern, path, hop, tensorName)
+                assert isinstance(factor, int) and factor > 0, \
+                        f"Factor has to be an integer higher then 0. Invalid factor {factor}"
 
-        returnTensorConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
-        returnTensorConstraint.addMemoryConstraint(base)
+                constr = MemoryConstraint(hop, end.size)
+                constr.multiBufferCoefficient = factor
+                tilePathConstraint.addMemoryConstraint(constr)
 
-        for hop in requiredHops:
-            factor = self.multiBufferStrategy(tilerModel, ctxt, pattern, path, hop, tensorName)
-            assert factor >= 1 and isinstance(factor, int), "Invalid factor!"
-
-            memConstraint = MemoryConstraint(hop, end.size)
-            memConstraint.multiBufferCoefficient = factor
-            returnTensorConstraint.addMemoryConstraint(memConstraint)
-
-        return returnTensorConstraint
+        return tilePathConstraint
 
     def _generateIntermediateTilingSteps(self, tilerModel: TilerModel, ctxt: NetworkContext,
                                          sourceStep: NodeMemoryConstraint, destinationStep: NodeMemoryConstraint,
                                          pattern: SubGraph) -> NodeMemoryConstraint:
-        tileConstraintStep = NodeMemoryConstraint()
-
         mergedStep = sourceStep + destinationStep
         tileTensorConstraints = [
             tensor for tensor in mergedStep.tensorMemoryConstraints.values()
             if len(tensor.memoryConstraints.values()) > 1
         ]
 
-        for tileTensor in tileTensorConstraints:
-            tiledTensor = self._generateTilePath(tilerModel, ctxt, tileTensor, pattern)
-            ioDir = mergedStep.getIO(tileTensor.tensorName)
+        tileConstraintStep = NodeMemoryConstraint()
+        for tensorConstraint in tileTensorConstraints:
+            tiledTensor = self._generateTilePath(tilerModel, ctxt, tensorConstraint, pattern)
+            ioDir = mergedStep.getIO(tensorConstraint.tensorName)
             tileConstraintStep.addTensorConstraint(tiledTensor, ioDir)
-
         return tileConstraintStep
 
     def _generateTilePathConstraints(self, tilerModel: TilerModel, ctxt: NetworkContext,
