@@ -2877,21 +2877,21 @@ class NetworkContainer():
             raise RuntimeError('You need to parse and bind the network before generating code!')
 
         callStack = ''
-        inputNum = 0
-        outputNum = 0
+
+        for obj in self.ctxt.globalObjects.values():
+            if isinstance(obj, VariableBuffer) and not isinstance(obj, (StructBuffer, ConstantBuffer)) and obj._deploy:
+                assert issubclass(obj._type, Pointer), f"IO Buffer {obj.name} is not a Pointer!"
+                # LMACAN: We save and restore the name so that .init() can generate code with the name mangled.
+                #         It might be better to use the existing template mechanisms but I leave this to someone else.
+                name = obj.name
+                obj.name = self.ctxt._mangle(obj.name)
+                callStack += "extern " + obj.init()
+                # SCHEREMO: Borderline hacky, but on the okay side of things, I think
+                callStack += f"static const uint32_t {obj.name}_len = {math.prod(obj.shape)};"
+                obj.name = name
+
         inputs = self.inputs()
         outputs = self.outputs()
-
-        for node in self.ctxt.globalObjects.values():
-            if isinstance(node, VariableBuffer) and not isinstance(node, (StructBuffer, ConstantBuffer)):
-                assert issubclass(node._type, Pointer), f"IO Buffer {node.name} is not a Pointer!"
-                if node._deploy:
-                    name = node.name
-                    node.name = self.ctxt._mangle(node.name)
-                    callStack += "extern " + node.init()
-                    # SCHEREMO: Borderline hacky, but on the okay side of things, I think
-                    callStack += "static const uint32_t " + node.name + "_len" + " = " + str(np.prod(node.shape)) + ";"
-                    node.name = name
 
         callStack += "static const uint32_t " + self.ctxt._mangle("num_inputs") + f" = {len(inputs)};"
         callStack += "static const uint32_t " + self.ctxt._mangle("num_outputs") + f" = {len(outputs)};"
