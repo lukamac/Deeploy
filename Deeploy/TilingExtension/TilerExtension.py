@@ -8,6 +8,7 @@
 
 import copy
 import csv
+import math
 import os
 import subprocess
 from typing import Dict, List, Literal, Optional, OrderedDict, Tuple, Type, Union
@@ -28,9 +29,7 @@ from Deeploy.Logging import SUCCESS_MARK
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
 from Deeploy.MemoryLevelExtension.NetworkDeployers.MemoryLevelDeployer import MemoryDeployerWrapper, \
     MemoryLevelAwareDeployer, MemoryPlatform, MemoryPlatformWrapper, TargetMemoryLevelMapping
-from Deeploy.TilingExtension.GenericFlow import GenericFlowState
-from Deeploy.TilingExtension.MemoryConstraintFlows import GraphMemoryConstraintFlow, TensorMemLevelTuple, \
-    convertFlowState2NodeMemoryConstraint
+from Deeploy.TilingExtension.MemoryConstraintFlows import InnerBufferLivenessAnalysis, OuterBufferLivenessAnalysis
 from Deeploy.TilingExtension.MemoryConstraints import MemoryConstraint, NodeMemoryConstraint, \
     PatternMemoryConstraints, TensorMemoryConstraint
 from Deeploy.TilingExtension.MemoryScheduler import MemoryBlock, MemoryScheduler
@@ -805,73 +804,74 @@ class Tiler():
         layerBinding: OrderedDict[str, ONNXLayer], targetMemoryLevelMapping: TargetMemoryLevelMapping
     ) -> Tuple[List[PatternMemoryConstraints], List[PatternMemoryConstraints]]:
 
-        def deltaFlow(
-                patternFlow: List[GenericFlowState[TensorMemLevelTuple]]) -> GenericFlowState[TensorMemLevelTuple]:
+        def constraintFromBuffer(name: str, ctxt: NetworkContext) -> TensorMemoryConstraint:
+            buffer = ctxt.lookup(name)
+            assert isinstance(buffer, VariableBuffer)
+            memory = buffer._memoryLevel
+            size = math.prod(buffer.shape)
+            return TensorMemoryConstraint(tensor, {memory: MemoryConstraint(memory, size)}, ctxt)
 
-            initialFlow = patternFlow[0]
-            endFlow = patternFlow[1]
+        analysis = OuterBufferLivenessAnalysis(ctxt)
+        live = analysis.initLive(layerBinding)
 
-            # SCHEREMO: The genset and killset of the innerflow are correct; however, since we now pass the initialliveset of the pattern to the constraint flow. we need to remove bypassed tensors
-            mergedLiveSet = initialFlow.liveSet - endFlow.liveSet
-            mergedGenSet = initialFlow.genSet
-            mergedKillSet = initialFlow.killSet
-
-            mergedFlow = GenericFlowState[TensorMemLevelTuple](mergedLiveSet, mergedKillSet, mergedGenSet)
-
-            return mergedFlow
-
-        initialLiveBuffers = {
-            value.name
-            for value in ctxt.globalObjects.values()
-            if (isinstance(value, ctxt.VariableBuffer) and value._users != [])
-        }
-
-        producedBuffers = {layer.node.outputs[0].name for layer in layerBinding.values()}
-        inputBufferNames = initialLiveBuffers - producedBuffers
-        inputBuffers = [ctxt.lookup(name) for name in inputBufferNames]
-
-        initialLiveTensors = {TensorMemLevelTuple(buf.name, buf._memoryLevel) for buf in inputBuffers}
-
-        constraintFlow = GraphMemoryConstraintFlow(ctxt, targetMemoryLevelMapping)
-        graphFlowStates = constraintFlow.flow(schedule, initialLiveTensors)
-
-        innerMemConstraints: List[PatternMemoryConstraints] = []
-        outerMemConstraints: List[PatternMemoryConstraints] = []
-
+        # Outer constraints
+        # Deals with buffer's home memory so it has no need for tiling at all
+        outerMcs: List[PatternMemoryConstraints] = []
         for idx, pattern in enumerate(schedule):
+            kill = analysis.computeKill(pattern)
+            gen = analysis.computeGen(pattern)
 
+            nodeMc = NodeMemoryConstraint()
+            for tensor in live:
+                nodeMc.addTensorConstraint(constraintFromBuffer(tensor, ctxt), "input")
+            for tensor in gen:
+                nodeMc.addTensorConstraint(constraintFromBuffer(tensor, ctxt), "output")
+
+            patternMc = PatternMemoryConstraints()
+            patternMc.addConstraint(nodeMc)
+            outerMcs.append(patternMc)
+
+            live = analysis.computeLive(live, gen, kill)
+
+        def constraintFromTiling(name: str, model: TilerModel, copyIdx: int, memory: str,
+                                 ctxt: NetworkContext) -> TensorMemoryConstraint:
+            if model.checkTensorExists(tensor, copyIdx):
+                size = tilerModel.getTensorNumberOfEltVar(name, copyIdx)
+                return TensorMemoryConstraint(name, {memory: MemoryConstraint(memory, size)}, ctxt)
+            else:
+                return constraintFromBuffer(name, ctxt)
+
+        # Inner constraints
+        # Deals with pattern memory managament and tile sizes and buffer's target memory
+        innerMcs: List[PatternMemoryConstraints] = []
+        for idx, pattern in enumerate(schedule):
             tilerModel.copyIdx = idx
+            analysis = InnerBufferLivenessAnalysis(ctxt, pattern)
+            live = analysis.initLive()
+            for node in pattern:
+                kill = analysis.computeKill(node)
+                gen = analysis.computeGen(node)
 
-            innerPatternMemoryConstraints = PatternMemoryConstraints()
-            outerPatternMemoryConstraints = PatternMemoryConstraints()
+                nodeMc = NodeMemoryConstraint()
+                for tensor in live:
+                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
+                    tensorMc = constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
+                    nodeMc.addTensorConstraint(tensorMc, "input")
+                for tensor in gen:
+                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
+                    tensorMc = constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
+                    nodeMc.addTensorConstraint(tensorMc, "output")
 
-            outerFlowState = graphFlowStates[idx]
-            patternFlow = constraintFlow._patternFlowStates[idx]
+                transientNodeMc = self._generatePatternStepTransientBufferConstraints(
+                    tilerModel, ctxt, layerBinding, node, targetMemoryLevelMapping)
 
-            dynamicOuterBufferConstraints = convertFlowState2NodeMemoryConstraint(tilerModel,
-                                                                                  ctxt,
-                                                                                  outerFlowState,
-                                                                                  useMax = True)
+                patternMc = PatternMemoryConstraints()
+                patternMc.addConstraint(nodeMc + transientNodeMc)
+                innerMcs.append(patternMc)
 
-            outerPatternMemoryConstraints.addConstraint(dynamicOuterBufferConstraints)
-            outerMemConstraints.append(outerPatternMemoryConstraints)
+                live = analysis.computeLive(live, gen, kill)
 
-            mergedFlow = [deltaFlow(patternFlow)]
-
-            for step, innerFlowState in zip(pattern, mergedFlow):
-                transientBufferConstraints = self._generatePatternStepTransientBufferConstraints(
-                    tilerModel, ctxt, layerBinding, step, targetMemoryLevelMapping)
-
-                dynamicInnerBufferConstraints = convertFlowState2NodeMemoryConstraint(tilerModel,
-                                                                                      ctxt,
-                                                                                      innerFlowState,
-                                                                                      useMax = False)
-
-                innerPatternMemoryConstraints.addConstraint(transientBufferConstraints + dynamicInnerBufferConstraints)
-
-            innerMemConstraints.append(innerPatternMemoryConstraints)
-
-        return outerMemConstraints, innerMemConstraints
+        return outerMcs, innerMcs
 
     def _generatePatternStepTransientBufferConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, layerBinding: OrderedDict[str, ONNXLayer],
