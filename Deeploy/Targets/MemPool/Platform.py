@@ -4,8 +4,6 @@
 
 from typing import Dict
 
-import numpy as np
-
 from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
 from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicConv1DBindings, BasicConv2DBindings, \
@@ -148,7 +146,7 @@ class MemPoolConstantBuffer(ConstantBuffer):
         retDict = super()._bufferRepresentation()
         # WIESEP: Workaround for banshee simulations.
         # Due to problems wrongly copied bytes, we want array sized a multiple of 4
-        bytes = np.prod(self.shape) * (self._type.typeWidth // 8)
+        bytes = self.sizeInBytes()
         if bytes % 4 != 0:
             bytes = 4 * int((bytes / 4 + 1))
         size = (bytes * 8) // self._type.typeWidth

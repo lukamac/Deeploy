@@ -2900,21 +2900,11 @@ class NetworkContainer():
         callStack += "extern void* " + self.ctxt._mangle("outputs") + f"[{len(outputs)}];"
 
         callStack += "static const uint32_t " + self.ctxt._mangle("inputs_bytes") + f"[{len(inputs)}] = " + "{"
-
-        numBytes = []
-        for node in inputs:
-            numBytes.append(str(np.prod(node.shape) * node._type.referencedType.typeWidth // 8))
-        callStack += ", ".join(numBytes)
-
+        callStack += ", ".join(str(buffer.sizeInBytes()) for buffer in inputs)
         callStack += "};"
 
         callStack += "static const uint32_t " + self.ctxt._mangle("outputs_bytes") + f"[{len(outputs)}] = " + "{"
-
-        numBytes = []
-        for node in outputs:
-            numBytes.append(str(np.prod(node.shape) * node._type.referencedType.typeWidth // 8))
-        callStack += ", ".join(numBytes)
-
+        callStack += ", ".join(str(buffer.sizeInBytes()) for buffer in outputs)
         callStack += "};"
 
         return callStack
@@ -3533,7 +3523,7 @@ class NetworkDeployer(NetworkContainer):
                 if isinstance(_buffer, ConstantBuffer) or (isinstance(_buffer, VariableBuffer) and _buffer._deploy):
                     # SCHEREMO: We only
                     if (hasattr(_buffer, "_memoryLevel") and _buffer._memoryLevel == level) or level == "None":
-                        staticSize += int((np.prod(_buffer.shape) * _buffer._type.referencedType.typeWidth // 8))
+                        staticSize += _buffer.sizeInBytes()
                     else:
                         log.warning(f"Buffer {_buffer.name} does not have a valid memory level")
 
