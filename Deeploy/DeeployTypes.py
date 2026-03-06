@@ -271,7 +271,7 @@ class VariableBuffer():
         self._shape = value
 
     def _bufferRepresentation(self) -> Dict:
-        return {"type": self._instance, "name": self.name, "size": int(np.prod(self.shape))}
+        return {"type": self._instance, "name": self.name, "size": math.prod(self.shape)}
 
     def init(self) -> str:
         """Return a string representation of the C code to declare this memory buffer
@@ -438,7 +438,7 @@ class ConstantBuffer(VariableBuffer):
         return f'ConstantBuffer: name: {self.name}, type: {self._type}'
 
     def _bufferRepresentation(self) -> Dict:
-        return {"type": self._type, "name": self.name, "size": int(np.prod(self.shape)), "values": self._valueString()}
+        return {"type": self._type, "name": self.name, "size": math.prod(self.shape), "values": self._valueString()}
 
 
 class StructBuffer(VariableBuffer):

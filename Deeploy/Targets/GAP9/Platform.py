@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import numpy as np
 import onnx_graphsurgeon as gs
 
 from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NetworkContext, NodeMapper, \
@@ -185,18 +184,8 @@ class GAP9VariableBuffer(VariableBuffer):
     deallocTemplate = FreeTemplate.gap9GenericFree
 
     def _bufferRepresentation(self):
-
-        if hasattr(self, "_memoryLevel"):
-            memoryLevel = self._memoryLevel
-        else:
-            memoryLevel = None
-
-        return {
-            "type": self._instance,
-            "name": self.name,
-            "size": int(np.prod(self.shape)),
-            "_memoryLevel": memoryLevel
-        }
+        memoryLevel = self._memoryLevel if hasattr(self, "_memoryLevel") else None
+        return {**super()._bufferRepresentation(), "_memoryLevel": memoryLevel}
 
 
 class GAP9TransientBuffer(TransientBuffer):
@@ -209,13 +198,8 @@ class GAP9TransientBuffer(TransientBuffer):
     # deallocTemplate = FreeTemplate.gap9L2GlobalTemplate
 
     def _bufferRepresentation(self):
-
-        if hasattr(self, "_memoryLevel"):
-            memoryLevel = self._memoryLevel
-        else:
-            memoryLevel = None
-
-        return {"type": self._type, "name": self.name, "size": self.size, "_memoryLevel": memoryLevel}
+        memoryLevel = self._memoryLevel if hasattr(self, "_memoryLevel") else None
+        return {**super()._bufferRepresentation(), "_memoryLevel": memoryLevel}
 
 
 class GAP9ConstantBuffer(ConstantBuffer):
@@ -225,16 +209,8 @@ class GAP9ConstantBuffer(ConstantBuffer):
     deallocTemplate = FreeTemplate.gap9L2GlobalTemplate
 
     def _bufferRepresentation(self):
-        operatorRepresentation = super()._bufferRepresentation()
-
-        if hasattr(self, "_memoryLevel"):
-            memoryLevel = self._memoryLevel
-        else:
-            memoryLevel = None
-
-        operatorRepresentation["_memoryLevel"] = memoryLevel
-
-        return operatorRepresentation
+        memoryLevel = self._memoryLevel if hasattr(self, "_memoryLevel") else None
+        return {**super()._bufferRepresentation(), "_memoryLevel": memoryLevel}
 
 
 class GAP9StructBuffer(StructBuffer):
