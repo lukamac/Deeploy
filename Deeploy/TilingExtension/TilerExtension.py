@@ -23,7 +23,7 @@ import Deeploy.CommonExtensions.DataTypes as BasicDataTypes
 from Deeploy.AbstractDataTypes import PointerClass
 from Deeploy.CommonExtensions.NetworkDeployers.NetworkDeployerWrapper import NetworkDeployerWrapper
 from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, NodeBinding, NodeTemplate, ONNXLayer, Schedule, \
-    SubGraph, TransientBuffer
+    SubGraph, TransientBuffer, VariableBuffer
 from Deeploy.Logging import DEFAULT_LOGGER as log
 from Deeploy.Logging import SUCCESS_MARK
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
@@ -522,34 +522,25 @@ class Tiler():
     def _setupHeuristics(self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph]) -> TilerModel:
 
         for idx, pattern in enumerate(schedule):
+            subGraph = gs.Graph(nodes = pattern)
+            subGraphTensors = subGraph.tensors(check_duplicates = True)
 
-            patternTensorList = []
-            seenTensorNameList = []
-            for node in pattern:
-                for gsTensor in node.inputs + node.outputs:
-                    ctxtTensor = ctxt.lookup(gsTensor.name)
-                    if ctxtTensor.name not in seenTensorNameList:
-                        seenTensorNameList.append(ctxtTensor.name)
-                        patternTensorList.append(ctxtTensor)
-
-            patternMemSizeExpr: IntVar = 0
-            for tensor in patternTensorList:
-                if not ctxt.lookup(tensor.name)._deploy:
+            patternMemSize = 0
+            for name in subGraphTensors.keys():
+                buffer = ctxt.lookup(name)
+                assert isinstance(buffer, VariableBuffer)
+                if not buffer._deploy:
                     continue
+                patternMemSize += tilerModel.getTensorNumberOfEltVar(
+                    name, copyIdx = idx) * buffer._type.referencedType.typeWidth // 8
 
-                patternMemSizeExpr += tilerModel.getTensorNumberOfEltVar(
-                    tensorName = tensor.name, copyIdx = idx) * (tensor._type.referencedType.typeWidth // 8)
-
-            if isinstance(patternMemSizeExpr, int):
-                _max = patternMemSizeExpr
-            else:
-                _max = patternMemSizeExpr.Max()
+            _max = patternMemSize if isinstance(patternMemSize, int) else patternMemSize.Max()
 
             patternVariable = tilerModel.addVariable(name = "DEEPLOY_PATTERN_MEM",
                                                      lowerBound = 1,
                                                      upperBound = _max,
                                                      copyIdx = idx)
-            tilerModel.addConstraint(patternVariable == patternMemSizeExpr)
+            tilerModel.addConstraint(patternVariable == patternMemSize)
             tilerModel.addObjective(Objective(var = patternVariable, optDir = Objective.OptimizationDirection.Maximize))
 
         return tilerModel
