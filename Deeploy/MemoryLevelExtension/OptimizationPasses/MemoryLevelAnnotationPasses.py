@@ -4,11 +4,10 @@
 
 from typing import List, Tuple
 
-import numpy as np
 import onnx_graphsurgeon as gs
 
 from Deeploy.CommonExtensions.OptimizationPasses.PassClasses import SequentialPass
-from Deeploy.DeeployTypes import ConstantBuffer, NetworkContext, VariableBuffer
+from Deeploy.DeeployTypes import NetworkContext, VariableBuffer
 from Deeploy.MemoryLevelExtension.MemoryLevels import MemoryHierarchy, MemoryLevel
 
 
@@ -58,26 +57,24 @@ class AnnotateNeurekaWeightMemoryLevel(SequentialPass):
         super().__init__()
 
     def apply(self, ctxt: NetworkContext, graph: gs.Graph) -> Tuple[NetworkContext, gs.Graph]:
-
-        def _neurekaWeightBufferSize(buffer: ConstantBuffer) -> int:
-            return int(np.prod(buffer.shape))  # Weights are encoded as bytes so no need to check for typeWidth
-
         weightMemoryOccupation = 0
+
+        def inWmem(buffer: VariableBuffer) -> bool:
+            return hasattr(buffer, "_memoryLevel") and buffer._memoryLevel == self._weightMemoryLevel.name
 
         # Current weight memory occupation
         for buffer in {**ctxt.globalObjects, **ctxt.localObjects}.values():
-            if hasattr(buffer, "_memoryLevel") and buffer._memoryLevel == self._weightMemoryLevel.name:
-                weightMemoryOccupation += _neurekaWeightBufferSize(buffer)
+            if isinstance(buffer, VariableBuffer) and inWmem(buffer):
+                weightMemoryOccupation += buffer.sizeInBytes()
 
         neurekaNodes = [node for node in graph.nodes if node.attrs["engine"] == self.neurekaEngineName]
         for node in neurekaNodes:
-            if node.op in ["Conv", "RequantizedConv"]:
-
-                if not (ctxt.is_local(node.inputs[1].name) or ctxt.is_global(node.inputs[1].name)):
-                    continue
-
+            if node.op in ["Conv", "RequantizedConv"] and ctxt.is_buffer(node.inputs[1].name):
                 buffer = ctxt.lookup(node.inputs[1].name)
-                if weightMemoryOccupation + _neurekaWeightBufferSize(buffer) < self._weightMemoryLevel.size:
+                assert isinstance(buffer, VariableBuffer)
+                size = buffer.sizeInBytes()
+                if not inWmem(buffer) and weightMemoryOccupation + size < self._weightMemoryLevel.size:
                     buffer._memoryLevel = self._weightMemoryLevel.name
-                    weightMemoryOccupation += _neurekaWeightBufferSize(buffer)
+                    weightMemoryOccupation += size
+
         return ctxt, graph
