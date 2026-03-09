@@ -4,6 +4,8 @@
 
 from typing import Dict
 
+import numpy as np
+
 from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
 from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicConv1DBindings, BasicConv2DBindings, \
@@ -146,7 +148,17 @@ class MemPoolConstantBuffer(ConstantBuffer):
         retDict = super()._bufferRepresentation()
         # WIESEP: Workaround for banshee simulations.
         # Due to problems wrongly copied bytes, we want array sized a multiple of 4
-        bytes = self.sizeInBytes()
+
+        # TODO: Investigate why tests fail when the bytes calculation is done with the
+        #       self.sizeInBytes()
+        # LMACAN: The calculation for byte size is incorrectly using self._type instead of
+        #         self._type.referencedType, i.e., using the size of the pointer instead of
+        #         the element type. In a concrete case of a self._type being a *int8_t and
+        #         self._type.referencedType a int8_t, it produces a 4 time larger size.
+        #         I am keeping it, instead of replacing with self.sizeInBytes() because
+        #         the MemPool tests fail without it.
+        bytes = np.prod(self.shape) * (self._type.typeWidth // 8)
+
         if bytes % 4 != 0:
             bytes = 4 * int((bytes / 4 + 1))
         size = (bytes * 8) // self._type.typeWidth
