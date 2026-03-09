@@ -11,7 +11,8 @@ import csv
 import math
 import os
 import subprocess
-from typing import Dict, List, Literal, Optional, OrderedDict, Tuple, Type, Union
+from collections import OrderedDict
+from typing import Dict, List, Literal, Optional, Tuple, Type, Union
 
 import numpy as np
 import onnx_graphsurgeon as gs
@@ -308,8 +309,7 @@ class Tiler():
         assert self.tilerModel is not None and self.symbolicMemoryConstraints is not None, "Set up the model before trying to compute a schedule!"
         collector = self.tilerModel.trySolveModel()
         tilingSolution = self._getTilingSolution(self.tilerModel, ctxt, collector, self.symbolicMemoryConstraints)
-        if not self.memoryAllocStrategy == "MiniMalloc":
-            assert self.tilerModel is not None
+        if self.memoryAllocStrategy != "MiniMalloc":
             log.debug(" - Extract Memory Allocation")
             self.innerMemoryScheduler.annotateSolution(ctxt, self.tilerModel)
             self.outerMemoryScheduler.annotateSolution(ctxt, self.tilerModel)
@@ -408,17 +408,6 @@ class Tiler():
     # Output: Buffering-strategy aware liveness analysis of the input/output IO buffers
 
     # This version implements "static n-ple buffering"
-
-    def propagateIOBufferStrategy(self, tileConstraintPattern: PatternMemoryConstraints, pattern: SubGraph,
-                                  ctxt: NetworkContext) -> PatternMemoryConstraints:
-
-        borderTensorStep = NodeMemoryConstraint()
-        for patternStep in tileConstraintPattern.nodeConstraints:
-            borderTensorStep += patternStep
-
-        for idx in range(len(tileConstraintPattern.nodeConstraints)):
-            tileConstraintPattern.nodeConstraints[idx] += borderTensorStep
-        return tileConstraintPattern
 
     def _resolveTensorMemoryConstraint(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
                                        tensorConstraint: TensorMemoryConstraint) -> TensorMemoryConstraint:
@@ -544,8 +533,8 @@ class Tiler():
             layerBinding: OrderedDict[str, ONNXLayer],
             targetMemoryLevelMapping: TargetMemoryLevelMapping) -> Tuple[TilerModel, List[PatternMemoryConstraints]]:
 
-        allMemoryConstraints = self._generateAllMemoryConstraints(tilerModel, ctxt, schedule, layerBinding,
-                                                                  targetMemoryLevelMapping)
+        allMemoryConstraints = self._generateMemoryConstraints(tilerModel, ctxt, schedule, layerBinding,
+                                                               targetMemoryLevelMapping)
 
         outerMemoryConstraints = PatternMemoryConstraints()
         for constraint in allMemoryConstraints:
@@ -579,247 +568,112 @@ class Tiler():
 
         return tilerModel, allMemoryConstraints
 
-    def _generateAllMemoryConstraints(
+    def _generateMemoryConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
             layerBinding: OrderedDict[str, ONNXLayer],
             targetMemoryLevelMapping: TargetMemoryLevelMapping) -> List[PatternMemoryConstraints]:
-
-        dynamicTensorConstraints, constantTensorConstraints = self._generateMemoryConstraints(
-            tilerModel, ctxt, schedule, layerBinding, targetMemoryLevelMapping)
-
-        allConstraints: List[PatternMemoryConstraints] = []
-        # Initialize structures
-
-        for pattern in dynamicTensorConstraints:
-            allPattern = PatternMemoryConstraints()
-            for step in pattern.nodeConstraints:
-                allStep = step + constantTensorConstraints
-                allPattern.addConstraint(allStep)
-            allConstraints.append(allPattern)
-
-        return allConstraints
-
-    def _generateMemoryConstraints(
-        self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
-        layerBinding: OrderedDict[str, ONNXLayer], targetMemoryLevelMapping: TargetMemoryLevelMapping
-    ) -> Tuple[List[PatternMemoryConstraints], NodeMemoryConstraint]:
-
         # SCHEREMO: Construct non-double-buffered constraints of local variable buffers
+        globalConstantBufferConstraints = self._generateConstantBufferConstraints(ctxt)
 
-        outerVariableConstraints, innerVariableConstraints = self._generateVariableBufferConstraints(
-            tilerModel, ctxt, schedule, layerBinding, targetMemoryLevelMapping)
+        outerAnalysis = OuterBufferLivenessAnalysis(ctxt)
+        outerLive = outerAnalysis.initLive(layerBinding)
 
-        # SCHEREMO: Construct global buffer constraints
-
-        constantBufferConstraint = self._generateBufferConstraints(ctxt)
-
-        # SCHEREMO: Construct first-level constraint set (all global buffers + tensors stored in higher level)
-
-        firstLevelConstraints: List[PatternMemoryConstraints] = copy.copy(outerVariableConstraints)
-        for patternConstraint in firstLevelConstraints:
-            for idx in range(len(patternConstraint.nodeConstraints)):
-                patternConstraint.nodeConstraints[idx] += constantBufferConstraint
-
-        # SCHEREMO: Construct constraint set for tiled tensors (including double buffering, excluding static global constraints)
-        tiledTensorConstraints: List[PatternMemoryConstraints] = self._generateTilePathConstraints(
-            tilerModel, ctxt, firstLevelConstraints, innerVariableConstraints, schedule)
-
-        # SCHEREMO: Construct constraint set for tiled tensors + local-only tensors (dynamic tensor set)
-        dynamicTensorConstraints: List[PatternMemoryConstraints] = []
-        for tilingConstraints, innerConstraints in zip(tiledTensorConstraints, innerVariableConstraints):
-
-            dynamicTensorPattern = PatternMemoryConstraints()
-            for tilingPatternStep, innerPatternStep in zip(tilingConstraints.nodeConstraints,
-                                                           innerConstraints.nodeConstraints):
-                dynamicTensorPatternStep = copy.copy(tilingPatternStep)
-
-                # Pick all constraints that are purely internal
-                for innerTensorName, innerTensor in innerPatternStep.tensorMemoryConstraints.items():
-                    if not any([
-                            innerTensorName == dynamicTensorName
-                            for dynamicTensorName, tensor in dynamicTensorPatternStep.tensorMemoryConstraints.items()
-                    ]):
-                        ioDir = tilingPatternStep.getIO(innerTensorName)
-                        dynamicTensorPatternStep.addTensorConstraint(innerTensor, ioDir)
-                dynamicTensorPattern.addConstraint(dynamicTensorPatternStep)
-            dynamicTensorConstraints.append(dynamicTensorPattern)
-
-        # SCHEREMO: Construct unkilled tensor set
-        inplaceTensorConstraints: List[PatternMemoryConstraints] = []
-        for tilingConstraints, outerConstraints in zip(dynamicTensorConstraints, firstLevelConstraints):
-            dynamicTensorPattern = PatternMemoryConstraints()
-            for tilingPatternStep, outerPatternStep in zip(tilingConstraints.nodeConstraints,
-                                                           outerConstraints.nodeConstraints):
-                dynamicTensorPatternStep = copy.copy(tilingPatternStep)
-
-                # Pick all constraints that are purely internal
-                for outerTensorName, outerTensor in outerPatternStep.tensorMemoryConstraints.items():
-                    if not any(
-                        [(outerTensorName == dynamicTensorName) or (ctxt.is_global(outerTensorName))
-                         for dynamicTensorName, tensor in dynamicTensorPatternStep.tensorMemoryConstraints.items()]):
-                        dynamicTensorPatternStep.addTensorConstraint(outerTensor, "intermediate")
-                dynamicTensorPattern.addConstraint(dynamicTensorPatternStep)
-            inplaceTensorConstraints.append(dynamicTensorPattern)
-
-        return inplaceTensorConstraints, constantBufferConstraint
-
-    def _generateTilePath(self, tilerModel: TilerModel, ctxt: NetworkContext,
-                          tensorMemoryConstraint: TensorMemoryConstraint, pattern: SubGraph) -> TensorMemoryConstraint:
-        tensorName = tensorMemoryConstraint.tensorName
-
-        memoryConstraints = list(tensorMemoryConstraint.memoryConstraints.values())
-        assert len(memoryConstraints) == 2, (
-            f"Tile path can be generated for exactly 2 memory levels! "
-            f"Tensor {tensorName} has {tensorMemoryConstraint.memoryConstraints.keys()}")
-        constrA, constrB = memoryConstraints
-
-        # SCHEREMO : Base is whichever constraint is constant
-        base, end = (constrA, constrB) if isinstance(constrA.size, int) else (constrB, constrA)
-
-        # We always add the base memory constraint even if there is no path from base to end
-        tilePathConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
-        tilePathConstraint.addMemoryConstraint(base)
-
-        path = self.memoryHierarchy.pathSearch(base.memoryLevel, end.memoryLevel)
-        if len(path) > 0:
-            for hop in path[1:]:
-                factor = self.multiBufferStrategy(tilerModel, ctxt, pattern, path, hop, tensorName)
-                assert isinstance(factor, int) and factor > 0, \
-                        f"Factor has to be an integer higher then 0. Invalid factor {factor}"
-
-                constr = MemoryConstraint(hop, end.size)
-                constr.multiBufferCoefficient = factor
-                tilePathConstraint.addMemoryConstraint(constr)
-
-        return tilePathConstraint
-
-    def _generateIntermediateTilingSteps(self, tilerModel: TilerModel, ctxt: NetworkContext,
-                                         sourceStep: NodeMemoryConstraint, destinationStep: NodeMemoryConstraint,
-                                         pattern: SubGraph) -> NodeMemoryConstraint:
-        mergedStep = sourceStep + destinationStep
-        tileTensorConstraints = [
-            tensor for tensor in mergedStep.tensorMemoryConstraints.values()
-            if len(tensor.memoryConstraints.values()) > 1
-        ]
-
-        tileConstraintStep = NodeMemoryConstraint()
-        for tensorConstraint in tileTensorConstraints:
-            tiledTensor = self._generateTilePath(tilerModel, ctxt, tensorConstraint, pattern)
-            ioDir = mergedStep.getIO(tensorConstraint.tensorName)
-            tileConstraintStep.addTensorConstraint(tiledTensor, ioDir)
-        return tileConstraintStep
-
-    def _generateTilePathConstraints(self, tilerModel: TilerModel, ctxt: NetworkContext,
-                                     sourceConstraints: List[PatternMemoryConstraints],
-                                     destinationConstraints: List[PatternMemoryConstraints],
-                                     schedule: List[SubGraph]) -> List[PatternMemoryConstraints]:
-        tileConstraints = []
-        for idx, (sourceConstraint, destinationConstraint) in enumerate(zip(sourceConstraints, destinationConstraints)):
-            tilerModel.copyIdx = idx
-
-            assert (len(sourceConstraint.nodeConstraints) == 1), \
-                    "Source pattern must be constant and single step, since it's alive throughout the pattern!"
-            sourcePatternStep = sourceConstraint.nodeConstraints[0]
-
-            tileConstraint = PatternMemoryConstraints()
-            for destinationConstraintStep in destinationConstraint.nodeConstraints:
-                tileConstraintStep = self._generateIntermediateTilingSteps(tilerModel, ctxt, sourcePatternStep,
-                                                                           destinationConstraintStep, schedule[idx])
-                tileConstraint.addConstraint(tileConstraintStep)
-
-            propagatedTileConstraint = self.propagateIOBufferStrategy(tileConstraint, schedule[idx], ctxt)
-            assert len(propagatedTileConstraint.nodeConstraints) == len(tileConstraint.nodeConstraints)
-
-            tileConstraints.append(propagatedTileConstraint)
-        return tileConstraints
-
-    def _generateBufferConstraints(self, ctxt: NetworkContext) -> NodeMemoryConstraint:
-        constantGlobalConstraint: NodeMemoryConstraint = NodeMemoryConstraint()
-        constantGlobalBuffers: List[ConstantBuffer] = [
-            obj for obj in ctxt.globalObjects.values() if isinstance(obj, ConstantBuffer) and obj._deploy
-        ]
-
-        for buffer in constantGlobalBuffers:
-            memoryConstraint = MemoryConstraint(buffer._memoryLevel, buffer.sizeInBytes())
-            tensorConstraint = TensorMemoryConstraint(buffer.name, {memoryConstraint.memoryLevel: memoryConstraint},
-                                                      ctxt)
-            constantGlobalConstraint.addTensorConstraint(tensorConstraint, "input")
-
-        return constantGlobalConstraint
-
-    def _generateVariableBufferConstraints(
-        self, tilerModel: TilerModel, ctxt: NetworkContext, schedule: List[SubGraph],
-        layerBinding: OrderedDict[str, ONNXLayer], targetMemoryLevelMapping: TargetMemoryLevelMapping
-    ) -> Tuple[List[PatternMemoryConstraints], List[PatternMemoryConstraints]]:
-
-        def constraintFromBuffer(name: str, ctxt: NetworkContext) -> TensorMemoryConstraint:
-            buffer = ctxt.lookup(name)
-            assert isinstance(buffer, VariableBuffer)
-            memory = buffer._memoryLevel
-            size = math.prod(buffer.shape)
-            return TensorMemoryConstraint(tensor, {memory: MemoryConstraint(memory, size)}, ctxt)
-
-        analysis = OuterBufferLivenessAnalysis(ctxt)
-        live = analysis.initLive(layerBinding)
-
-        # Outer constraints
-        # Deals with buffer's home memory so it has no need for tiling at all
-        outerMcs: List[PatternMemoryConstraints] = []
+        patternMcs: List[PatternMemoryConstraints] = []
         for idx, pattern in enumerate(schedule):
-            kill = analysis.computeKill(pattern)
-            gen = analysis.computeGen(pattern)
+            outerKill = outerAnalysis.computeKill(pattern)
+            outerGen = outerAnalysis.computeGen(pattern)
 
-            nodeMc = NodeMemoryConstraint()
-            for tensor in live:
-                nodeMc.addTensorConstraint(constraintFromBuffer(tensor, ctxt), "input")
-            for tensor in gen:
-                nodeMc.addTensorConstraint(constraintFromBuffer(tensor, ctxt), "output")
+            outerNodeMc = NodeMemoryConstraint()
+            for tensor in outerLive:
+                outerNodeMc.addTensorConstraint(self._constraintFromBuffer(tensor, ctxt), "input")
+            for tensor in outerGen:
+                outerNodeMc.addTensorConstraint(self._constraintFromBuffer(tensor, ctxt), "output")
+
+            outerLive = outerAnalysis.computeLive(outerLive, outerGen, outerKill)
+
+            outerNodeMc += globalConstantBufferConstraints
+
+            tilerModel.copyIdx = idx
+            innerAnalysis = InnerBufferLivenessAnalysis(ctxt, pattern)
+            innerLive = innerAnalysis.initLive()
+            for node in pattern:
+                innerKill = innerAnalysis.computeKill(node)
+                innerGen = innerAnalysis.computeGen(node)
+
+                innerNodeMc = NodeMemoryConstraint()
+                for tensor in innerLive:
+                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
+                    tensorMc = self._constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
+                    innerNodeMc.addTensorConstraint(tensorMc, "input")
+                for tensor in innerGen:
+                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
+                    tensorMc = self._constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
+                    innerNodeMc.addTensorConstraint(tensorMc, "output")
+
+                innerLive = innerAnalysis.computeLive(innerLive, innerGen, innerKill)
+
+                # Addition creates a new NodeMemoryConstraint object
+                nodeMc = outerNodeMc + innerNodeMc
+
+                self._generateIntermediateTilingSteps(tilerModel, ctxt, nodeMc, pattern)
+
+                nodeMc += self._generatePatternStepTransientBufferConstraints(tilerModel, ctxt, layerBinding, node,
+                                                                              targetMemoryLevelMapping)
 
             patternMc = PatternMemoryConstraints()
             patternMc.addConstraint(nodeMc)
-            outerMcs.append(patternMc)
+            patternMcs.append(patternMc)
 
-            live = analysis.computeLive(live, gen, kill)
+        return patternMcs
 
-        def constraintFromTiling(name: str, model: TilerModel, copyIdx: int, memory: str,
-                                 ctxt: NetworkContext) -> TensorMemoryConstraint:
-            if model.checkTensorExists(tensor, copyIdx):
-                size = tilerModel.getTensorNumberOfEltVar(name, copyIdx)
-                return TensorMemoryConstraint(name, {memory: MemoryConstraint(memory, size)}, ctxt)
-            else:
-                return constraintFromBuffer(name, ctxt)
+    def _generateIntermediateTilingSteps(self, tilerModel: TilerModel, ctxt: NetworkContext,
+                                         nodeMc: NodeMemoryConstraint, pattern: SubGraph) -> None:
+        for tensor, tensorMc in nodeMc.tensorMemoryConstraints.items():
+            assert len(tensorMc.memoryConstraints) >= 1 and len(tensorMc.memoryConstraints) <= 2
+            if len(tensorMc.memoryConstraints) == 1:
+                continue
 
-        # Inner constraints
-        # Deals with pattern memory managament and tile sizes and buffer's target memory
-        innerMcs: List[PatternMemoryConstraints] = []
-        for idx, pattern in enumerate(schedule):
-            tilerModel.copyIdx = idx
-            analysis = InnerBufferLivenessAnalysis(ctxt, pattern)
-            live = analysis.initLive()
-            for node in pattern:
-                kill = analysis.computeKill(node)
-                gen = analysis.computeGen(node)
+            srcMc, dstMc = list(tensorMc.memoryConstraints.values())
+            assert isinstance(srcMc.size, int), "Source and destination are not ordered properly."
+            path = self.memoryHierarchy.pathSearch(srcMc.memoryLevel, dstMc.memoryLevel)
+            assert len(path) >= 2, f"No path found between {srcMc.memoryLevel} and {dstMc.memoryLevel}"
+            mcs: OrderedDict[str, MemoryConstraint] = OrderedDict()
+            mcs[srcMc.memoryLevel] = srcMc
+            for memory in path[1:]:
+                coeff = self.multiBufferStrategy(tilerModel, ctxt, pattern, path, memory, tensor)
+                assert isinstance(coeff, int) and coeff > 0, \
+                        f"MultiBuffer coefficient should be an integer higher then 0. Received invalid coefficient={coeff}."
+                mc = MemoryConstraint(memory, dstMc.size)
+                mc.multiBufferCoefficient = coeff
+                mcs[memory] = mc
+            tensorMc.memoryConstraints = mcs
 
-                nodeMc = NodeMemoryConstraint()
-                for tensor in live:
-                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
-                    tensorMc = constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
-                    nodeMc.addTensorConstraint(tensorMc, "input")
-                for tensor in gen:
-                    memory = targetMemoryLevelMapping.lookup(node.name, tensor)
-                    tensorMc = constraintFromTiling(tensor, tilerModel, idx, memory, ctxt)
-                    nodeMc.addTensorConstraint(tensorMc, "output")
+    def _generateConstantBufferConstraints(self, ctxt: NetworkContext) -> NodeMemoryConstraint:
+        nodeMc: NodeMemoryConstraint = NodeMemoryConstraint()
+        globalConstantBuffers: List[ConstantBuffer] = [
+            obj for obj in ctxt.globalObjects.values() if isinstance(obj, ConstantBuffer) and obj._deploy
+        ]
 
-                transientNodeMc = self._generatePatternStepTransientBufferConstraints(
-                    tilerModel, ctxt, layerBinding, node, targetMemoryLevelMapping)
+        for buffer in globalConstantBuffers:
+            memoryConstraint = MemoryConstraint(buffer._memoryLevel, buffer.sizeInBytes())
+            tensorConstraint = TensorMemoryConstraint(buffer.name, {buffer._memoryLevel: memoryConstraint}, ctxt)
+            nodeMc.addTensorConstraint(tensorConstraint, "input")
+        return nodeMc
 
-                patternMc = PatternMemoryConstraints()
-                patternMc.addConstraint(nodeMc + transientNodeMc)
-                innerMcs.append(patternMc)
+    def _constraintFromBuffer(self, name: str, ctxt: NetworkContext) -> TensorMemoryConstraint:
+        buffer = ctxt.lookup(name)
+        assert isinstance(buffer, VariableBuffer)
+        memory = buffer._memoryLevel
+        size = math.prod(buffer.shape)
+        return TensorMemoryConstraint(name, {memory: MemoryConstraint(memory, size)}, ctxt)
 
-                live = analysis.computeLive(live, gen, kill)
-
-        return outerMcs, innerMcs
+    def _constraintFromTiling(self, name: str, tilerModel: TilerModel, copyIdx: int, memory: str,
+                              ctxt: NetworkContext) -> TensorMemoryConstraint:
+        if tilerModel.checkTensorExists(name, copyIdx):
+            size = tilerModel.getTensorNumberOfEltVar(name, copyIdx)
+            return TensorMemoryConstraint(name, {memory: MemoryConstraint(memory, size)}, ctxt)
+        else:
+            return self._constraintFromBuffer(name, ctxt)
 
     def _generatePatternStepTransientBufferConstraints(
             self, tilerModel: TilerModel, ctxt: NetworkContext, layerBinding: OrderedDict[str, ONNXLayer],
