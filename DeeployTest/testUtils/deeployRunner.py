@@ -7,7 +7,7 @@ import codecs
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Callable, List, Optional
 
 import coloredlogs
 
@@ -177,11 +177,13 @@ class DeeployRunnerArgumentParser(argparse.ArgumentParser):
         return self.args
 
 
-def create_config_from_args(args: argparse.Namespace,
-                            platform: str,
-                            simulator: str,
-                            tiling: bool,
-                            platform_specific_cmake_args: Optional[list] = None) -> DeeployTestConfig:
+def create_config_from_args(
+        args: argparse.Namespace,
+        platform: str,
+        simulator: str,
+        tiling: bool,
+        platform_specific_cmake_args: Optional[list] = None,
+        platform_specific_gen_args: Optional[Callable[[argparse.Namespace], List[str]]] = None) -> DeeployTestConfig:
 
     script_path = Path(__file__).resolve()
     base_dir = script_path.parent.parent
@@ -234,6 +236,9 @@ def create_config_from_args(args: argparse.Namespace,
 
     if not tiling and getattr(args, 'profileUntiled', False):
         gen_args_list.append("--profileUntiled")
+
+    if platform_specific_gen_args is not None:
+        gen_args_list.extend(platform_specific_gen_args(args))
 
     config = DeeployTestConfig(
         test_name = test_name,
@@ -313,7 +318,8 @@ def main(default_platform: Optional[str] = None,
          tiling_enabled: bool = False,
          platform_specific_cmake_args: Optional[list] = None,
          parsed_args: Optional[argparse.Namespace] = None,
-         parser_setup_callback = None):
+         parser_setup_callback = None,
+         platform_specific_gen_args: Optional[Callable[[argparse.Namespace], List[str]]] = None):
     """
     Main entry point for Deeploy test runners.
 
@@ -405,7 +411,8 @@ def main(default_platform: Optional[str] = None,
     if hasattr(args, 'num_clusters'):
         platform_specific_cmake_args.append(f"-DNUM_CLUSTERS={args.num_clusters}")
 
-    config = create_config_from_args(args, platform, simulator, tiling_enabled, platform_specific_cmake_args)
+    config = create_config_from_args(args, platform, simulator, tiling_enabled, platform_specific_cmake_args,
+                                     platform_specific_gen_args)
 
     print_configuration(config)
 
