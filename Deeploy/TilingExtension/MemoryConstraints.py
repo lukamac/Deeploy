@@ -90,7 +90,7 @@ class NodeMemoryConstraint():
         self.outputTensorMemoryConstraints: Dict[str, TensorMemoryConstraint] = {}
 
     @property
-    def tensorMemoryConstraints(self):
+    def tensorMemoryConstraints(self) -> Dict[str, TensorMemoryConstraint]:
         return {
             **self.inputTensorMemoryConstraints,
             **self.intermediateTensorMemoryConstraints,
