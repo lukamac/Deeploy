@@ -410,53 +410,40 @@ class Tiler():
     # This version implements "static n-ple buffering"
 
     def _resolveTensorMemoryConstraint(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
-                                       tensorConstraint: TensorMemoryConstraint) -> TensorMemoryConstraint:
-        assert self.tilerModel is not None, "Can't resolve tensor memory constraints, tilerModel is None!"
+                                       tensorMc: TensorMemoryConstraint) -> TensorMemoryConstraint:
+        tensorName = tensorMc.tensorName
+        resolvedTensorMc = TensorMemoryConstraint(tensorName, {}, ctxt)
 
-        tensorName = tensorConstraint.tensorName
-        solvedTensorConstraint = TensorMemoryConstraint(tensorName, {}, ctxt)
+        buffer = ctxt.lookup(tensorName)
+        assert isinstance(buffer, VariableBuffer)
 
-        for memoryLevel, memoryConstraint in tensorConstraint.memoryConstraints.items():
-            size = self.tilerModel._resolveVariable(memoryConstraint.size)
+        for memoryLevel, mc in tensorMc.memoryConstraints.items():
+            if isinstance(mc.size, int):
+                resolvedMc = copy.copy(mc)
+                resolvedMc.shape = tuple(buffer.shape)
+            else:
+                size = tilerModel._resolveVariable(mc.size)
+                resolvedMc: MemoryConstraint = MemoryConstraint(memoryLevel, size)
+                resolvedMc.multiBufferCoefficient = tilerModel._resolveVariable(mc.multiBufferCoefficient)
 
-            newMemoryConstraint: MemoryConstraint = MemoryConstraint(memoryLevel, size)
-            multiBufferCoefficient = self.tilerModel._resolveVariable(memoryConstraint.multiBufferCoefficient)
-            newMemoryConstraint.multiBufferCoefficient = multiBufferCoefficient
+                if not isinstance(buffer, TransientBuffer):
+                    _, copyIdx = tilerModel.getNameCopyIdx(mc.size.Name())
+                    resolvedMc.shape = tuple(
+                        tilerModel._resolveVariable(tilerModel.getTensorDimVar(tensorName, i, copyIdx))
+                        for i in range(len(buffer.shape)))
 
-            if not isinstance(ctxt.lookup(tensorName), TransientBuffer):
+            resolvedTensorMc.addMemoryConstraint(resolvedMc)
 
-                tensorShapeLen = 1 if isinstance(ctxt.lookup(tensorName).shape, int) else len(
-                    ctxt.lookup(tensorName).shape)
-                newShape: List[int] = []
-
-                if isinstance(memoryConstraint.size, int):
-                    newShape = ctxt.lookup(tensorName).shape
-                else:
-                    _, copyIdx = tilerModel.getNameCopyIdx(memoryConstraint.size.Name())
-                    for i in range(tensorShapeLen):
-                        newShape.append(
-                            self.tilerModel._resolveVariable(tilerModel.getTensorDimVar(tensorName, i, copyIdx)))
-
-                newMemoryConstraint.shape = (newShape,) if isinstance(newShape, int) else tuple(newShape)
-
-            solvedTensorConstraint.addMemoryConstraint(newMemoryConstraint)
-
-        return solvedTensorConstraint
+        return resolvedTensorMc
 
     def _getTilingSolution(self, tilerModel: TilerModel, ctxt: NetworkContext, collector: SolutionCollector,
                            allConstraints: List[PatternMemoryConstraints]) -> List[PatternMemoryConstraints]:
 
-        retList = []
-
         def _checkResolve(ctxt, tensorName, tensorConstraint):
+            return len(tensorConstraint.memoryConstraints) >= 2 or \
+                    (not ctxt.is_global(tensorName) and isinstance(ctxt.lookup(tensorName), TransientBuffer))
 
-            if ctxt.is_global(tensorName) and len(tensorConstraint.memoryConstraints.values()) <= 1:
-                return False
-            if len(tensorConstraint.memoryConstraints.values()) <= 1 and not isinstance(
-                    ctxt.lookup(tensorName), TransientBuffer):
-                return False
-            return True
-
+        retList = []
         for patternConstraints in allConstraints:
             newMemoryConstraint = PatternMemoryConstraints()
             for stepConstraints in patternConstraints.nodeConstraints:
