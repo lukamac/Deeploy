@@ -96,7 +96,7 @@ class SingleBufferingTilingCodeGeneration(TilingCodeGeneration):
         ingressDMAStatements = [CodeSnippet(self._lineComment, {"comment": "Transfer input tiles"})
                                ] + ingressDMAStatements
         ingressDMAStatements += [CodeSnippet(self._lineComment, {"comment": "Wait for input tiles"})]
-        ingressDMAStatements += [future.wait() for future in ingressFutures]
+        ingressDMAStatements += [future.wait() for future in reversed(list(ingressFutures))]
 
         # 2.4) Output data transfer for current tile
         ctxt, egressDMAStatements, egressFutures = self._generateTransferScheduleCalls(
