@@ -1,0 +1,49 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.MemPool.Templates
+=================================
+
+.. automodule:: Deeploy.Targets.MemPool.Templates
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   AllocateTemplate
+   ConvTemplate
+   DWConvTemplate
+   FreeTemplate
+   GemmTemplate
+   ITAMaxTemplate
+   ITATemplate
+   MHSATemplate
+   MatMulTemplate
+   MaxPoolTemplate
+   RQGemmTemplate
+   RQMatMulTemplate
+   RequantShiftTemplate
+

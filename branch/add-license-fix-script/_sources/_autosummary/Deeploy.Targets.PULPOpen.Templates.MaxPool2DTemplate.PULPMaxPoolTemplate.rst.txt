@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Templates.MaxPool2DTemplate.PULPMaxPoolTemplate
+========================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Templates.MaxPool2DTemplate
+
+.. autoclass:: PULPMaxPoolTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPMaxPoolTemplate.__init__
+      ~PULPMaxPoolTemplate.alignToContext
+      ~PULPMaxPoolTemplate.computeTransientBuffersSize
+      ~PULPMaxPoolTemplate.generate
+      ~PULPMaxPoolTemplate.hoistTransientBuffers
+      ~PULPMaxPoolTemplate.internalSize
+   
+   
+
+   
+   
+   

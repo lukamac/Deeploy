@@ -1,0 +1,45 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Snitch.Templates
+================================
+
+.. automodule:: Deeploy.Targets.Snitch.Templates
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   AddTemplate
+   AllocateTemplate
+   FloatGemmTemplate
+   FloatSoftmaxTemplate
+   FreeTemplate
+   GemmTemplate
+   RQAddTemplate
+   RqGemmTemplate
+   iSoftmaxTemplate
+

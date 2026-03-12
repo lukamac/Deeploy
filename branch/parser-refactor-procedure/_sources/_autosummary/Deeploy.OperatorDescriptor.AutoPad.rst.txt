@@ -1,0 +1,84 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.AutoPad
+==================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: AutoPad
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~AutoPad.encode
+      ~AutoPad.replace
+      ~AutoPad.split
+      ~AutoPad.rsplit
+      ~AutoPad.join
+      ~AutoPad.capitalize
+      ~AutoPad.casefold
+      ~AutoPad.title
+      ~AutoPad.center
+      ~AutoPad.count
+      ~AutoPad.expandtabs
+      ~AutoPad.find
+      ~AutoPad.partition
+      ~AutoPad.index
+      ~AutoPad.ljust
+      ~AutoPad.lower
+      ~AutoPad.lstrip
+      ~AutoPad.rfind
+      ~AutoPad.rindex
+      ~AutoPad.rjust
+      ~AutoPad.rstrip
+      ~AutoPad.rpartition
+      ~AutoPad.splitlines
+      ~AutoPad.strip
+      ~AutoPad.swapcase
+      ~AutoPad.translate
+      ~AutoPad.upper
+      ~AutoPad.startswith
+      ~AutoPad.endswith
+      ~AutoPad.removeprefix
+      ~AutoPad.removesuffix
+      ~AutoPad.isascii
+      ~AutoPad.islower
+      ~AutoPad.isupper
+      ~AutoPad.istitle
+      ~AutoPad.isspace
+      ~AutoPad.isdecimal
+      ~AutoPad.isdigit
+      ~AutoPad.isnumeric
+      ~AutoPad.isalpha
+      ~AutoPad.isalnum
+      ~AutoPad.isidentifier
+      ~AutoPad.isprintable
+      ~AutoPad.zfill
+      ~AutoPad.format
+      ~AutoPad.format_map
+      ~AutoPad.maketrans
+      ~AutoPad.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~AutoPad.NOTSET
+      ~AutoPad.SAME_UPPER
+      ~AutoPad.SAME_LOWER
+      ~AutoPad.VALID
+   
+   

@@ -1,0 +1,34 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.NodeTemplate.RequantizedGemmTemplate
+=============================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.NodeTemplate
+
+.. autoclass:: RequantizedGemmTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~RequantizedGemmTemplate.__init__
+      ~RequantizedGemmTemplate.alignShapes
+      ~RequantizedGemmTemplate.alignToContext
+      ~RequantizedGemmTemplate.computeTransientBuffersSize
+      ~RequantizedGemmTemplate.generate
+      ~RequantizedGemmTemplate.hoistTransientBuffers
+      ~RequantizedGemmTemplate.internalSize
+   
+   
+
+   
+   
+   

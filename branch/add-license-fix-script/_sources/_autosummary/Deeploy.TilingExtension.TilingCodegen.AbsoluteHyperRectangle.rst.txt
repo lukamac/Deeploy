@@ -1,0 +1,36 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.TilingExtension.TilingCodegen.AbsoluteHyperRectangle
+============================================================
+
+.. currentmodule:: Deeploy.TilingExtension.TilingCodegen
+
+.. autoclass:: AbsoluteHyperRectangle
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~AbsoluteHyperRectangle.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~AbsoluteHyperRectangle.rectangle
+      ~AbsoluteHyperRectangle.absoluteOffset
+   
+   

@@ -1,0 +1,43 @@
+Deeploy.Targets.Snitch.Platform.SnitchTransientBuffer
+=====================================================
+
+.. currentmodule:: Deeploy.Targets.Snitch.Platform
+
+.. autoclass:: SnitchTransientBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SnitchTransientBuffer.__init__
+      ~SnitchTransientBuffer.add_aliases
+      ~SnitchTransientBuffer.alloc
+      ~SnitchTransientBuffer.dealloc
+      ~SnitchTransientBuffer.fromNode
+      ~SnitchTransientBuffer.fromVariableBuffer
+      ~SnitchTransientBuffer.get_aliases_of
+      ~SnitchTransientBuffer.has_live_ancestors
+      ~SnitchTransientBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SnitchTransientBuffer.allocTemplate
+      ~SnitchTransientBuffer.deallocTemplate
+      ~SnitchTransientBuffer.initTemplate
+      ~SnitchTransientBuffer.size
+      ~SnitchTransientBuffer.name
+      ~SnitchTransientBuffer.shape
+   
+   

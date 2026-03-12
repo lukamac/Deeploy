@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Layers.ReduceSumLayer
+=============================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Layers
+
+.. autoclass:: ReduceSumLayer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~ReduceSumLayer.__init__
+      ~ReduceSumLayer.bind
+      ~ReduceSumLayer.broadcast
+      ~ReduceSumLayer.codeTransform
+      ~ReduceSumLayer.computeOps
+      ~ReduceSumLayer.computeShapes
+      ~ReduceSumLayer.discardCurrentMapper
+      ~ReduceSumLayer.generate
+      ~ReduceSumLayer.parse
+      ~ReduceSumLayer.resetDiscardedMappers
+      ~ReduceSumLayer.typeCheck
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ReduceSumLayer.maps
+      ~ReduceSumLayer.mapper
+      ~ReduceSumLayer.discardedMappers
+      ~ReduceSumLayer.node
+   
+   

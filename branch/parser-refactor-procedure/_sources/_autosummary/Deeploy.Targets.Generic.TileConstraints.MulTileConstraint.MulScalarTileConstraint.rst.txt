@@ -1,0 +1,44 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TileConstraints.MulTileConstraint.MulScalarTileConstraint
+=================================================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.TileConstraints.MulTileConstraint
+
+.. autoclass:: MulScalarTileConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~MulScalarTileConstraint.__init__
+      ~MulScalarTileConstraint.addGeometricalConstraint
+      ~MulScalarTileConstraint.addPolicyConstraint
+      ~MulScalarTileConstraint.constructSymbolicNodeRep
+      ~MulScalarTileConstraint.extractBaseAddr
+      ~MulScalarTileConstraint.getBaseAddr
+      ~MulScalarTileConstraint.sanitizeTilingSchedule
+      ~MulScalarTileConstraint.serializeTilingSolution
+      ~MulScalarTileConstraint.wrapTilingSolution
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MulScalarTileConstraint.dataIn1Name
+      ~MulScalarTileConstraint.dataIn2Name
+      ~MulScalarTileConstraint.dataOutName
+   
+   

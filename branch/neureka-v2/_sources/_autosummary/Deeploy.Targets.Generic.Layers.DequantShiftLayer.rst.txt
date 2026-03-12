@@ -1,0 +1,43 @@
+Deeploy.Targets.Generic.Layers.DequantShiftLayer
+================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Layers
+
+.. autoclass:: DequantShiftLayer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~DequantShiftLayer.__init__
+      ~DequantShiftLayer.bind
+      ~DequantShiftLayer.broadcast
+      ~DequantShiftLayer.codeTransform
+      ~DequantShiftLayer.computeOps
+      ~DequantShiftLayer.computeShapes
+      ~DequantShiftLayer.discardCurrentMapper
+      ~DequantShiftLayer.generate
+      ~DequantShiftLayer.parse
+      ~DequantShiftLayer.resetDiscardedMappers
+      ~DequantShiftLayer.typeCheck
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~DequantShiftLayer.maps
+      ~DequantShiftLayer.mapper
+      ~DequantShiftLayer.discardedMappers
+      ~DequantShiftLayer.node
+   
+   

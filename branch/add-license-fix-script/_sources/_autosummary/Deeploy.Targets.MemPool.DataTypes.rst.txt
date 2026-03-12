@@ -1,0 +1,37 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.MemPool.DataTypes
+=================================
+
+.. automodule:: Deeploy.Targets.MemPool.DataTypes
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      MemPoolStructDataTypes
+      ita_quant_t
+   
+   
+
+   
+   
+   
+
+
+

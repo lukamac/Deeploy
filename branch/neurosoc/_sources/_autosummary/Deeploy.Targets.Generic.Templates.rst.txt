@@ -1,0 +1,91 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Templates
+=================================
+
+.. automodule:: Deeploy.Targets.Generic.Templates
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   AddTemplate
+   AllocateTemplate
+   ClosureTemplate
+   ConcatTemplate
+   ConvTemplate
+   DWConvTemplate
+   DebugPrintTemplate
+   DequantTemplate
+   DummyTemplate
+   FloatAddTemplate
+   FloatAvgPoolTemplate
+   FloatConvTemplate
+   FloatDWConvTemplate
+   FloatDivTemplate
+   FloatFusedAddReluTemplate
+   FloatFusedConvReluTemplate
+   FloatGELUTemplate
+   FloatGemmTemplate
+   FloatLayernormTemplate
+   FloatMatMulTemplate
+   FloatMaxPoolTemplate
+   FloatMulTemplate
+   FloatPadTemplate
+   FloatReduceMeanTemplate
+   FloatReduceSumTemplate
+   FloatReluTemplate
+   FloatSoftmaxTemplate
+   FreeTemplate
+   GatherTemplate
+   GemmTemplate
+   ITAMaxTemplate
+   ITAPartialMaxTemplate
+   IntegerDivTemplate
+   MatMulTemplate
+   MaxPoolTemplate
+   MulTemplate
+   PadTemplate
+   QuantTemplate
+   RQAddTemplate
+   RQIntegerDivTemplate
+   RQSiGELUTemplate
+   RQSiHardswishTemplate
+   ReduceMeanTemplate
+   ReduceSumTemplate
+   RequantShiftTemplate
+   ReshapeTemplate
+   SkipTemplate
+   SliceTemplate
+   TransposeTemplate
+   iGELUTemplate
+   iHardswishTemplate
+   iLayernormTemplate
+   iNoNormTemplate
+   iRMSNormTemplate
+   iSoftmaxPreAllocatedBuffTemplate
+   iSoftmaxTemplate
+

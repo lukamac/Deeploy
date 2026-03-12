@@ -1,0 +1,44 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TileConstraints.BOPTileConstraint.BOPScalarTileConstraint
+=================================================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.TileConstraints.BOPTileConstraint
+
+.. autoclass:: BOPScalarTileConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~BOPScalarTileConstraint.__init__
+      ~BOPScalarTileConstraint.addGeometricalConstraint
+      ~BOPScalarTileConstraint.addPolicyConstraint
+      ~BOPScalarTileConstraint.constructSymbolicNodeRep
+      ~BOPScalarTileConstraint.extractBaseAddr
+      ~BOPScalarTileConstraint.getBaseAddr
+      ~BOPScalarTileConstraint.sanitizeTilingSchedule
+      ~BOPScalarTileConstraint.serializeTilingSolution
+      ~BOPScalarTileConstraint.wrapTilingSolution
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~BOPScalarTileConstraint.dataIn1Name
+      ~BOPScalarTileConstraint.dataIn2Name
+      ~BOPScalarTileConstraint.dataOutName
+   
+   

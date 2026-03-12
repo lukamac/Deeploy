@@ -1,0 +1,34 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.NodeTemplate.ElementwiseScalarTemplate
+===============================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.NodeTemplate
+
+.. autoclass:: ElementwiseScalarTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~ElementwiseScalarTemplate.__init__
+      ~ElementwiseScalarTemplate.alignShapes
+      ~ElementwiseScalarTemplate.alignToContext
+      ~ElementwiseScalarTemplate.computeTransientBuffersSize
+      ~ElementwiseScalarTemplate.generate
+      ~ElementwiseScalarTemplate.hoistTransientBuffers
+      ~ElementwiseScalarTemplate.internalSize
+   
+   
+
+   
+   
+   

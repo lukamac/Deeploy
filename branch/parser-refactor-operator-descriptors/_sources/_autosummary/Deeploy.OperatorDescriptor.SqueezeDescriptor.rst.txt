@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.SqueezeDescriptor
+============================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: SqueezeDescriptor
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SqueezeDescriptor.__init__
+      ~SqueezeDescriptor.canonicalize
+      ~SqueezeDescriptor.check
+      ~SqueezeDescriptor.parse
+      ~SqueezeDescriptor.parseAttrs
+      ~SqueezeDescriptor.parseTensors
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SqueezeDescriptor.inputDescriptor
+      ~SqueezeDescriptor.outputDescriptor
+      ~SqueezeDescriptor.attrDescriptors
+   
+   

@@ -1,0 +1,45 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.OptimizationPasses.BindingsOptimizationPasses.PassClasses
+==================================================================================
+
+.. automodule:: Deeploy.CommonExtensions.OptimizationPasses.BindingsOptimizationPasses.PassClasses
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      bindingaware
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      BindingAwarePassMixIn
+      BindingAwareReplaceSequentialPatternPassMixIn
+      BindingAwareSequentialPassMixIn
+   
+   
+
+   
+   
+   
+
+
+

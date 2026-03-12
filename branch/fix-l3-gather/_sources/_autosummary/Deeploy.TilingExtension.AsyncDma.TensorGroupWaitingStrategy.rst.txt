@@ -1,0 +1,25 @@
+Deeploy.TilingExtension.AsyncDma.TensorGroupWaitingStrategy
+===========================================================
+
+.. currentmodule:: Deeploy.TilingExtension.AsyncDma
+
+.. autoclass:: TensorGroupWaitingStrategy
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~TensorGroupWaitingStrategy.__init__
+      ~TensorGroupWaitingStrategy.getFuture
+   
+   
+
+   
+   
+   

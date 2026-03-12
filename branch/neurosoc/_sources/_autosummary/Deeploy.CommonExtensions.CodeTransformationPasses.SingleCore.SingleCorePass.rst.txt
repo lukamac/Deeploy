@@ -1,0 +1,29 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.CodeTransformationPasses.SingleCore.SingleCorePass
+===========================================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.CodeTransformationPasses.SingleCore
+
+.. autoclass:: SingleCorePass
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SingleCorePass.__init__
+      ~SingleCorePass.apply
+   
+   
+
+   
+   
+   

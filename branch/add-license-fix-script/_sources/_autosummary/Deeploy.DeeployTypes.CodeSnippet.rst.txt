@@ -1,0 +1,36 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.DeeployTypes.CodeSnippet
+================================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: CodeSnippet
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~CodeSnippet.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~CodeSnippet.template
+      ~CodeSnippet.operatorRepresentation
+   
+   

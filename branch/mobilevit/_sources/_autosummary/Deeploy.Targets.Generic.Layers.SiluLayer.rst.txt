@@ -1,0 +1,43 @@
+Deeploy.Targets.Generic.Layers.SiluLayer
+========================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Layers
+
+.. autoclass:: SiluLayer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SiluLayer.__init__
+      ~SiluLayer.bind
+      ~SiluLayer.broadcast
+      ~SiluLayer.codeTransform
+      ~SiluLayer.computeOps
+      ~SiluLayer.computeShapes
+      ~SiluLayer.discardCurrentMapper
+      ~SiluLayer.generate
+      ~SiluLayer.parse
+      ~SiluLayer.resetDiscardedMappers
+      ~SiluLayer.typeCheck
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SiluLayer.maps
+      ~SiluLayer.mapper
+      ~SiluLayer.discardedMappers
+      ~SiluLayer.node
+   
+   

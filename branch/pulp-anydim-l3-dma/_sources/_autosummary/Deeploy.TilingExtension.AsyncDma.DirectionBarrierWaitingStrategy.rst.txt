@@ -1,0 +1,25 @@
+Deeploy.TilingExtension.AsyncDma.DirectionBarrierWaitingStrategy
+================================================================
+
+.. currentmodule:: Deeploy.TilingExtension.AsyncDma
+
+.. autoclass:: DirectionBarrierWaitingStrategy
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~DirectionBarrierWaitingStrategy.__init__
+      ~DirectionBarrierWaitingStrategy.getFuture
+   
+   
+
+   
+   
+   

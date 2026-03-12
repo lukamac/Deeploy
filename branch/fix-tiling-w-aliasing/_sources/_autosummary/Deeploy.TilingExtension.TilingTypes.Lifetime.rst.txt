@@ -1,0 +1,39 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.TilingExtension.TilingTypes.Lifetime
+============================================
+
+.. currentmodule:: Deeploy.TilingExtension.TilingTypes
+
+.. autoclass:: Lifetime
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~Lifetime.__init__
+      ~Lifetime.contains
+      ~Lifetime.overlaps
+      ~Lifetime.setEnd
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Lifetime.end
+      ~Lifetime.start
+      ~Lifetime.duration
+   
+   

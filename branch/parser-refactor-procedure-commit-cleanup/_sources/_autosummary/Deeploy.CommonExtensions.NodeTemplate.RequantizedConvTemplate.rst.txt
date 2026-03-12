@@ -1,0 +1,35 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.NodeTemplate.RequantizedConvTemplate
+=============================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.NodeTemplate
+
+.. autoclass:: RequantizedConvTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~RequantizedConvTemplate.__init__
+      ~RequantizedConvTemplate.alignShapes
+      ~RequantizedConvTemplate.alignToContext
+      ~RequantizedConvTemplate.computeTransientBuffersSize
+      ~RequantizedConvTemplate.generate
+      ~RequantizedConvTemplate.hoistTransientBuffers
+      ~RequantizedConvTemplate.internalSize
+      ~RequantizedConvTemplate.minPerChannelTensorShape
+   
+   
+
+   
+   
+   

@@ -1,0 +1,34 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.NodeTemplate.RequantShiftTemplate
+==========================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.NodeTemplate
+
+.. autoclass:: RequantShiftTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~RequantShiftTemplate.__init__
+      ~RequantShiftTemplate.alignShapes
+      ~RequantShiftTemplate.alignToContext
+      ~RequantShiftTemplate.computeTransientBuffersSize
+      ~RequantShiftTemplate.generate
+      ~RequantShiftTemplate.hoistTransientBuffers
+      ~RequantShiftTemplate.internalSize
+   
+   
+
+   
+   
+   

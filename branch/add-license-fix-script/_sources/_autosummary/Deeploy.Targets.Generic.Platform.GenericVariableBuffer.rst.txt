@@ -1,0 +1,46 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Platform.GenericVariableBuffer
+======================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Platform
+
+.. autoclass:: GenericVariableBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~GenericVariableBuffer.__init__
+      ~GenericVariableBuffer.add_aliases
+      ~GenericVariableBuffer.alloc
+      ~GenericVariableBuffer.dealloc
+      ~GenericVariableBuffer.fromNode
+      ~GenericVariableBuffer.get_aliases_of
+      ~GenericVariableBuffer.has_live_ancestors
+      ~GenericVariableBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~GenericVariableBuffer.allocTemplate
+      ~GenericVariableBuffer.deallocTemplate
+      ~GenericVariableBuffer.initTemplate
+      ~GenericVariableBuffer.name
+      ~GenericVariableBuffer.shape
+   
+   

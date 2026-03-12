@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.FloatTupleUnpack
+===========================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: FloatTupleUnpack

@@ -1,0 +1,39 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Parsers.MulScalarBParser
+================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Parsers
+
+.. autoclass:: MulScalarBParser
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~MulScalarBParser.__init__
+      ~MulScalarBParser.parse
+      ~MulScalarBParser.parseInputs
+      ~MulScalarBParser.parseNode
+      ~MulScalarBParser.parseNodeCtxt
+      ~MulScalarBParser.parseOutputs
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MulScalarBParser.operatorRepresentation
+   
+   

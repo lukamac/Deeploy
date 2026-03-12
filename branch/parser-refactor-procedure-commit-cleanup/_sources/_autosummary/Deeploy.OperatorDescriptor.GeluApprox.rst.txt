@@ -1,0 +1,82 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.GeluApprox
+=====================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: GeluApprox
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~GeluApprox.encode
+      ~GeluApprox.replace
+      ~GeluApprox.split
+      ~GeluApprox.rsplit
+      ~GeluApprox.join
+      ~GeluApprox.capitalize
+      ~GeluApprox.casefold
+      ~GeluApprox.title
+      ~GeluApprox.center
+      ~GeluApprox.count
+      ~GeluApprox.expandtabs
+      ~GeluApprox.find
+      ~GeluApprox.partition
+      ~GeluApprox.index
+      ~GeluApprox.ljust
+      ~GeluApprox.lower
+      ~GeluApprox.lstrip
+      ~GeluApprox.rfind
+      ~GeluApprox.rindex
+      ~GeluApprox.rjust
+      ~GeluApprox.rstrip
+      ~GeluApprox.rpartition
+      ~GeluApprox.splitlines
+      ~GeluApprox.strip
+      ~GeluApprox.swapcase
+      ~GeluApprox.translate
+      ~GeluApprox.upper
+      ~GeluApprox.startswith
+      ~GeluApprox.endswith
+      ~GeluApprox.removeprefix
+      ~GeluApprox.removesuffix
+      ~GeluApprox.isascii
+      ~GeluApprox.islower
+      ~GeluApprox.isupper
+      ~GeluApprox.istitle
+      ~GeluApprox.isspace
+      ~GeluApprox.isdecimal
+      ~GeluApprox.isdigit
+      ~GeluApprox.isnumeric
+      ~GeluApprox.isalpha
+      ~GeluApprox.isalnum
+      ~GeluApprox.isidentifier
+      ~GeluApprox.isprintable
+      ~GeluApprox.zfill
+      ~GeluApprox.format
+      ~GeluApprox.format_map
+      ~GeluApprox.maketrans
+      ~GeluApprox.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~GeluApprox.tanh
+      ~GeluApprox.none
+   
+   

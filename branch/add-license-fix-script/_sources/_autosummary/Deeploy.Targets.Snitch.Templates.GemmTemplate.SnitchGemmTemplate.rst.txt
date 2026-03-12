@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Snitch.Templates.GemmTemplate.SnitchGemmTemplate
+================================================================
+
+.. currentmodule:: Deeploy.Targets.Snitch.Templates.GemmTemplate
+
+.. autoclass:: SnitchGemmTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SnitchGemmTemplate.__init__
+      ~SnitchGemmTemplate.alignToContext
+      ~SnitchGemmTemplate.computeTransientBuffersSize
+      ~SnitchGemmTemplate.generate
+      ~SnitchGemmTemplate.hoistTransientBuffers
+      ~SnitchGemmTemplate.internalSize
+   
+   
+
+   
+   
+   

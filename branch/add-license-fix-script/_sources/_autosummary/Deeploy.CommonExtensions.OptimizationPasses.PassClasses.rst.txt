@@ -1,0 +1,57 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.OptimizationPasses.PassClasses
+=======================================================
+
+.. automodule:: Deeploy.CommonExtensions.OptimizationPasses.PassClasses
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      contextagnostic
+      contextaware
+      deleteNode
+      replaceInsertNode
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      ContextAgnosticPassMixIn
+      ContextAgnosticReplaceMatchWithModulePassMixIn
+      ContextAgnosticReplaceSequentialPatternPassMixIn
+      ContextAgnosticSequentialPassMixIn
+      ContextAwarePassMixIn
+      ContextAwareReplaceMatchWithModulePassMixIn
+      ContextAwareReplaceSequentialPatternPassMixIn
+      ContextAwareSequentialPassMixIn
+      Pass
+      ReplaceMatchWithModulePass
+      ReplaceSequentialPatternPass
+      SequentialPass
+   
+   
+
+   
+   
+   
+
+
+

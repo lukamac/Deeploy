@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.TilingExtension.MemoryConstraintFlows.PatternMemoryConstraintFlow
+=========================================================================
+
+.. currentmodule:: Deeploy.TilingExtension.MemoryConstraintFlows
+
+.. autoclass:: PatternMemoryConstraintFlow
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PatternMemoryConstraintFlow.__init__
+      ~PatternMemoryConstraintFlow.computeGenSet
+      ~PatternMemoryConstraintFlow.computeKillSet
+      ~PatternMemoryConstraintFlow.flow
+      ~PatternMemoryConstraintFlow.flowStep
+      ~PatternMemoryConstraintFlow.preComputeStep
+   
+   
+
+   
+   
+   

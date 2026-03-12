@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.FloatUnpack
+======================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: FloatUnpack

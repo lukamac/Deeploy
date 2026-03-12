@@ -1,0 +1,43 @@
+Deeploy.Targets.PULPOpen.Platform.PULPTransientBuffer
+=====================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Platform
+
+.. autoclass:: PULPTransientBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPTransientBuffer.__init__
+      ~PULPTransientBuffer.add_aliases
+      ~PULPTransientBuffer.alloc
+      ~PULPTransientBuffer.dealloc
+      ~PULPTransientBuffer.fromNode
+      ~PULPTransientBuffer.fromVariableBuffer
+      ~PULPTransientBuffer.get_aliases_of
+      ~PULPTransientBuffer.has_live_ancestors
+      ~PULPTransientBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~PULPTransientBuffer.allocTemplate
+      ~PULPTransientBuffer.deallocTemplate
+      ~PULPTransientBuffer.initTemplate
+      ~PULPTransientBuffer.size
+      ~PULPTransientBuffer.name
+      ~PULPTransientBuffer.shape
+   
+   

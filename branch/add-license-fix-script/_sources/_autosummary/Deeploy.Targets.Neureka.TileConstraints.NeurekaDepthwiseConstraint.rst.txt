@@ -1,0 +1,39 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Neureka.TileConstraints.NeurekaDepthwiseConstraint
+==================================================================
+
+.. automodule:: Deeploy.Targets.Neureka.TileConstraints.NeurekaDepthwiseConstraint
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      NeurekaDWConv2DTileConstraint
+      NeurekaRQSDWConv2DTileConstraint
+      NeurekaWmemDWConv2DTileConstraint
+      NeurekaWmemRQSDWConv2DTileConstraint
+   
+   
+
+   
+   
+   
+
+
+

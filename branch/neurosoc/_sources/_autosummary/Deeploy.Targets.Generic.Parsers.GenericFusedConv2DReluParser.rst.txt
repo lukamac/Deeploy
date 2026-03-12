@@ -1,0 +1,39 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Parsers.GenericFusedConv2DReluParser
+============================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Parsers
+
+.. autoclass:: GenericFusedConv2DReluParser
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~GenericFusedConv2DReluParser.__init__
+      ~GenericFusedConv2DReluParser.parse
+      ~GenericFusedConv2DReluParser.parseInputs
+      ~GenericFusedConv2DReluParser.parseNode
+      ~GenericFusedConv2DReluParser.parseNodeCtxt
+      ~GenericFusedConv2DReluParser.parseOutputs
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~GenericFusedConv2DReluParser.operatorRepresentation
+   
+   

@@ -1,0 +1,37 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TileConstraints.ConcatTileConstraint.ConcatTileConstraint
+=================================================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.TileConstraints.ConcatTileConstraint
+
+.. autoclass:: ConcatTileConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~ConcatTileConstraint.__init__
+      ~ConcatTileConstraint.addGeometricalConstraint
+      ~ConcatTileConstraint.addPolicyConstraint
+      ~ConcatTileConstraint.constructSymbolicNodeRep
+      ~ConcatTileConstraint.extractBaseAddr
+      ~ConcatTileConstraint.getBaseAddr
+      ~ConcatTileConstraint.sanitizeTilingSchedule
+      ~ConcatTileConstraint.serializeTilingSolution
+      ~ConcatTileConstraint.wrapTilingSolution
+   
+   
+
+   
+   
+   

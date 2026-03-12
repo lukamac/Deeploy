@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.RequantizedAddDescriptor
+===================================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: RequantizedAddDescriptor
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~RequantizedAddDescriptor.__init__
+      ~RequantizedAddDescriptor.canonicalize
+      ~RequantizedAddDescriptor.check
+      ~RequantizedAddDescriptor.parse
+      ~RequantizedAddDescriptor.parseAttrs
+      ~RequantizedAddDescriptor.parseTensors
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~RequantizedAddDescriptor.inputDescriptor
+      ~RequantizedAddDescriptor.outputDescriptor
+      ~RequantizedAddDescriptor.attrDescriptors
+   
+   

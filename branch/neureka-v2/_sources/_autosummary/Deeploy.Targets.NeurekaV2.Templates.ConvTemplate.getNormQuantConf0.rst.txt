@@ -1,0 +1,6 @@
+Deeploy.Targets.NeurekaV2.Templates.ConvTemplate.getNormQuantConf0
+==================================================================
+
+.. currentmodule:: Deeploy.Targets.NeurekaV2.Templates.ConvTemplate
+
+.. autofunction:: getNormQuantConf0

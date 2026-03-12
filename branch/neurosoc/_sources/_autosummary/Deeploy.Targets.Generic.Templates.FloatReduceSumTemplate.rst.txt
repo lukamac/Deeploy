@@ -1,0 +1,42 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Templates.FloatReduceSumTemplate
+========================================================
+
+.. automodule:: Deeploy.Targets.Generic.Templates.FloatReduceSumTemplate
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      coalesce_axes_rowmajor
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      ReduceSumTemplate
+   
+   
+
+   
+   
+   
+
+
+

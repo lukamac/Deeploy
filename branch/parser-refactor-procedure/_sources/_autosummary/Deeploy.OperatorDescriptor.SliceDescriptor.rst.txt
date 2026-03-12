@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.SliceDescriptor
+==========================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: SliceDescriptor
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SliceDescriptor.__init__
+      ~SliceDescriptor.canonicalize
+      ~SliceDescriptor.check
+      ~SliceDescriptor.parse
+      ~SliceDescriptor.parseAttrs
+      ~SliceDescriptor.parseTensors
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SliceDescriptor.inputDescriptor
+      ~SliceDescriptor.outputDescriptor
+      ~SliceDescriptor.attrDescriptors
+   
+   

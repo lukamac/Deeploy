@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.BoolUnpack
+=====================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: BoolUnpack

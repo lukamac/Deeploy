@@ -1,0 +1,6 @@
+Deeploy.Targets.NeurekaV2.Templates.ConvTemplate.ioStridesFromDimensions
+========================================================================
+
+.. currentmodule:: Deeploy.Targets.NeurekaV2.Templates.ConvTemplate
+
+.. autofunction:: ioStridesFromDimensions

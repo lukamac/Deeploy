@@ -1,0 +1,38 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.OptimizationPasses.Matchers.Match
+==========================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.OptimizationPasses.Matchers
+
+.. autoclass:: Match
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~Match.__init__
+      ~Match.count
+      ~Match.index
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Match.anchor
+      ~Match.nodes_map
+   
+   

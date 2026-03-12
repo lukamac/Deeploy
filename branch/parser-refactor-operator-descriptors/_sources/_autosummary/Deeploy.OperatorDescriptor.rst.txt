@@ -1,0 +1,58 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor
+==========================
+
+.. automodule:: Deeploy.OperatorDescriptor
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      BoolUnpack
+      FloatTupleUnpack
+      FloatUnpack
+      IntTupleIfNotSingleItemUnpack
+      IntTupleUnpack
+      IntUnpack
+      attrToInputTensor
+      inputTensorToAttr
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      AutoPad
+      CeilMode
+      GeluApprox
+      PadMode
+      PadModeOld
+      ReduceMeanDescriptor
+      RequantizedAddDescriptor
+      RequantizedOperatorDescriptor
+      SliceDescriptor
+      SqueezeDescriptor
+   
+   
+
+   
+   
+   
+
+
+

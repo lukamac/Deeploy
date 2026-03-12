@@ -1,0 +1,84 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.PadMode
+==================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: PadMode
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PadMode.encode
+      ~PadMode.replace
+      ~PadMode.split
+      ~PadMode.rsplit
+      ~PadMode.join
+      ~PadMode.capitalize
+      ~PadMode.casefold
+      ~PadMode.title
+      ~PadMode.center
+      ~PadMode.count
+      ~PadMode.expandtabs
+      ~PadMode.find
+      ~PadMode.partition
+      ~PadMode.index
+      ~PadMode.ljust
+      ~PadMode.lower
+      ~PadMode.lstrip
+      ~PadMode.rfind
+      ~PadMode.rindex
+      ~PadMode.rjust
+      ~PadMode.rstrip
+      ~PadMode.rpartition
+      ~PadMode.splitlines
+      ~PadMode.strip
+      ~PadMode.swapcase
+      ~PadMode.translate
+      ~PadMode.upper
+      ~PadMode.startswith
+      ~PadMode.endswith
+      ~PadMode.removeprefix
+      ~PadMode.removesuffix
+      ~PadMode.isascii
+      ~PadMode.islower
+      ~PadMode.isupper
+      ~PadMode.istitle
+      ~PadMode.isspace
+      ~PadMode.isdecimal
+      ~PadMode.isdigit
+      ~PadMode.isnumeric
+      ~PadMode.isalpha
+      ~PadMode.isalnum
+      ~PadMode.isidentifier
+      ~PadMode.isprintable
+      ~PadMode.zfill
+      ~PadMode.format
+      ~PadMode.format_map
+      ~PadMode.maketrans
+      ~PadMode.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~PadMode.constant
+      ~PadMode.reflect
+      ~PadMode.edge
+      ~PadMode.wrap
+   
+   

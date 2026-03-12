@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.DeeployTypes.TransientBuffer
+====================================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: TransientBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~TransientBuffer.__init__
+      ~TransientBuffer.add_aliases
+      ~TransientBuffer.alloc
+      ~TransientBuffer.dealloc
+      ~TransientBuffer.fromNode
+      ~TransientBuffer.fromVariableBuffer
+      ~TransientBuffer.get_aliases_of
+      ~TransientBuffer.has_live_ancestors
+      ~TransientBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~TransientBuffer.size
+      ~TransientBuffer.initTemplate
+      ~TransientBuffer.allocTemplate
+      ~TransientBuffer.deallocTemplate
+      ~TransientBuffer.name
+      ~TransientBuffer.shape
+   
+   

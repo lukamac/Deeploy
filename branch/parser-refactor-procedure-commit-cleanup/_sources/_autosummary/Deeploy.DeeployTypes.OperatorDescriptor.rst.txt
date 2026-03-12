@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.DeeployTypes.OperatorDescriptor
+=======================================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: OperatorDescriptor
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~OperatorDescriptor.__init__
+      ~OperatorDescriptor.canonicalize
+      ~OperatorDescriptor.check
+      ~OperatorDescriptor.parse
+      ~OperatorDescriptor.parseAttrs
+      ~OperatorDescriptor.parseTensors
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~OperatorDescriptor.inputDescriptor
+      ~OperatorDescriptor.outputDescriptor
+      ~OperatorDescriptor.attrDescriptors
+   
+   

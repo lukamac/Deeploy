@@ -1,0 +1,46 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.MemPool.Platform.MemPoolStructBuffer
+====================================================
+
+.. currentmodule:: Deeploy.Targets.MemPool.Platform
+
+.. autoclass:: MemPoolStructBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~MemPoolStructBuffer.__init__
+      ~MemPoolStructBuffer.add_aliases
+      ~MemPoolStructBuffer.alloc
+      ~MemPoolStructBuffer.dealloc
+      ~MemPoolStructBuffer.fromNode
+      ~MemPoolStructBuffer.get_aliases_of
+      ~MemPoolStructBuffer.has_live_ancestors
+      ~MemPoolStructBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MemPoolStructBuffer.allocTemplate
+      ~MemPoolStructBuffer.deallocTemplate
+      ~MemPoolStructBuffer.initTemplate
+      ~MemPoolStructBuffer.name
+      ~MemPoolStructBuffer.shape
+   
+   

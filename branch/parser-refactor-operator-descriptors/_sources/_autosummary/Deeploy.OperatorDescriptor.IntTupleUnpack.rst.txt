@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.IntTupleUnpack
+=========================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: IntTupleUnpack

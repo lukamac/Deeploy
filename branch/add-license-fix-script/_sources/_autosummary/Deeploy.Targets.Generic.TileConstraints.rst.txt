@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TileConstraints
+=======================================
+
+.. automodule:: Deeploy.Targets.Generic.TileConstraints
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   AddTileConstraint
+   BOPTileConstraint
+   ConcatTileConstraint
+   MulTileConstraint
+   NOPTileConstraint
+   RQSiGELUTileConstraint
+   RQSiHardswishTileConstraint
+   TransposeTileConstraint
+   UnaryTileConstraint
+   UntiledTileConstraint
+   iHardswishTileConstraint
+   iRMSNormTileConstraint
+

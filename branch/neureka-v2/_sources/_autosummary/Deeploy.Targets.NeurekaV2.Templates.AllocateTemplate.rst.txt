@@ -1,0 +1,23 @@
+Deeploy.Targets.NeurekaV2.Templates.AllocateTemplate
+====================================================
+
+.. automodule:: Deeploy.Targets.NeurekaV2.Templates.AllocateTemplate
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+

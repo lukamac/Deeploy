@@ -1,0 +1,45 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.CortexM.Parsers
+===============================
+
+.. automodule:: Deeploy.Targets.CortexM.Parsers
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      CMSISCLCAParser
+      CMSISConv1DParser
+      CMSISConv2DParser
+      CMSISDWConv1DParser
+      CMSISDWConv2DParser
+      CMSISGEMMParser
+      CMSISLinearAttentionParser
+      CMSISLinearParser
+      CMSISMHSAParser
+      CMSISMaxPool2DParser
+   
+   
+
+   
+   
+   
+
+
+

@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Layers.SoftmaxLayer
+===========================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Layers
+
+.. autoclass:: SoftmaxLayer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SoftmaxLayer.__init__
+      ~SoftmaxLayer.bind
+      ~SoftmaxLayer.broadcast
+      ~SoftmaxLayer.codeTransform
+      ~SoftmaxLayer.computeOps
+      ~SoftmaxLayer.computeShapes
+      ~SoftmaxLayer.discardCurrentMapper
+      ~SoftmaxLayer.generate
+      ~SoftmaxLayer.parse
+      ~SoftmaxLayer.resetDiscardedMappers
+      ~SoftmaxLayer.typeCheck
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SoftmaxLayer.maps
+      ~SoftmaxLayer.mapper
+      ~SoftmaxLayer.discardedMappers
+      ~SoftmaxLayer.node
+   
+   

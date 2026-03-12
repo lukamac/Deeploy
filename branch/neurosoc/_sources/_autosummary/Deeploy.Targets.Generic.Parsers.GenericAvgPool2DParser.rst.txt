@@ -1,0 +1,39 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Parsers.GenericAvgPool2DParser
+======================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Parsers
+
+.. autoclass:: GenericAvgPool2DParser
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~GenericAvgPool2DParser.__init__
+      ~GenericAvgPool2DParser.parse
+      ~GenericAvgPool2DParser.parseInputs
+      ~GenericAvgPool2DParser.parseNode
+      ~GenericAvgPool2DParser.parseNodeCtxt
+      ~GenericAvgPool2DParser.parseOutputs
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~GenericAvgPool2DParser.operatorRepresentation
+   
+   

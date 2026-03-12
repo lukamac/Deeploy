@@ -1,0 +1,41 @@
+Deeploy.Targets.CortexM.Platform.CMSISStructBuffer
+==================================================
+
+.. currentmodule:: Deeploy.Targets.CortexM.Platform
+
+.. autoclass:: CMSISStructBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~CMSISStructBuffer.__init__
+      ~CMSISStructBuffer.add_aliases
+      ~CMSISStructBuffer.alloc
+      ~CMSISStructBuffer.dealloc
+      ~CMSISStructBuffer.fromNode
+      ~CMSISStructBuffer.get_aliases_of
+      ~CMSISStructBuffer.has_live_ancestors
+      ~CMSISStructBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~CMSISStructBuffer.allocTemplate
+      ~CMSISStructBuffer.deallocTemplate
+      ~CMSISStructBuffer.initTemplate
+      ~CMSISStructBuffer.name
+      ~CMSISStructBuffer.shape
+   
+   

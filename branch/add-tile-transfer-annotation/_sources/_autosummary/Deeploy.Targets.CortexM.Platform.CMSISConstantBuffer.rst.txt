@@ -1,0 +1,48 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.CortexM.Platform.CMSISConstantBuffer
+====================================================
+
+.. currentmodule:: Deeploy.Targets.CortexM.Platform
+
+.. autoclass:: CMSISConstantBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~CMSISConstantBuffer.__init__
+      ~CMSISConstantBuffer.add_aliases
+      ~CMSISConstantBuffer.alloc
+      ~CMSISConstantBuffer.dealloc
+      ~CMSISConstantBuffer.fromNode
+      ~CMSISConstantBuffer.fromVariableBuffer
+      ~CMSISConstantBuffer.get_aliases_of
+      ~CMSISConstantBuffer.has_live_ancestors
+      ~CMSISConstantBuffer.init
+      ~CMSISConstantBuffer.sizeInBytes
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~CMSISConstantBuffer.allocTemplate
+      ~CMSISConstantBuffer.deallocTemplate
+      ~CMSISConstantBuffer.initTemplate
+      ~CMSISConstantBuffer.values
+      ~CMSISConstantBuffer.name
+      ~CMSISConstantBuffer.shape
+   
+   

@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.IntTupleIfNotSingleItemUnpack
+========================================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: IntTupleIfNotSingleItemUnpack

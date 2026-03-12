@@ -1,0 +1,52 @@
+Deeploy.TilingExtension.TilingCodegen
+=====================================
+
+.. automodule:: Deeploy.TilingExtension.TilingCodegen
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      calculateFlatOffset
+      calculateFlatOffsetInBytes
+      calculateRectangleOffset
+      computeTileHyperRectangles
+      minimizeRectangle
+      minimizeRectangleDims
+      minimizeVariableReplacement
+      padOffset
+      padShape
+      padStride
+      stridesFromShape
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      AbsoluteHyperRectangle
+      HyperRectangle
+      MemoryTransfer
+      TilingSchedule
+      VariableReplacementScheme
+   
+   
+
+   
+   
+   
+
+
+

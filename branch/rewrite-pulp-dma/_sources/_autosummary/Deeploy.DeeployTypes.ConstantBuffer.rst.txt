@@ -1,0 +1,43 @@
+Deeploy.DeeployTypes.ConstantBuffer
+===================================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: ConstantBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~ConstantBuffer.__init__
+      ~ConstantBuffer.add_aliases
+      ~ConstantBuffer.alloc
+      ~ConstantBuffer.dealloc
+      ~ConstantBuffer.fromNode
+      ~ConstantBuffer.fromVariableBuffer
+      ~ConstantBuffer.get_aliases_of
+      ~ConstantBuffer.has_live_ancestors
+      ~ConstantBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ConstantBuffer.values
+      ~ConstantBuffer.initTemplate
+      ~ConstantBuffer.allocTemplate
+      ~ConstantBuffer.deallocTemplate
+      ~ConstantBuffer.name
+      ~ConstantBuffer.shape
+   
+   

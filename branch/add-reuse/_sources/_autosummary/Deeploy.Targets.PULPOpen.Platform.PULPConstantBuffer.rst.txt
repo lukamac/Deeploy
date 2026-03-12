@@ -1,0 +1,47 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Platform.PULPConstantBuffer
+====================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Platform
+
+.. autoclass:: PULPConstantBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPConstantBuffer.__init__
+      ~PULPConstantBuffer.add_aliases
+      ~PULPConstantBuffer.alloc
+      ~PULPConstantBuffer.dealloc
+      ~PULPConstantBuffer.fromNode
+      ~PULPConstantBuffer.fromVariableBuffer
+      ~PULPConstantBuffer.get_aliases_of
+      ~PULPConstantBuffer.has_live_ancestors
+      ~PULPConstantBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~PULPConstantBuffer.allocTemplate
+      ~PULPConstantBuffer.deallocTemplate
+      ~PULPConstantBuffer.initTemplate
+      ~PULPConstantBuffer.values
+      ~PULPConstantBuffer.name
+      ~PULPConstantBuffer.shape
+   
+   

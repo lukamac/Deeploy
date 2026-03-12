@@ -1,0 +1,46 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Snitch.Platform.SnitchStructBuffer
+==================================================
+
+.. currentmodule:: Deeploy.Targets.Snitch.Platform
+
+.. autoclass:: SnitchStructBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~SnitchStructBuffer.__init__
+      ~SnitchStructBuffer.add_aliases
+      ~SnitchStructBuffer.alloc
+      ~SnitchStructBuffer.dealloc
+      ~SnitchStructBuffer.fromNode
+      ~SnitchStructBuffer.get_aliases_of
+      ~SnitchStructBuffer.has_live_ancestors
+      ~SnitchStructBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SnitchStructBuffer.allocTemplate
+      ~SnitchStructBuffer.deallocTemplate
+      ~SnitchStructBuffer.initTemplate
+      ~SnitchStructBuffer.name
+      ~SnitchStructBuffer.shape
+   
+   

@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.MemPool.Platform.MemPoolTransientBuffer
+=======================================================
+
+.. currentmodule:: Deeploy.Targets.MemPool.Platform
+
+.. autoclass:: MemPoolTransientBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~MemPoolTransientBuffer.__init__
+      ~MemPoolTransientBuffer.add_aliases
+      ~MemPoolTransientBuffer.alloc
+      ~MemPoolTransientBuffer.dealloc
+      ~MemPoolTransientBuffer.fromNode
+      ~MemPoolTransientBuffer.fromVariableBuffer
+      ~MemPoolTransientBuffer.get_aliases_of
+      ~MemPoolTransientBuffer.has_live_ancestors
+      ~MemPoolTransientBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MemPoolTransientBuffer.allocTemplate
+      ~MemPoolTransientBuffer.deallocTemplate
+      ~MemPoolTransientBuffer.initTemplate
+      ~MemPoolTransientBuffer.size
+      ~MemPoolTransientBuffer.name
+      ~MemPoolTransientBuffer.shape
+   
+   

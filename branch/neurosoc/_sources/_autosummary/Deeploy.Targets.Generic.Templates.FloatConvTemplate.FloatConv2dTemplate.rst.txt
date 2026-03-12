@@ -1,0 +1,33 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Templates.FloatConvTemplate.FloatConv2dTemplate
+=======================================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Templates.FloatConvTemplate
+
+.. autoclass:: FloatConv2dTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~FloatConv2dTemplate.__init__
+      ~FloatConv2dTemplate.alignToContext
+      ~FloatConv2dTemplate.computeTransientBuffersSize
+      ~FloatConv2dTemplate.generate
+      ~FloatConv2dTemplate.hoistTransientBuffers
+      ~FloatConv2dTemplate.internalSize
+   
+   
+
+   
+   
+   

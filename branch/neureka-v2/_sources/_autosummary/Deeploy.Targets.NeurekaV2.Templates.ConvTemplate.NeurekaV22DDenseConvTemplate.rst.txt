@@ -1,0 +1,32 @@
+Deeploy.Targets.NeurekaV2.Templates.ConvTemplate.NeurekaV22DDenseConvTemplate
+=============================================================================
+
+.. currentmodule:: Deeploy.Targets.NeurekaV2.Templates.ConvTemplate
+
+.. autoclass:: NeurekaV22DDenseConvTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~NeurekaV22DDenseConvTemplate.__init__
+      ~NeurekaV22DDenseConvTemplate.alignToContext
+      ~NeurekaV22DDenseConvTemplate.computeTransientBuffersSize
+      ~NeurekaV22DDenseConvTemplate.generate
+      ~NeurekaV22DDenseConvTemplate.getConf0
+      ~NeurekaV22DDenseConvTemplate.getCounters
+      ~NeurekaV22DDenseConvTemplate.getWeightStrides
+      ~NeurekaV22DDenseConvTemplate.hoistTransientBuffers
+      ~NeurekaV22DDenseConvTemplate.internalSize
+   
+   
+
+   
+   
+   

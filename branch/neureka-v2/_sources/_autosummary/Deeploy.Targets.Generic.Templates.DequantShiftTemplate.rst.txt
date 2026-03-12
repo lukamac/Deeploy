@@ -1,0 +1,23 @@
+Deeploy.Targets.Generic.Templates.DequantShiftTemplate
+======================================================
+
+.. automodule:: Deeploy.Targets.Generic.Templates.DequantShiftTemplate
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+

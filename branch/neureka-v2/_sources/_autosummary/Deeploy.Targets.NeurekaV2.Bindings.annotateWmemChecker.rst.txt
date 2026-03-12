@@ -1,0 +1,6 @@
+Deeploy.Targets.NeurekaV2.Bindings.annotateWmemChecker
+======================================================
+
+.. currentmodule:: Deeploy.Targets.NeurekaV2.Bindings
+
+.. autofunction:: annotateWmemChecker

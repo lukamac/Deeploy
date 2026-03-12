@@ -1,0 +1,35 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes
+=========================================================
+
+.. automodule:: Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      merge_gemm_rq_fun
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+

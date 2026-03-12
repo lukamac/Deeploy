@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Templates.GEMMTemplate.PULPGEMMTemplate
+================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Templates.GEMMTemplate
+
+.. autoclass:: PULPGEMMTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPGEMMTemplate.__init__
+      ~PULPGEMMTemplate.alignToContext
+      ~PULPGEMMTemplate.computeTransientBuffersSize
+      ~PULPGEMMTemplate.generate
+      ~PULPGEMMTemplate.hoistTransientBuffers
+      ~PULPGEMMTemplate.internalSize
+   
+   
+
+   
+   
+   

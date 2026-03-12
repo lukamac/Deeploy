@@ -1,0 +1,6 @@
+Deeploy.OperatorDescriptor.inputTensorToAttr
+============================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autofunction:: inputTensorToAttr

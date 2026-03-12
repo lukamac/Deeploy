@@ -1,0 +1,30 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.DeeployTypes.VariadicIoDesc
+===================================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: VariadicIoDesc
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~VariadicIoDesc.__init__
+      ~VariadicIoDesc.checkTensors
+      ~VariadicIoDesc.symbolicName
+   
+   
+
+   
+   
+   

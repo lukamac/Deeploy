@@ -1,0 +1,41 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.CommonExtensions.CodeTransformationPasses
+=================================================
+
+.. automodule:: Deeploy.CommonExtensions.CodeTransformationPasses
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   Closure
+   CycleMeasurement
+   IntrospectiveCodeTransformation
+   MemoryAllocation
+   PrintInputs
+

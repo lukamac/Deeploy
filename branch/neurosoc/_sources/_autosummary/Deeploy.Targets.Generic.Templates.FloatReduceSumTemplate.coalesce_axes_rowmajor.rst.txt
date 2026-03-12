@@ -1,0 +1,6 @@
+Deeploy.Targets.Generic.Templates.FloatReduceSumTemplate.coalesce\_axes\_rowmajor
+=================================================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Templates.FloatReduceSumTemplate
+
+.. autofunction:: coalesce_axes_rowmajor

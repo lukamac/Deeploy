@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Templates.TransposeTemplate.PULPTransposeTemplate
+==========================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Templates.TransposeTemplate
+
+.. autoclass:: PULPTransposeTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPTransposeTemplate.__init__
+      ~PULPTransposeTemplate.alignToContext
+      ~PULPTransposeTemplate.computeTransientBuffersSize
+      ~PULPTransposeTemplate.generate
+      ~PULPTransposeTemplate.hoistTransientBuffers
+      ~PULPTransposeTemplate.internalSize
+   
+   
+
+   
+   
+   

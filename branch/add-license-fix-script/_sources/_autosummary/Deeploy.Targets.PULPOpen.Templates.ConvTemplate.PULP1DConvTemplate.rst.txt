@@ -1,0 +1,34 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Templates.ConvTemplate.PULP1DConvTemplate
+==================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Templates.ConvTemplate
+
+.. autoclass:: PULP1DConvTemplate
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULP1DConvTemplate.__init__
+      ~PULP1DConvTemplate.alignToContext
+      ~PULP1DConvTemplate.computeTransientBuffersSize
+      ~PULP1DConvTemplate.generate
+      ~PULP1DConvTemplate.hoistTransientBuffers
+      ~PULP1DConvTemplate.internalSize
+   
+   
+
+   
+   
+   

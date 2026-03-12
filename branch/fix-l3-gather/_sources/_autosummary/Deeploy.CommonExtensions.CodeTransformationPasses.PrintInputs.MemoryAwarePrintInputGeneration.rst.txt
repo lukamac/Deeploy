@@ -1,0 +1,34 @@
+Deeploy.CommonExtensions.CodeTransformationPasses.PrintInputs.MemoryAwarePrintInputGeneration
+=============================================================================================
+
+.. currentmodule:: Deeploy.CommonExtensions.CodeTransformationPasses.PrintInputs
+
+.. autoclass:: MemoryAwarePrintInputGeneration
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~MemoryAwarePrintInputGeneration.__init__
+      ~MemoryAwarePrintInputGeneration.apply
+      ~MemoryAwarePrintInputGeneration.dereferenceVars
+      ~MemoryAwarePrintInputGeneration.extractDynamicReferences
+      ~MemoryAwarePrintInputGeneration.indexVars
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MemoryAwarePrintInputGeneration.parseTreeDict
+   
+   

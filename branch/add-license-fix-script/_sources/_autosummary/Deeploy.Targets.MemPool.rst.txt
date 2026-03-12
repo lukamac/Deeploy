@@ -1,0 +1,44 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.MemPool
+=======================
+
+.. automodule:: Deeploy.Targets.MemPool
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   Bindings
+   DataTypes
+   Deployer
+   Layers
+   Parsers
+   Platform
+   Templates
+   TopologyOptimizationPasses
+

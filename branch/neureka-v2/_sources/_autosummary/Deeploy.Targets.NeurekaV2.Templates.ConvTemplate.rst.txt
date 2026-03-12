@@ -1,0 +1,43 @@
+Deeploy.Targets.NeurekaV2.Templates.ConvTemplate
+================================================
+
+.. automodule:: Deeploy.Targets.NeurekaV2.Templates.ConvTemplate
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      getInputAddrOffset
+      getNormQuantConf0
+      ioStridesFromDimensions
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      NeurekaV22DDWConvTemplate
+      NeurekaV22DDenseConvTemplate
+      NeurekaV22DPWConvTemplate
+      NeurekaV2ConvTemplate
+   
+   
+
+   
+   
+   
+
+
+

@@ -1,0 +1,38 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.MemoryLevelExtension.OptimizationPasses.MemoryLevelAnnotationPasses
+===========================================================================
+
+.. automodule:: Deeploy.MemoryLevelExtension.OptimizationPasses.MemoryLevelAnnotationPasses
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      AnnotateDefaultMemoryLevel
+      AnnotateIOMemoryLevel
+      AnnotateNeurekaWeightMemoryLevel
+   
+   
+
+   
+   
+   
+
+
+

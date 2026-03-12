@@ -1,0 +1,45 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Neureka
+=======================
+
+.. automodule:: Deeploy.Targets.Neureka
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   Bindings
+   Deployer
+   Engine
+   Parsers
+   Platform
+   Templates
+   TileConstraints
+   Tiler
+   TopologyOptimizationPasses
+

@@ -1,0 +1,44 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.TilingExtension.TilerModel.TilerModel
+=============================================
+
+.. currentmodule:: Deeploy.TilingExtension.TilerModel
+
+.. autoclass:: TilerModel
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~TilerModel.__init__
+      ~TilerModel.addConstraint
+      ~TilerModel.addObjective
+      ~TilerModel.addTensorDimToModel
+      ~TilerModel.addTensorNumOfEltToModel
+      ~TilerModel.addTileSizeDivisibleConstraint
+      ~TilerModel.addTransientBufferSizeToModel
+      ~TilerModel.addVariable
+      ~TilerModel.checkTensorExists
+      ~TilerModel.debugConstraints
+      ~TilerModel.getNameCopyIdx
+      ~TilerModel.getQuotRem
+      ~TilerModel.getTensorDimVar
+      ~TilerModel.getTensorNumberOfEltVar
+      ~TilerModel.getVariable
+      ~TilerModel.isVariable
+      ~TilerModel.trySolveModel
+   
+   
+
+   
+   
+   

@@ -1,0 +1,46 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.CeilMode
+===================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: CeilMode
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~CeilMode.conjugate
+      ~CeilMode.bit_length
+      ~CeilMode.bit_count
+      ~CeilMode.to_bytes
+      ~CeilMode.from_bytes
+      ~CeilMode.as_integer_ratio
+      ~CeilMode.is_integer
+      ~CeilMode.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~CeilMode.real
+      ~CeilMode.imag
+      ~CeilMode.numerator
+      ~CeilMode.denominator
+      ~CeilMode.floor
+      ~CeilMode.ceil
+   
+   

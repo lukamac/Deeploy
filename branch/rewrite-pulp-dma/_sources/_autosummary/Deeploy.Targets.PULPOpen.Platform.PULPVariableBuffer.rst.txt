@@ -1,0 +1,41 @@
+Deeploy.Targets.PULPOpen.Platform.PULPVariableBuffer
+====================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Platform
+
+.. autoclass:: PULPVariableBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPVariableBuffer.__init__
+      ~PULPVariableBuffer.add_aliases
+      ~PULPVariableBuffer.alloc
+      ~PULPVariableBuffer.dealloc
+      ~PULPVariableBuffer.fromNode
+      ~PULPVariableBuffer.get_aliases_of
+      ~PULPVariableBuffer.has_live_ancestors
+      ~PULPVariableBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~PULPVariableBuffer.allocTemplate
+      ~PULPVariableBuffer.deallocTemplate
+      ~PULPVariableBuffer.initTemplate
+      ~PULPVariableBuffer.name
+      ~PULPVariableBuffer.shape
+   
+   

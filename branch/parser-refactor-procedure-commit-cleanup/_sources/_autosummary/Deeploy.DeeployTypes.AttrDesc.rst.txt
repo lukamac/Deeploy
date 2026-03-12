@@ -1,0 +1,38 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.DeeployTypes.AttrDesc
+=============================
+
+.. currentmodule:: Deeploy.DeeployTypes
+
+.. autoclass:: AttrDesc
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~AttrDesc.__init__
+      ~AttrDesc.getDefault
+      ~AttrDesc.unpack
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~AttrDesc.default
+      ~AttrDesc.name
+      ~AttrDesc.unpacker
+   
+   

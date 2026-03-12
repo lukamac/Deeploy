@@ -1,0 +1,46 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.Platform.PULPStructBuffer
+==================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.Platform
+
+.. autoclass:: PULPStructBuffer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPStructBuffer.__init__
+      ~PULPStructBuffer.add_aliases
+      ~PULPStructBuffer.alloc
+      ~PULPStructBuffer.dealloc
+      ~PULPStructBuffer.fromNode
+      ~PULPStructBuffer.get_aliases_of
+      ~PULPStructBuffer.has_live_ancestors
+      ~PULPStructBuffer.init
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~PULPStructBuffer.allocTemplate
+      ~PULPStructBuffer.deallocTemplate
+      ~PULPStructBuffer.initTemplate
+      ~PULPStructBuffer.name
+      ~PULPStructBuffer.shape
+   
+   

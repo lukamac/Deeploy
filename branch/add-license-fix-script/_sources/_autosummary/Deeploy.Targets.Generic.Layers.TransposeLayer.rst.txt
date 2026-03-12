@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Layers.TransposeLayer
+=============================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Layers
+
+.. autoclass:: TransposeLayer
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~TransposeLayer.__init__
+      ~TransposeLayer.bind
+      ~TransposeLayer.broadcast
+      ~TransposeLayer.codeTransform
+      ~TransposeLayer.computeOps
+      ~TransposeLayer.computeShapes
+      ~TransposeLayer.discardCurrentMapper
+      ~TransposeLayer.generate
+      ~TransposeLayer.parse
+      ~TransposeLayer.resetDiscardedMappers
+      ~TransposeLayer.typeCheck
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~TransposeLayer.maps
+      ~TransposeLayer.mapper
+      ~TransposeLayer.discardedMappers
+      ~TransposeLayer.node
+   
+   

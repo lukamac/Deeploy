@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.OperatorDescriptor.ReduceMeanDescriptor
+===============================================
+
+.. currentmodule:: Deeploy.OperatorDescriptor
+
+.. autoclass:: ReduceMeanDescriptor
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~ReduceMeanDescriptor.__init__
+      ~ReduceMeanDescriptor.canonicalize
+      ~ReduceMeanDescriptor.check
+      ~ReduceMeanDescriptor.parse
+      ~ReduceMeanDescriptor.parseAttrs
+      ~ReduceMeanDescriptor.parseTensors
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ReduceMeanDescriptor.inputDescriptor
+      ~ReduceMeanDescriptor.outputDescriptor
+      ~ReduceMeanDescriptor.attrDescriptors
+   
+   

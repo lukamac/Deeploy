@@ -1,0 +1,48 @@
+..
+   Copyright (C) 2025, ETH Zurich and University of Bologna.
+   Licensed under the Apache License, Version 2.0, see LICENSE for details.
+   SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Neureka.Templates.ConvTemplate
+==============================================
+
+.. automodule:: Deeploy.Targets.Neureka.Templates.ConvTemplate
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      getInputAddrOffset
+      getNormQuantConf0
+      ioStridesFromDimensions
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      Neureka2DDWConvTemplate
+      Neureka2DDenseConvTemplate
+      Neureka2DPWConvTemplate
+      NeurekaConvTemplate
+   
+   
+
+   
+   
+   
+
+
+
